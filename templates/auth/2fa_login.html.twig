@@ -1,0 +1,77 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Two-factor authentication — Sigil{% endblock %}
+
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-4" style="background-color: var(--sigil-bg);">
+    <div class="w-full max-w-sm">
+
+        <div class="text-center mb-8">
+            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
+            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Two-factor authentication</p>
+        </div>
+
+        <div class="rounded-modal border p-8 shadow-sm"
+             style="background-color: var(--sigil-surface); border-color: var(--sigil-border); backdrop-filter: blur(12px);">
+
+            <div class="flex justify-center mb-6">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+            </div>
+
+            <h2 class="text-center text-base font-semibold mb-1" style="color: var(--sigil-text);">Verify your identity</h2>
+            <p class="text-center text-sm mb-6" style="color: var(--sigil-text-secondary);">
+                Open your authenticator app and enter the 6-digit code.
+            </p>
+
+            {% if authenticationError %}
+                <div class="mb-4 px-4 py-3 rounded-btn text-sm bg-danger/10 text-danger border border-danger/20">
+                    {{ authenticationError | trans(authenticationErrorData, 'security') }}
+                </div>
+            {% endif %}
+
+            <form method="post"
+                  action="{{ checkPathRoute ? path(checkPathRoute) : checkPathUrl }}"
+                  class="space-y-4">
+
+                {% if isCsrfProtectionEnabled %}
+                    <input type="hidden" name="{{ csrfParameterName }}" value="{{ csrf_token(csrfTokenId) }}">
+                {% endif %}
+
+                <input
+                    type="text"
+                    name="{{ authCodeParameterName }}"
+                    inputmode="numeric"
+                    pattern="[0-9]{6}"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    autofocus
+                    placeholder="000000"
+                    class="w-full text-center px-3 py-3 text-xl tracking-[0.5em] font-mono rounded-btn border outline-none
+                           transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
+                    style="background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);"
+                >
+
+                <button
+                    type="submit"
+                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
+                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
+                >
+                    Verify
+                </button>
+            </form>
+        </div>
+
+        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
+            <a href="{{ logoutPath }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
+                Sign in with a different account
+            </a>
+        </p>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+# See the configuration reference at https://symfony.com/bundles/SchebTwoFactorBundle/6.x/configuration.html
+scheb_two_factor:
+    google:
+        enabled: true
+        issuer: "Sigil — Signum Veritatis"
+        digits: 6
+        leeway: 1
+        template: "auth/2fa_login.html.twig"
+
+    security_tokens:
+        - Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken
+        - Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken
