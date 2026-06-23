@@ -19,7 +19,7 @@ The architecture is built for extensibility from day one: new file types, signat
 ### MVP Goals
 - User registration and authentication with 2FA
 - Self-hosted Certificate Authority issuing per-user X.509 certificates
-- Per-certificate PIN, used both for verification and as a key-derivation source for the encrypted private key
+- Per-certificate PIN that is the PKCS#11 token's User PIN (keys generated in-token, never exported); DB stores only an Argon2id hash of the PIN
 - PDF upload with envelope-encrypted at-rest storage
 - PAdES-B-T signing (PAdES baseline + RFC 3161 timestamp) with attached/detached and visible/invisible variants
 - Document routing between registered users with state machine
@@ -33,7 +33,8 @@ The architecture is built for extensibility from day one: new file types, signat
 - Mobile applications
 - Dark theme
 - Trusted CA inclusion (Adobe AATL, EU Trusted Lists)
-- Hardware Security Module (HSM) integration
+- **Certified** hardware HSM / QSCD and qualified-signature status — note that a **SoftHSM2 software token IS in the MVP** for correct key-custody architecture (keys generated in-token, never exported; see ADR-005). Certified hardware and the certified SAM/SAD sole-control mechanism (CEN EN 419 241-2 / CSC API) are future work.
+- Post-quantum **signatures** (ML-DSA / SLH-DSA) — not yet supported by pyHanko / PAdES / CMS; isolated behind `PadesSignerInterface` for later. (Storage encryption is already quantum-resistant.)
 - Multi-language UI (Bulgarian/English) — English only for MVP
 
 ---
@@ -118,6 +119,8 @@ The architecture is built for extensibility from day one: new file types, signat
 | Icons | Lucide | Clean line icons, consistent |
 | Auth | Symfony Security Bundle + scheb/2fa-bundle | Standard, well-documented |
 | Crypto / X.509 | phpseclib v3 | Pure PHP, mature, handles CA + cert generation |
+| Key custody | SoftHSM2 + PKCS#11 (swappable to hardware HSM by config) | Keys generated in-token, never exported — ADR-005 |
+| Data encryption | `ext-sodium` AES-256-GCM via `EncryptionServiceInterface` | No Symfony crypto component; one NIST primitive + versioned self-describing envelope — ADR-004, ADR-006 |
 | PAdES signing | pyHanko (Python) via Symfony Process | Best-in-class open-source PAdES library |
 | Timestamping | FreeTSA (RFC 3161) | Free public TSA |
 | File storage | Local filesystem (abstracted via interface) | Simple for MVP, swappable to S3 later |
@@ -155,7 +158,7 @@ Symfony's tagged services + service locators. When a user uploads a file, the sy
 ### Dependency Injection Everywhere
 No static calls. No `new` in business logic. All collaborators injected. Makes the system testable and architecturally clean.
 
-### Module Structure — Vertical Slice + Core + Queue
+### Module Structure — Vertical Slice + Core + Queue and Hexagonal-ish Boundaries
 
 The application is organized as self-contained feature modules. Each module owns its entities, services, repositories, controllers, and (where needed) async message classes. A `Core` module provides shared plumbing (UUID traits, value objects, base exceptions) that all other modules may depend on.
 
@@ -177,15 +180,24 @@ src/
 **Queue rule:** only three types go async — signing, email, and receipt generation. Everything else (PIN check, upload, profile update) is synchronous. This keeps async complexity isolated to the modules that truly need it.
 
 This structure enables swapping infrastructure without touching business logic (e.g., replace `PyHankoAdapter` with a SetaPDF adapter, or replace local filesystem storage with S3) — both arguments are discussed in the thesis as Architecture Decision Records.
+- **Domain layer:** entities, value objects, domain services (pure PHP, no Symfony)
+- **Application layer:** command handlers, use cases (orchestrates domain + ports)
+- **Infrastructure layer:** Doctrine repositories, filesystem storage, pyHanko adapter, mailer
+- **Interface layer:** controllers, forms, Twig templates
+
+This separation gives a clean structure to discuss in the thesis and enables future replacements (e.g., swap pyHanko for SetaPDF without touching domain code).
 
 ### Architecture Decision Records (ADRs)
-Maintain a `docs/adr/` directory with short markdown ADRs for each major decision:
-- ADR-001: PIN-derived key encryption for private keys
-- ADR-002: Envelope encryption for document storage
-- ADR-003: pyHanko via Process for PAdES signing
-- ADR-004: Async signing via Symfony Messenger
-- ADR-005: Self-signed CA scope and trust model
-- ADR-006: Hash-chained audit log for tamper evidence
+Maintain a `docs/adr/` directory with short markdown ADRs for each major decision. Accepted so far (`docs/adr/`):
+- ADR-001: Architecture — vertical slice + Core + queue
+- ADR-002: No Organisation entity
+- ADR-003: TOTP 2FA via scheb/2fa-bundle + Google Authenticator
+- ADR-004: Three-layer envelope encryption for document storage
+- ADR-005: Private-key custody via SoftHSM2 + PKCS#11 *(supersedes the earlier "PIN-derived key encryption" idea)*
+- ADR-006: Crypto agility (versioned envelope) + MVP algorithm suite
+- ADR-007: Synchronous hash signing; two independent asyncs; sole-control threat model
+
+Still to write: pyHanko-via-Process for PAdES signing, self-signed CA scope & trust model, hash-chained audit log for tamper evidence.
 
 These become thesis content directly.
 
@@ -196,10 +208,12 @@ These become thesis content directly.
 Core entities (will evolve):
 
 - **User** — authentication identity, profile fields needed for certificate (full name, email, optional EGN), 2FA settings
-- **Certificate** — X.509 certificate per user, validity dates, fingerprint, status (active/revoked/expired), encrypted private key, PIN hash, failed PIN attempt counter
-- **CertificateAuthority** — root CA metadata, the CA's own certificate and (encrypted) private key
-- **Document** — uploaded file metadata (filename, MIME type, hash, size, owner, upload time, encrypted DEK reference)
-- **DocumentVersion** — each signing produces a new version; original is preserved
+- **Certificate** — X.509 certificate per user, validity dates, fingerprint, status (active/revoked/expired), signing-algorithm default, PIN hash (Argon2id), failed PIN attempt counter. **No private key is stored** — the key lives in the user's PKCS#11 token (ADR-005); the entity references the token/key labels only.
+- **CertificateAuthority** — root CA metadata and the CA's own certificate. The CA private key also lives in a PKCS#11 token, not in the DB.
+- **UserEncryptionKey** — per-user KEK, stored wrapped by the application root key (ADR-004).
+- **Document** — uploaded file metadata (filename, MIME type, SHA-384 hash, size, owner, upload time).
+- **DocumentVersion** — each signing produces a new version; original is preserved. Each version has its own DEK.
+- **DocumentKeyGrant** — one row per (user, document version) with access: the version's DEK wrapped by that user's KEK. Sharing inserts a grant; revoking deletes it (ADR-004).
 - **SigningRequest** — routes a document from sender to recipient(s), tracks state via Symfony Workflow
 - **Signature** — per-signature record (signer, certificate used, format, variant, timestamp, position if visible, signed at, signing request reference)
 - **DeliveryReceipt** — generated PDF receipt with audit trail, itself signed by system certificate
@@ -238,21 +252,33 @@ States: `pending → active → revoked | expired`
 - Session timeout: 30 minutes idle, 8 hours absolute
 - Rate limiting on login (5 attempts / 15 min per IP, 10 attempts / hour per email)
 
-### Certificate PIN Model
-- PIN set by user on certificate issuance (6–12 digits, validated for entropy)
-- PIN stored in DB as Argon2id hash (verification only)
-- PIN also used as input to a separate KDF (Argon2id with different salt + larger memory cost) to derive the AES-256 key that encrypts the private key
-- Private key never stored in plaintext, never written to disk unencrypted, never logged
-- Failed PIN attempts tracked; certificate auto-locked after 5 failures within 1 hour
-- Locked certificates require account password + 2FA to unlock
+### Certificate PIN Model & Key Custody (ADR-005)
+- Each user gets **one PKCS#11 token** (SoftHSM2 in the MVP, accessed only via PKCS#11 so a hardware HSM swaps in by config later).
+- The signing key (and the CA key) is **generated inside the token and never exported** — only the signature comes out. **No private key is ever written to disk**, not even to tmpfs.
+- PIN set by user on certificate issuance (6–12 digits, validated for entropy). **The certificate PIN IS the token's User PIN.**
+- PIN supplied at signing to open the PKCS#11 session, then discarded — **never** stored, queued, or logged. The DB keeps **only an Argon2id hash** of the PIN, for verification and lockout.
+- The PIN is **never** used to derive an encryption key — a PIN-derived key can't be re-wrapped for a second user and would break sharing. *(This reverses the earlier PIN-derived-key sketch.)*
+- Failed PIN attempts tracked; certificate auto-locked after 5 failures within 1 hour.
+- Locked certificates require account password + 2FA to unlock. Forgotten PIN = key unrecoverable = re-issue certificate (matches smart-card behaviour).
+- **Sole-control caveat:** this prevents the server signing on its own, but not a server compromised at the moment of signing substituting a different hash — the certified fix (CEN EN 419 241-2 / CSC API) is future work.
 
-### Document Storage Encryption (Envelope Encryption)
-- Per-document AES-256-GCM data encryption key (DEK), randomly generated
-- Document encrypted with DEK; ciphertext written to filesystem
-- DEK encrypted with server master key (KEK) loaded from environment
-- Encrypted DEK stored in DB alongside document metadata
-- Document SHA-256 hash stored separately for integrity verification
-- Storage abstracted behind `DocumentStorageInterface` for future S3/MinIO support
+### Document Storage Encryption (Three-Layer Envelope, ADR-004)
+
+Defends against a **storage-layer breach** (DB dump + object-store leak), **not** against a compromised app server (server-side signing makes that impossible — stated in the threat model).
+
+Key hierarchy (each key wraps the one below):
+- **Root key** (one per app, 256-bit AES) — wraps every per-user KEK. Lives only in env/KMS (`SIGIL_ROOT_KEY`), **never** in the DB.
+- **Per-user KEK** (one per user) — created at registration, stored wrapped by the root key (`UserEncryptionKey`). Enables per-user isolation and crypto-shredding (delete KEK ⇒ all that user's files unrecoverable ⇒ clean GDPR erasure).
+- **Per-file-version DEK** (random 256-bit AES) — encrypts the bytes with AES-256-GCM (96-bit nonce, 128-bit tag). Stored wrapped by the relevant user's KEK in `DocumentKeyGrant`, **one row per user with access**.
+
+Rules:
+- Only **wrapped** keys are persisted; raw keys exist only transiently in memory. Object storage only ever holds ciphertext.
+- The DEK is **not** a column on the file row — it lives in `DocumentKeyGrant`, which is what makes sharing possible.
+- **Sharing re-wraps, never re-encrypts:** unwrap the DEK, re-wrap under the recipient's KEK, insert a grant — ciphertext untouched (instant even for large files). **Revoke** = delete the grant row.
+- All crypto via `EncryptionServiceInterface`; envelope is versioned/self-describing (`algo_id ‖ nonce ‖ ciphertext ‖ tag`, `algo_id` in the GCM AAD) so old files stay decryptable across algorithm changes (ADR-006).
+- Document SHA-384 hash stored separately for integrity verification.
+- Storage abstracted behind `DocumentStorageInterface` for future S3/MinIO support.
+- File limit 20 MB → buffer whole files in memory (chunked/streaming AEAD only if the limit rises substantially).
 
 ### Audit Logging
 - Append-only `audit_log` table
@@ -297,20 +323,15 @@ This becomes a dedicated thesis chapter.
 1. User selects document, signature format (PAdES), variant (attached/detached, visible/invisible)
 2. If visible: user places signature box on PDF preview (page, x, y, width, height)
 3. User enters certificate PIN
-4. Backend verifies PIN against stored hash (rate-limited)
-5. Backend derives KEK from PIN, decrypts private key in memory
-6. Backend dispatches `SignDocumentMessage` to Messenger queue, returns immediately
-7. Frontend shows "Signing in progress..." state, subscribes to Mercure topic
-8. Messenger worker handles the message:
-   a. Loads document, decrypts (envelope decryption)
-   b. Loads user's certificate + decrypted private key
-   c. Builds signing parameters (variant, position, appearance)
-   d. Invokes pyHanko via Symfony Process with prepared inputs
-   e. pyHanko produces PAdES-B signature, requests RFC 3161 timestamp from FreeTSA, embeds it (PAdES-B-T)
-   f. Worker re-encrypts the signed PDF, stores as new DocumentVersion
-   g. Worker writes audit log entries
-   h. Worker publishes Mercure update to user's topic
-9. Frontend receives Mercure event, transitions UI to "Signed" state with smooth animation
+4. Backend verifies PIN against stored Argon2id hash (rate-limited)
+5. **Key step (synchronous, in-request — ADR-007):** the PIN opens the user's PKCS#11 token session; pyHanko signs the document hash **inside the token** via deferred/interrupted signing (prepare → hash → sign in token → embed). The PIN is discarded immediately after; no private key ever leaves the token. **The PIN is never queued.**
+   a. Backend loads the document and decrypts it (three-layer envelope decryption)
+   b. Builds signing parameters (variant, position, appearance)
+   c. pyHanko produces the PAdES-B signature via native PKCS#11
+6. **Keyless remainder (sync for MVP, optionally a Messenger worker):** request RFC 3161 timestamp from FreeTSA and embed it (PAdES-B-T) → re-encrypt the signed PDF and store as a new `DocumentVersion` (new DEK + grants) → write audit-log entries → publish Mercure update.
+7. Frontend (subscribed to the Mercure topic) transitions the UI to "Signed".
+
+The pending/notify *experience* for documents routed between users comes from the `SigningRequest` workflow (human-wait async), which is independent of whether the keyless remainder runs in a worker.
 
 ### Detached Signature Variant
 - pyHanko produces a separate `.p7s` (PKCS#7) detached signature file
@@ -318,10 +339,11 @@ This becomes a dedicated thesis chapter.
 
 ### pyHanko Integration
 - Run as subprocess via `Symfony\Component\Process\Process`
-- Input: temporary working directory with PDF, certificate (PEM), private key (PEM, decrypted in memory and written to tmpfs/memfd briefly), signing config JSON
-- Output: signed PDF and/or .p7s
-- Wrapper service: `App\Infrastructure\Signing\PyHankoAdapter implements PadesSignerInterface`
-- Tmp files in tmpfs (`/dev/shm`) and securely deleted (overwrite + unlink)
+- Signs via **native PKCS#11**: pyHanko is given the module path + token/key labels and the PIN (passed in-memory, never written to disk). **No private-key PEM is ever materialised** (ADR-005).
+- Input: temporary working directory with the PDF, the signer certificate (PEM — public material only), and a signing config JSON
+- Output: signed PDF and/or `.p7s`
+- Wrapper service: `App\Signing\Service\PyHankoAdapter implements PadesSignerInterface`
+- Any temp files (PDF only, never keys) in tmpfs (`/dev/shm`) and securely deleted (overwrite + unlink)
 - pyHanko called with explicit version pin in Docker image
 
 ### Verification
@@ -394,12 +416,13 @@ Working backwards from defense window of late September 2026, with documentation
 - Session security configuration
 - First ADRs written
 
-### Phase 3 — Certificate Authority & PIN Model (Weeks 5–6)
-- Generate root CA (one-off command, store encrypted CA private key)
+### Phase 3 — Certificate Authority, Key Custody & PIN Model (Weeks 5–6)
+- Stand up SoftHSM2 + PKCS#11 in the Docker image; app talks pure PKCS#11 (ADR-005)
+- Generate root CA (one-off command); CA key generated **inside a token**, never exported
 - Optional: intermediate CA for proper chain
-- Certificate issuance service (using phpseclib v3)
-- PIN flow: setup, verification, lock-out, change
-- Encrypted private key storage with PIN-derived KDF
+- Certificate issuance service (key generated in the user's token; phpseclib/openssl used only for the public cert)
+- PIN flow: setup, verification, lock-out, change — PIN = token User PIN; DB stores only Argon2id hash
+- Three-layer envelope encryption (`EncryptionServiceInterface`, root key → KEK → DEK) + `UserEncryptionKey`/`DocumentKeyGrant` (ADR-004, ADR-006)
 - Certificate management UI (credential card, fingerprint display)
 - Unit + integration tests for crypto operations
 
@@ -537,8 +560,8 @@ The MVP is complete when:
 3. Sign up for Brevo (free) → get API key → add `MAILER_DSN=brevo+api://YOUR_KEY@default` to `.env.local`; run `composer require symfony/brevo-mailer`
 4. Email Setasign about academic licensing for SetaPDF-Signer (fallback insurance)
 5. Build base layout shell — sidebar, top bar, glass-styled sidebar background
-6. Write ADR-001 (PIN-derived key encryption) as a template for further ADRs
-7. Create empty interfaces: `SignableFile`, `SignatureFormatInterface`, `PadesSignerInterface`, `DocumentStorageInterface` — lock in the strategy pattern from day one
+6. ✅ ADRs established in `docs/adr/` (ADR-001..007); key crypto/custody decisions now recorded (ADR-004..007)
+7. Create empty interfaces: `SignableFile`, `SignatureFormatInterface`, `PadesSignerInterface`, `DocumentStorageInterface`, `EncryptionServiceInterface` — lock in the strategy pattern from day one
 8. Set up CI pipeline (GitHub Actions) running PHPStan + tests on every push
 9. Begin Chapter 1 (Introduction) and Chapter 2 (Theoretical Background) of the thesis in parallel — these don't depend on code
 
