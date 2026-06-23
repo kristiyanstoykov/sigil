@@ -8,12 +8,15 @@ services:
     volumes:
       - .:/app
       - /app/var
+      - softhsm_tokens:/var/lib/softhsm/tokens
     environment:
       APP_ENV: dev
       APP_SECRET: "${APP_SECRET:-sigil_dev_secret_change_in_production}"
       DATABASE_URL: "postgresql://sigil:sigil@db:5432/sigil?serverVersion=16&charset=utf8"
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
+      SOFTHSM2_CONF: /etc/softhsm2.conf
+      PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
     depends_on:
       db:
         condition: service_healthy
@@ -36,3 +39,4 @@ services:
 
 volumes:
   db_data:
+  softhsm_tokens:
