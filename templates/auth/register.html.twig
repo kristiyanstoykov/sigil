@@ -16,7 +16,14 @@
 
             {{ form_start(form, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
 
-            {% for field in ['firstName', 'lastName', 'email'] %}
+            {% set form_class = 'App\\Auth\\Form\\RegistrationForm' %}
+            {% set field_password = constant(form_class ~ '::E_PASSWORD') %}
+
+            {% for field in [
+                constant(form_class ~ '::E_FIRST_NAME'),
+                constant(form_class ~ '::E_LAST_NAME'),
+                constant(form_class ~ '::E_EMAIL'),
+            ] %}
                 <div>
                     {{ form_label(form[field], null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
                     {{ form_widget(form[field], {attr: {
@@ -28,20 +35,20 @@
             {% endfor %}
 
             <div>
-                {{ form_label(form.plainPassword.first, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
-                {{ form_widget(form.plainPassword.first, {attr: {
+                {{ form_label(form[field_password].first, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
+                {{ form_widget(form[field_password].first, {attr: {
                     class: 'w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
                     style: 'background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);'
                 }}) }}
             </div>
 
             <div>
-                {{ form_label(form.plainPassword.second, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
-                {{ form_widget(form.plainPassword.second, {attr: {
+                {{ form_label(form[field_password].second, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
+                {{ form_widget(form[field_password].second, {attr: {
                     class: 'w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
                     style: 'background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);'
                 }}) }}
-                {{ form_errors(form.plainPassword) }}
+                {{ form_errors(form[field_password]) }}
             </div>
 
             <p class="text-xs" style="color: var(--sigil-text-secondary);">

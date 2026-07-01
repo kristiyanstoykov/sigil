@@ -50,7 +50,7 @@ class AuthController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $user->setPassword($hasher->hashPassword($user, $form->get('plainPassword')->getData()));
+            $user->setPassword($hasher->hashPassword($user, $form->get(RegistrationForm::E_PASSWORD)->getData()));
             $user->setRoles(['ROLE_SIGNER']);
 
             $em->persist($user);

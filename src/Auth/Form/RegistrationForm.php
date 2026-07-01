@@ -17,30 +17,35 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 
 class RegistrationForm extends AbstractType
 {
+    public const E_FIRST_NAME = 'firstName';
+    public const E_LAST_NAME = 'lastName';
+    public const E_EMAIL = 'email';
+    public const E_PASSWORD = 'password';
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add('firstName', TextType::class, [
+            ->add(self::E_FIRST_NAME, TextType::class, [
                 'label' => 'First name',
                 'constraints' => [
                     new NotBlank(),
                     new Length(max: 100),
                 ],
             ])
-            ->add('lastName', TextType::class, [
+            ->add(self::E_LAST_NAME, TextType::class, [
                 'label' => 'Last name',
                 'constraints' => [
                     new NotBlank(),
                     new Length(max: 100),
                 ],
             ])
-            ->add('email', EmailType::class, [
+            ->add(self::E_EMAIL, EmailType::class, [
                 'label' => 'Email address',
                 'constraints' => [
                     new NotBlank(),
                 ],
             ])
-            ->add('plainPassword', RepeatedType::class, [
+            ->add(self::E_PASSWORD, RepeatedType::class, [
                 'type' => PasswordType::class,
                 'mapped' => false,
                 'first_options' => ['label' => 'Password'],
