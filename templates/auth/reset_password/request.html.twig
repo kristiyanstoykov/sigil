@@ -1,56 +1,36 @@
-{% extends 'base.html.twig' %}
+{% extends 'auth/base_auth.html.twig' %}
 
 {% block title %}Reset password — Sigil{% endblock %}
 
-{% block body %}
-<div class="min-h-screen flex items-center justify-center px-4 py-10" style="background-color: var(--sigil-bg);">
-    <div class="w-full max-w-md">
+{% block card %}
+    <h2 class="text-lg font-bold mb-1.5 text-body">Reset your password</h2>
+    <p class="text-[13px] leading-relaxed mb-5 text-muted">
+        Enter your email address and we'll send you a link to choose a new password.
+    </p>
 
-        <div class="text-center mb-8">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
-            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Signum Veritatis — Digital Document Signing</p>
+    {% for message in app.flashes('reset_password_error') %}
+        <div class="mb-4 px-4 py-3 rounded-btn text-sm bg-danger/10 text-danger border border-danger/20">
+            {{ message }}
+        </div>
+    {% endfor %}
+
+    {{ form_start(requestForm, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
+        {% set field_email = constant('App\\Auth\\Form\\ResetPasswordRequestForm::E_EMAIL') %}
+        <div>
+            {{ form_label(requestForm[field_email], null, {label_attr: {class: 'block text-[12.5px] font-semibold mb-1.5 text-label'}}) }}
+            {{ form_widget(requestForm[field_email], {attr: {class: 'form-input', placeholder: 'you@company.com'}}) }}
+            {{ form_errors(requestForm[field_email]) }}
         </div>
 
-        <div class="rounded-card border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
-            <h2 class="text-lg font-semibold mb-2" style="color: var(--sigil-text);">Reset your password</h2>
-            <p class="text-sm mb-6" style="color: var(--sigil-text-secondary);">
-                Enter your email address and we'll send you a link to choose a new password.
-            </p>
+        <button type="submit" class="btn-primary mt-2">Send password reset link</button>
+    {{ form_end(requestForm) }}
+{% endblock %}
 
-            {% for message in app.flashes('reset_password_error') %}
-                <div class="mb-4 px-4 py-3 rounded-btn text-sm bg-danger/10 text-danger border border-danger/20">
-                    {{ message }}
-                </div>
-            {% endfor %}
-
-            {{ form_start(requestForm, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
-                {% set field_email = constant('App\\Auth\\Form\\ResetPasswordRequestForm::E_EMAIL') %}
-                <div>
-                    {{ form_label(requestForm[field_email], null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
-                    {{ form_widget(requestForm[field_email], {attr: {
-                        class: 'w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
-                        style: 'background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);'
-                    }}) }}
-                    {{ form_errors(requestForm[field_email]) }}
-                </div>
-
-                <button
-                    type="submit"
-                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
-                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
-                >
-                    Send password reset link
-                </button>
-            {{ form_end(requestForm) }}
-        </div>
-
-        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
-            Remembered it?
-            <a href="{{ path('app_login') }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
-                Back to sign in
-            </a>
-        </p>
-
-    </div>
-</div>
+{% block footer %}
+    <p class="mt-5 text-center text-[13px] text-muted">
+        Remembered it?
+        <a href="{{ path('app_login') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
+            Back to sign in
+        </a>
+    </p>
 {% endblock %}

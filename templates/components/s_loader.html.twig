@@ -1,0 +1,19 @@
+{#
+    S-loader — the Sigil mark drawing itself (keyframes in app.css: .s-path).
+    Page/section/modal waiting states only; buttons keep the tiny .sigil-spinner.
+    Stroke is currentColor — wrap in e.g. `text-primary` (light) or `text-white`
+    (dark) to set the color. Sole allowed inline use of the logo SVG path.
+
+    Params (all optional):
+      size  — rendered width in px (default 96; ~64px is the page-loader tier,
+              ~60 the section tier)
+      class — extra classes for the <svg>
+#}
+{% set size = size|default(96) %}
+<svg viewBox="0 0 260 180" width="{{ size }}" height="{{ (size * 180 / 260)|round }}"
+     class="{{ class|default('') }}" role="status" aria-label="Loading">
+    <path class="s-path"
+          d="M168 38C168 32 162 32 158 38C154 44 156 50 156 50C152 38 132 30 112 36C88 43 70 60 76 76C82 90 104 90 122 84C138 79 152 84 148 100C144 116 122 130 96 134C70 138 52 130 56 114C60 100 80 96 100 102C130 110 162 120 192 118C212 116 226 110 234 102"
+          fill="none" stroke="currentColor" stroke-width="6"
+          stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

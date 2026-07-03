@@ -1,84 +1,64 @@
-{% extends 'base.html.twig' %}
+{% extends 'auth/base_auth.html.twig' %}
 
 {% block title %}Sign in — Sigil{% endblock %}
 
-{% block body %}
-<div class="min-h-screen flex items-center justify-center px-4" style="background-color: var(--sigil-bg);">
-    <div class="w-full max-w-md">
+{% block card %}
+    <h2 class="text-lg font-bold mb-5 text-body">Sign in to your account</h2>
 
-        <div class="text-center mb-8">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
-            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Signum Veritatis — Digital Document Signing</p>
+    {% if error %}
+        <div class="mb-4 px-4 py-3 rounded-btn text-sm bg-danger/10 text-danger border border-danger/20">
+            {{ error.messageKey | trans(error.messageData, 'security') }}
+        </div>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+        <div>
+            <label for="email" class="block text-[12.5px] font-semibold mb-1.5 text-label">
+                Email address
+            </label>
+            <input
+                type="email"
+                id="email"
+                name="email"
+                value="{{ last_username }}"
+                placeholder="you@company.com"
+                autocomplete="email"
+                required
+                class="form-input"
+            >
         </div>
 
-        <div class="rounded-card border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
-            <h2 class="text-lg font-semibold mb-6" style="color: var(--sigil-text);">Sign in to your account</h2>
-
-            {% if error %}
-                <div class="mb-4 px-4 py-3 rounded-btn text-sm bg-danger/10 text-danger border border-danger/20">
-                    {{ error.messageKey | trans(error.messageData, 'security') }}
-                </div>
-            {% endif %}
-
-            <form method="post" class="space-y-4">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
-
-                <div>
-                    <label for="email" class="block text-sm font-medium mb-1.5" style="color: var(--sigil-text);">
-                        Email address
-                    </label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value="{{ last_username }}"
-                        autocomplete="email"
-                        required
-                        class="w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors
-                               focus:border-primary focus:ring-1 focus:ring-primary"
-                        style="background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);"
-                    >
-                </div>
-
-                <div>
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label for="password" class="block text-sm font-medium" style="color: var(--sigil-text);">
-                            Password
-                        </label>
-                        <a href="{{ path('app_forgot_password_request') }}"
-                           class="text-xs font-medium text-primary hover:text-primary-hover transition-colors">
-                            Forgot password?
-                        </a>
-                    </div>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        autocomplete="current-password"
-                        required
-                        class="w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors
-                               focus:border-primary focus:ring-1 focus:ring-primary"
-                        style="background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);"
-                    >
-                </div>
-
-                <button
-                    type="submit"
-                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
-                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
-                >
-                    Sign in
-                </button>
-            </form>
+        <div>
+            <div class="flex items-center justify-between mb-1.5">
+                <label for="password" class="block text-[12.5px] font-semibold text-label">
+                    Password
+                </label>
+                <a href="{{ path('app_forgot_password_request') }}"
+                   class="text-xs font-semibold text-primary hover:text-primary-hover transition-colors">
+                    Forgot password?
+                </a>
+            </div>
+            <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="current-password"
+                required
+                class="form-input"
+            >
         </div>
 
-        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
-            Don't have an account?
-            <a href="{{ path('app_register') }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
-                Create one
-            </a>
-        </p>
+        <button type="submit" class="btn-primary mt-2">Sign in</button>
+    </form>
+{% endblock %}
 
-    </div>
-</div>
+{% block footer %}
+    <p class="mt-5 text-center text-[13px] text-muted">
+        Don't have an account?
+        <a href="{{ path('app_register') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
+            Create one
+        </a>
+    </p>
 {% endblock %}

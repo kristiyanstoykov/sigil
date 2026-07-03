@@ -1,70 +1,50 @@
-{% extends 'base.html.twig' %}
+{% extends 'auth/base_auth.html.twig' %}
 
 {% block title %}Set up two-factor authentication — Sigil{% endblock %}
 
-{% block body %}
-<div class="min-h-screen flex items-center justify-center px-4 py-10" style="background-color: var(--sigil-bg);">
-    <div class="w-full max-w-md">
+{% block subtitle %}Secure your account{% endblock %}
 
-        <div class="text-center mb-8">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
-            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Secure your account</p>
+{% block card %}
+    <h2 class="text-lg font-bold mb-1.5 text-body">Set up two-factor authentication</h2>
+    <p class="text-[13px] leading-relaxed mb-5 text-muted">
+        Use Google Authenticator, Authy, or any TOTP app to scan the QR code below. Then enter the 6-digit code to confirm.
+    </p>
+
+    <div class="flex justify-center mb-5">
+        <div class="p-3 rounded-modal border border-line bg-surface inline-block">
+            <img src="{{ qr_code_data_uri }}" alt="TOTP QR code" width="200" height="200">
         </div>
-
-        <div class="rounded-modal border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
-
-            <h2 class="text-lg font-semibold mb-2" style="color: var(--sigil-text);">Set up two-factor authentication</h2>
-            <p class="text-sm mb-6" style="color: var(--sigil-text-secondary);">
-                Use Google Authenticator, Authy, or any TOTP app to scan the QR code below. Then enter the 6-digit code to confirm.
-            </p>
-
-            <div class="flex justify-center mb-6">
-                <div class="p-3 rounded-card border inline-block" style="border-color: var(--sigil-border); background: white;">
-                    <img src="{{ qr_code_data_uri }}" alt="TOTP QR code" width="220" height="220">
-                </div>
-            </div>
-
-            <details class="mb-6 text-sm" style="color: var(--sigil-text-secondary);">
-                <summary class="cursor-pointer font-medium hover:text-primary transition-colors">
-                    Can't scan the QR code?
-                </summary>
-                <p class="mt-2 font-mono text-xs break-all p-3 rounded-btn" style="background: var(--sigil-bg); border: 1px solid var(--sigil-border);">
-                    {{ provisioning_uri }}
-                </p>
-            </details>
-
-            <form method="post" class="space-y-4">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token('2fa_setup') }}">
-                <div>
-                    <label for="code" class="block text-sm font-medium mb-1.5" style="color: var(--sigil-text);">
-                        Verification code
-                    </label>
-                    <input
-                        type="text"
-                        id="code"
-                        name="_auth_code"
-                        inputmode="numeric"
-                        pattern="[0-9]{6}"
-                        maxlength="6"
-                        autocomplete="one-time-code"
-                        autofocus
-                        placeholder="000000"
-                        class="w-full text-center px-3 py-2.5 text-lg tracking-[0.4em] font-mono rounded-btn border outline-none
-                               transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
-                        style="background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);"
-                    >
-                </div>
-
-                <button
-                    type="submit"
-                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
-                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
-                >
-                    Enable two-factor authentication
-                </button>
-            </form>
-        </div>
-
     </div>
-</div>
+
+    <details class="mb-5 text-[13px] text-muted">
+        <summary class="cursor-pointer font-semibold hover:text-primary transition-colors">
+            Can't scan the QR code?
+        </summary>
+        <p class="mt-2 font-mono text-xs break-all p-3 rounded-btn border border-line bg-surface/60">
+            {{ provisioning_uri }}
+        </p>
+    </details>
+
+    <form method="post" class="space-y-4">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('2fa_setup') }}">
+        <div>
+            <label for="code" class="block text-[12.5px] font-semibold mb-1.5 text-label">
+                Verification code
+            </label>
+            <input
+                type="text"
+                id="code"
+                name="_auth_code"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                autocomplete="one-time-code"
+                autofocus
+                placeholder="000000"
+                class="form-input text-center !text-xl tracking-[0.4em] font-mono !py-3"
+            >
+        </div>
+
+        <button type="submit" class="btn-primary">Enable two-factor authentication</button>
+    </form>
 {% endblock %}

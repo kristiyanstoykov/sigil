@@ -1,34 +1,23 @@
-{% extends 'base.html.twig' %}
+{% extends 'auth/base_auth.html.twig' %}
 
 {% block title %}Check your email — Sigil{% endblock %}
 
-{% block body %}
-<div class="min-h-screen flex items-center justify-center px-4 py-10" style="background-color: var(--sigil-bg);">
-    <div class="w-full max-w-md">
+{% block card %}
+    <h2 class="text-lg font-bold mb-1.5 text-body">Check your email</h2>
+    <p class="text-[13px] leading-relaxed text-muted">
+        If an account matches that email address, we've sent a link to reset your password. The link will
+        expire in {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.
+    </p>
+    <p class="text-[13px] leading-relaxed mt-3 text-muted">
+        Didn't get it? Check your spam folder, or
+        <a href="{{ path('app_forgot_password_request') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">try again</a>.
+    </p>
+{% endblock %}
 
-        <div class="text-center mb-8">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
-            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Signum Veritatis — Digital Document Signing</p>
-        </div>
-
-        <div class="rounded-card border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
-            <h2 class="text-lg font-semibold mb-2" style="color: var(--sigil-text);">Check your email</h2>
-            <p class="text-sm" style="color: var(--sigil-text-secondary);">
-                If an account matches that email address, we've sent a link to reset your password. The link will
-                expire in {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.
-            </p>
-            <p class="text-sm mt-3" style="color: var(--sigil-text-secondary);">
-                Didn't get it? Check your spam folder, or
-                <a href="{{ path('app_forgot_password_request') }}" class="font-medium text-primary hover:text-primary-hover transition-colors">try again</a>.
-            </p>
-        </div>
-
-        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
-            <a href="{{ path('app_login') }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
-                Back to sign in
-            </a>
-        </p>
-
-    </div>
-</div>
+{% block footer %}
+    <p class="mt-5 text-center text-[13px] text-muted">
+        <a href="{{ path('app_login') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
+            Back to sign in
+        </a>
+    </p>
 {% endblock %}

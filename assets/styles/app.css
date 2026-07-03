@@ -35,28 +35,47 @@
     --color-danger: #DC2626;
     --color-info: #2563EB;
 
+    /* Neutrals as Tailwind utilities (text-body, text-muted, border-line, bg-surface)
+       — resolved from the --sigil-* system below so a dark theme is a variable swap. */
+    --color-body: var(--sigil-text);
+    --color-muted: var(--sigil-text-secondary);
+    --color-label: var(--sigil-label);
+    --color-line: var(--sigil-border);
+    --color-surface: var(--sigil-surface);
+
     /* ── Typography ── */
     --font-sans: "Sofia Sans", ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", monospace;
 
     /* ── Border Radius ── */
-    --radius-btn: 8px;
+    --radius-btn: 10px;
+    --radius-input: 10px;
     --radius-card: 12px;
     --radius-modal: 16px;
+    --radius-glass: 18px;
 }
 
 /*
- * CSS custom properties for the full color system.
+ * CSS custom properties for the full color system (cool slate neutrals with a
+ * faint blue cast, per the design refresh — same names, cooler values).
  * All UI elements use these — swap values here to add dark theme later.
  */
 :root {
-    --sigil-bg: #F3F4F6;
-    --sigil-surface: #FFFFFF;
-    --sigil-border: #D1D5DB;
-    --sigil-input-bg: #FFFFFF;
-    --sigil-text: #0A0A0A;
-    --sigil-text-secondary: #6B7280;
-    --sigil-text-disabled: #9CA3AF;
+    --sigil-bg: #F5F7FB;
+    --sigil-bg-deep: #EDF1F9;          /* auth backdrop under the radial glows */
+    --sigil-surface: #FFFFFF;          /* solid content cards, tables, headers */
+    --sigil-glass: rgba(255, 255, 255, 0.55);
+    --sigil-glass-border: rgba(255, 255, 255, 0.65);
+    --sigil-border: #E2E8F0;
+    --sigil-input-border: rgba(15, 23, 42, 0.10);
+    --sigil-input-bg: rgba(255, 255, 255, 0.60);
+    --sigil-input-bg-focus: rgba(255, 255, 255, 0.85);
+    --sigil-text: #0F172A;
+    --sigil-label: #334155;
+    --sigil-text-secondary: #64748B;
+    --sigil-text-disabled: #94A3B8;
+    /* Primary button gradient top stop (bottom stop is --color-primary). */
+    --sigil-primary-gradient-top: #2A4BA0;
 }
 
 body {
@@ -66,24 +85,122 @@ body {
 }
 
 /*
- * Submit-button spinner, injected globally by assets/form_loader.js while a
- * Turbo form submission is in flight. Plain CSS (not Tailwind utilities) so
+ * ── Component recipes ─────────────────────────────────────────────────────
+ * Repeated design-system recipes (glass card, inputs, primary button) live
+ * here instead of being restated as utility soup in every template.
+ * Glass is reserved for: auth card, modals (PIN), toasts, sidebar, active
+ * document cards. Headers, tables and content cards stay solid surface.
+ */
+@layer components {
+    /* Full-viewport auth backdrop: two soft blue radial glows on a cool base. */
+    .auth-bg {
+        min-height: 100vh;
+        background:
+            radial-gradient(620px 520px at 18% 8%, rgba(59, 130, 246, 0.30), transparent 60%),
+            radial-gradient(520px 520px at 92% 96%, rgba(30, 58, 138, 0.20), transparent 60%),
+            var(--sigil-bg-deep);
+    }
+
+    /* Frosted glass card: inset top highlight + layered blue-tinted shadows. */
+    .glass-card {
+        border-radius: var(--radius-glass);
+        background: var(--sigil-glass);
+        backdrop-filter: blur(24px) saturate(160%);
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+        border: 1px solid var(--sigil-glass-border);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.9),
+            0 1px 2px rgba(30, 58, 138, 0.06),
+            0 18px 40px -16px rgba(30, 58, 138, 0.22);
+    }
+
+    .form-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 11px 14px;
+        font-size: 14px;
+        font-family: inherit;
+        border-radius: var(--radius-input);
+        border: 1px solid var(--sigil-input-border);
+        background: var(--sigil-input-bg);
+        color: var(--sigil-text);
+        outline: none;
+        transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .form-input:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.13);
+        background: var(--sigil-input-bg-focus);
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+        font-weight: 650;
+        font-family: inherit;
+        color: #fff;
+        border: none;
+        border-radius: var(--radius-btn);
+        background: linear-gradient(180deg, var(--sigil-primary-gradient-top), var(--color-primary));
+        box-shadow: 0 1px 2px rgba(30, 58, 138, 0.4), 0 8px 20px -6px rgba(30, 58, 138, 0.5);
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-primary:hover {
+        transform: translateY(-1px) scale(1.01);
+        box-shadow: 0 2px 4px rgba(30, 58, 138, 0.45), 0 14px 30px -8px rgba(30, 58, 138, 0.55);
+    }
+    .btn-primary:active {
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Card entrance on auth pages. */
+@keyframes auth-rise {
+    from { opacity: 0; transform: translateY(12px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rise {
+    animation: auth-rise 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/*
+ * S-loader (templates/components/s_loader.html.twig): the logo's single
+ * continuous stroke draws itself out — write, hold, fade, repeat.
+ * Stroke is currentColor; the surrounding context sets the color.
+ */
+@keyframes sigil-draw {
+    0%   { stroke-dashoffset: 680; opacity: 0; }
+    6%   { opacity: 1; }
+    46%  { stroke-dashoffset: 0;   opacity: 1; }
+    68%  { stroke-dashoffset: 0;   opacity: 1; }
+    84%  { stroke-dashoffset: 0;   opacity: 0; }
+    100% { stroke-dashoffset: 680; opacity: 0; }
+}
+.s-path {
+    stroke-dasharray: 680;
+    animation: sigil-draw 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rise { animation: none; }
+    .s-path { animation: none; stroke-dashoffset: 0; opacity: 0.5; }
+}
+
+/*
+ * Submit-button loader, injected globally by assets/form_loader.js while a
+ * Turbo form submission is in flight: a compact S-loader (inline SVG reusing
+ * the .s-path draw animation above). Plain CSS (not Tailwind utilities) so
  * JS-injected markup never depends on the Tailwind content scan.
  */
 .sigil-spinner {
     display: inline-block;
-    width: 1em;
-    height: 1em;
-    margin-right: 0.5rem;
-    vertical-align: -0.125em;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 9999px;
-    animation: sigil-spin 0.6s linear infinite;
-}
-
-@keyframes sigil-spin {
-    to { transform: rotate(360deg); }
+    /* Logo viewBox is 260×180 — keep the aspect ratio at text size. */
+    width: 1.6em;
+    height: 1.1em;
+    margin-right: 0.4rem;
+    vertical-align: -0.2em;
 }
 
 button[aria-busy="true"] {
