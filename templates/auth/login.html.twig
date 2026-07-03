@@ -41,9 +41,15 @@
                 </div>
 
                 <div>
-                    <label for="password" class="block text-sm font-medium mb-1.5" style="color: var(--sigil-text);">
-                        Password
-                    </label>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="password" class="block text-sm font-medium" style="color: var(--sigil-text);">
+                            Password
+                        </label>
+                        <a href="{{ path('app_forgot_password_request') }}"
+                           class="text-xs font-medium text-primary hover:text-primary-hover transition-colors">
+                            Forgot password?
+                        </a>
+                    </div>
                     <input
                         type="password"
                         id="password"

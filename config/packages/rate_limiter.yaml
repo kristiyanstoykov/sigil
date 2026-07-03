@@ -1,0 +1,10 @@
+# Named rate limiters (symfony/rate-limiter). Login throttling is configured
+# separately on the firewall (security.yaml → login_throttling).
+framework:
+    rate_limiter:
+        # Resending the verification email: keyed on email + client IP in the
+        # controller. Sliding window so a burst can't be repeated at the edge.
+        resend_verification:
+            policy: sliding_window
+            limit: 3
+            interval: '1 hour'

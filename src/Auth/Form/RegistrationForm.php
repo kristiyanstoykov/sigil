@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\Form;
 
-use App\Auth\Entity\User;
+use App\Core\Entity\User;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;

@@ -66,11 +66,12 @@
             </form>
         </div>
 
-        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
-            <a href="{{ logoutPath }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
+        <form method="post" action="{{ logoutPath }}" class="mt-4 text-center">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+            <button type="submit" class="text-sm font-medium text-primary hover:text-primary-hover transition-colors">
                 Sign in with a different account
-            </a>
-        </p>
+            </button>
+        </form>
 
     </div>
 </div>

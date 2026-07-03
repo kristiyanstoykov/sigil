@@ -21,14 +21,17 @@ The architecture is built for extensibility from day one: new file types, signat
 - Self-hosted Certificate Authority issuing per-user X.509 certificates
 - Per-certificate PIN that is the PKCS#11 token's User PIN (keys generated in-token, never exported); DB stores only an Argon2id hash of the PIN
 - PDF upload with envelope-encrypted at-rest storage
-- PAdES-B-T signing (PAdES baseline + RFC 3161 timestamp) with attached/detached and visible/invisible variants
+- PAdES-B-T signing (PAdES baseline + RFC 3161 timestamp) — **attached only for MVP**, visible/invisible variants. Detached (.p7s) stays behind the strategy abstraction (`SignatureFormatInterface` variant config) so it can be plugged in later without core changes.
+- Visible signatures use **automatic placement**: start at the bottom-left of the page, fill rightward, skipping rectangles already occupied by existing signature widgets (enumerated via pyHanko). No drag-drop placement UI.
 - Document routing between registered users with state machine
 - Signed PDF delivery receipts with audit trail
 - Tamper-evident audit log (hash-chained)
 - Modern, minimalist UI in light theme with subtle glass accents
 
 ### Out of Scope for MVP (mention as Future Work in thesis)
-- Face scan + Bulgarian ID OCR registration flow
+- Face scan + Bulgarian ID OCR registration flow (the `User.egn` field is kept in the domain model now so this can bind identity later; EGN is stored encrypted at rest and never displayed in admin views)
+- Detached (.p7s) signatures — abstraction in place, implementation deferred
+- Drag-drop visible-signature placement (MVP uses automatic bottom-left placement)
 - Identification dossier PDF generation (Borica/Evrotrust style)
 - Mobile applications
 - Dark theme
@@ -70,8 +73,8 @@ The architecture is built for extensibility from day one: new file types, signat
 - Info: `#2563EB` (neutral notifications)
 
 ### Typography
-- **Sans-serif:** Inter (via `@fontsource/inter`, self-hosted for GDPR)
-- **Monospace:** JetBrains Mono (for hashes, fingerprints, technical IDs)
+- **Sans-serif:** Sofia Sans (self-hosted variable font, OFL — `assets/fonts/Sofia_Sans/`; no external font origins, satisfies the zero-external-origin CSP)
+- **Monospace:** system monospace stack (for hashes, fingerprints, technical IDs); a self-hosted mono face can be added the same way later
 - **Sizes:** Tailwind defaults; body 14–16px, modest heading scale
 
 ### Design Language
@@ -112,7 +115,7 @@ The architecture is built for extensibility from day one: new file types, signat
 | Frontend templates | Twig | Symfony default |
 | Frontend interactivity | Hotwire (Turbo + Stimulus) | SPA-like UX without JS framework overhead |
 | Real-time updates | Mercure | Server-sent events for async signing status |
-| Async/queue | Symfony Messenger + Redis transport | For background signing jobs |
+| Async/queue | Symfony Messenger + Redis transport | For background signing jobs. *Currently on doctrine transport; Redis container + migration land with Phase 7* |
 | Cache | Redis | Sessions, rate limiting, Messenger transport |
 | CSS framework | Tailwind CSS 4 (via symfonycasts/tailwind-bundle) | Utility-first, fast iteration, no Node.js required |
 | Component library | Flowbite (Tailwind components) | Pre-built modern components, imported via AssetMapper |
@@ -122,7 +125,7 @@ The architecture is built for extensibility from day one: new file types, signat
 | Key custody | SoftHSM2 + PKCS#11 (swappable to hardware HSM by config) | Keys generated in-token, never exported — ADR-005 |
 | Data encryption | `ext-sodium` AES-256-GCM via `EncryptionServiceInterface` | No Symfony crypto component; one NIST primitive + versioned self-describing envelope — ADR-004, ADR-006 |
 | PAdES signing | pyHanko (Python) via Symfony Process | Best-in-class open-source PAdES library |
-| Timestamping | FreeTSA (RFC 3161) | Free public TSA |
+| Timestamping | FreeTSA (RFC 3161) + local TSA container fallback | Free public TSA; a small self-hosted RFC 3161 TSA in compose removes the demo's only internet dependency |
 | File storage | Local filesystem (abstracted via interface) | Simple for MVP, swappable to S3 later |
 | Transactional email | Brevo (formerly Sendinblue) — free tier 300 emails/day | Official Symfony bridge (`symfony/brevo-mailer`), no credit card required for free tier |
 | Containerization | Docker + Docker Compose (2 containers: app + db) | Reproducible for thesis defense |
@@ -179,13 +182,7 @@ src/
 
 **Queue rule:** only three types go async — signing, email, and receipt generation. Everything else (PIN check, upload, profile update) is synchronous. This keeps async complexity isolated to the modules that truly need it.
 
-This structure enables swapping infrastructure without touching business logic (e.g., replace `PyHankoAdapter` with a SetaPDF adapter, or replace local filesystem storage with S3) — both arguments are discussed in the thesis as Architecture Decision Records.
-- **Domain layer:** entities, value objects, domain services (pure PHP, no Symfony)
-- **Application layer:** command handlers, use cases (orchestrates domain + ports)
-- **Infrastructure layer:** Doctrine repositories, filesystem storage, pyHanko adapter, mailer
-- **Interface layer:** controllers, forms, Twig templates
-
-This separation gives a clean structure to discuss in the thesis and enables future replacements (e.g., swap pyHanko for SetaPDF without touching domain code).
+This structure enables swapping infrastructure without touching business logic (e.g., replace `PyHankoAdapter` with a SetaPDF adapter, or replace local filesystem storage with S3) — both arguments are discussed in the thesis as Architecture Decision Records. The boundaries are enforced with interfaces at the seams (signer, storage, encryption), not with a strict four-layer split — entities use Doctrine attributes and modules use Symfony directly (ADR-001).
 
 ### Architecture Decision Records (ADRs)
 Maintain a `docs/adr/` directory with short markdown ADRs for each major decision. Accepted so far (`docs/adr/`):
@@ -196,6 +193,7 @@ Maintain a `docs/adr/` directory with short markdown ADRs for each major decisio
 - ADR-005: Private-key custody via SoftHSM2 + PKCS#11 *(supersedes the earlier "PIN-derived key encryption" idea)*
 - ADR-006: Crypto agility (versioned envelope) + MVP algorithm suite
 - ADR-007: Synchronous hash signing; two independent asyncs; sole-control threat model
+- ADR-008: PIN verification & lockout — hash-first gate, token counter as backstop, desync tripwire
 
 Still to write: pyHanko-via-Process for PAdES signing, self-signed CA scope & trust model, hash-chained audit log for tamper evidence.
 
@@ -215,6 +213,7 @@ Core entities (will evolve):
 - **DocumentVersion** — each signing produces a new version; original is preserved. Each version has its own DEK.
 - **DocumentKeyGrant** — one row per (user, document version) with access: the version's DEK wrapped by that user's KEK. Sharing inserts a grant; revoking deletes it (ADR-004).
 - **SigningRequest** — routes a document from sender to recipient(s), tracks state via Symfony Workflow
+- **SigningJobToken** — single-use authorization for an async signing job: random ID bound to user + document version, short expiry, consumed atomically exactly once by the worker. Guarantees only user-initiated jobs execute; no credential ever enters the queue (ADR-007).
 - **Signature** — per-signature record (signer, certificate used, format, variant, timestamp, position if visible, signed at, signing request reference)
 - **DeliveryReceipt** — generated PDF receipt with audit trail, itself signed by system certificate
 - **AuditLogEntry** — append-only, hash-chained log entries for security-relevant events
@@ -259,6 +258,7 @@ States: `pending → active → revoked | expired`
 - PIN supplied at signing to open the PKCS#11 session, then discarded — **never** stored, queued, or logged. The DB keeps **only an Argon2id hash** of the PIN, for verification and lockout.
 - The PIN is **never** used to derive an encryption key — a PIN-derived key can't be re-wrapped for a second user and would break sharing. *(This reverses the earlier PIN-derived-key sketch.)*
 - Failed PIN attempts tracked; certificate auto-locked after 5 failures within 1 hour.
+- **Dual lockout counters — decided (ADR-008):** hash-first gate — the PIN is verified against the Argon2id hash *first* and the PKCS#11 session is opened only on a match, so **the token never sees a wrong PIN**. The DB counter is the single source of truth ("N attempts remaining"); the HSM retry counter is a defense-in-depth backstop. Hash-match-but-token-rejects = desync tripwire → lock + high-severity audit. Unlock = password + fresh TOTP; forgotten PIN or hard-locked token = certificate re-issue. SO-PIN reset path explicitly rejected (server-held credential would undercut sole control).
 - Locked certificates require account password + 2FA to unlock. Forgotten PIN = key unrecoverable = re-issue certificate (matches smart-card behaviour).
 - **Sole-control caveat:** this prevents the server signing on its own, but not a server compromised at the moment of signing substituting a different hash — the certified fix (CEN EN 419 241-2 / CSC API) is future work.
 
@@ -288,7 +288,7 @@ Rules:
 
 ### HTTP Security
 - HTTPS only (HSTS with preload)
-- Strict CSP (no inline scripts; nonces for any unavoidable inline)
+- Strict CSP with **zero external origins** — all assets self-hosted (AssetMapper JS, locally compiled Tailwind, fontsource fonts, Lucide icons); no CDN, no outgoing links. `script-src 'self'` + nonces for any unavoidable inline; inline `style=` attributes in templates to be migrated to utility classes so `style-src 'self'` can be enforced
 - X-Frame-Options: DENY
 - X-Content-Type-Options: nosniff
 - Referrer-Policy: strict-origin-when-cross-origin
@@ -328,14 +328,20 @@ This becomes a dedicated thesis chapter.
    a. Backend loads the document and decrypts it (three-layer envelope decryption)
    b. Builds signing parameters (variant, position, appearance)
    c. pyHanko produces the PAdES-B signature via native PKCS#11
-6. **Keyless remainder (sync for MVP, optionally a Messenger worker):** request RFC 3161 timestamp from FreeTSA and embed it (PAdES-B-T) → re-encrypt the signed PDF and store as a new `DocumentVersion` (new DEK + grants) → write audit-log entries → publish Mercure update.
+6. **Keyless remainder (Messenger worker):** request RFC 3161 timestamp from FreeTSA and embed it (PAdES-B-T) → re-encrypt the signed PDF and store as a new `DocumentVersion` (new DEK + grants) → write audit-log entries → publish status update.
+   - **Single-use job token:** when the user confirms with the PIN (step 5), a one-time `SigningJobToken` (random ID bound to user + document version, short expiry, consumed atomically exactly once) is created; the queued message carries **only this token ID**. The worker validates and consumes it before doing anything — no job that wasn't user-initiated moments earlier can execute, and no credential ever enters the queue. This mirrors the Borica/Evrotrust initiate-then-process interface shape and feeds the sole-control chapter.
 7. Frontend (subscribed to the Mercure topic) transitions the UI to "Signed".
 
 The pending/notify *experience* for documents routed between users comes from the `SigningRequest` workflow (human-wait async), which is independent of whether the keyless remainder runs in a worker.
 
-### Detached Signature Variant
-- pyHanko produces a separate `.p7s` (PKCS#7) detached signature file
-- Both files (original PDF + .p7s) made available for download
+### Detached Signature Variant (deferred — abstraction only in MVP)
+- The variant config on the signature strategy models attached/detached from day one, but only attached is implemented for MVP
+- Future: pyHanko produces a separate `.p7s` (PKCS#7) detached signature file; both files made available for download
+
+### Visible Signature Placement (automatic)
+- No drag-drop. Placement service enumerates existing signature widget rectangles in the PDF (via pyHanko), then places the new signature at the first free slot on a grid starting **bottom-left, filling rightward** (wrapping upward if a row is full)
+- Deterministic and collision-free — described as an algorithm in the thesis rather than UI code
+- Invisible variant also supported; nothing else
 
 ### pyHanko Integration
 - Run as subprocess via `Symfony\Component\Process\Process`
@@ -368,8 +374,8 @@ The pending/notify *experience* for documents routed between users comes from th
 - **Upload** — drag-drop zone, metadata form
 - **Sign flow** — multi-step with stepper component:
   1. Choose signature format (PAdES — only option in MVP)
-  2. Choose variant (attached/detached, visible/invisible)
-  3. If visible: place signature box on PDF
+  2. Choose variant (attached only in MVP; visible/invisible)
+  3. If visible: automatic placement (bottom-left, filling rightward, avoiding existing signatures) — preview shown, no drag-drop
   4. Review + enter PIN
   5. Confirmation with progress
 - **Inbox** — incoming signing requests from other users
@@ -378,8 +384,9 @@ The pending/notify *experience* for documents routed between users comes from th
 - **Profile** — account settings, password change, 2FA management
 - **Audit log (user view)** — read-only timeline of user's own audit events
 
-### Admin (basic)
-- User list
+### Admin (statistics & monitoring — built last, Phase 10/11)
+- Privacy-preserving by design: aggregate statistics and process monitoring **without exposing personal data** (no document contents, no EGN, counts and states only)
+- Dashboard: user counts, certificates issued/active/revoked, signing volume, signing-request funnel (sent → viewed → signed/rejected)
 - Certificate list (issue/revoke)
 - CA management (view CA cert, monitor issuance)
 - System audit log
@@ -389,6 +396,8 @@ The pending/notify *experience* for documents routed between users comes from th
 ## Project Phases & Timeline
 
 Working backwards from defense window of late September 2026, with documentation written in parallel.
+
+> **Re-baseline (02.07.2026):** ~12–13 weeks remain to the defense window. Phases 1–2 are done (auth, 2FA, email verification, password reset, login throttling). Immediate order: **tests + PHPStan/CI first** (while the codebase is small), then remaining rate limiting (PIN endpoints), then Phase 3. Phase durations below are compressed accordingly; the pyHanko-over-PKCS#11 end-to-end spike is the first task of Phase 3 since SoftHSM2 and pyHanko are already in the Docker image. Multi-signer routing, async signing, and the admin statistics section are all **kept in scope**; the cuts are detached signatures (abstraction only) and drag-drop placement (automatic placement instead). Mercure is the only nice-to-have.
 
 ### Phase 0 — Decisions Locked (this week)
 - Confirm September defense window
@@ -401,7 +410,7 @@ Working backwards from defense window of late September 2026, with documentation
 - Tailwind CSS 4 via `symfonycasts/tailwind-bundle` + Flowbite JS via AssetMapper ✅
 - Brand color palette as CSS custom properties + `@theme` variables ✅
 - Brevo transactional email configured (`symfony/brevo-mailer`, free 300 emails/day — add `MAILER_DSN=brevo+api://API_KEY@default` to `.env.local`)
-- Inter + JetBrains Mono fonts (self-hosted via `fontsource`) — add in Phase 1 polish
+- Sofia Sans variable font self-hosted via AssetMapper ✅ (replaced the Inter/fontsource idea; zero external font origins)
 - Lucide icons set up
 - PHPStan level 8, PHP CS Fixer, PHPUnit configured
 - Base layout with sidebar, top bar, glass-styled sidebar background
@@ -439,9 +448,9 @@ Working backwards from defense window of late September 2026, with documentation
 - pyHanko Docker image setup
 - `PadesSignerInterface` + `PyHankoAdapter`
 - Sign command + handler (sync first, then move to Messenger)
-- Attached + detached variants
+- Attached variant (detached kept behind the strategy abstraction, not implemented)
 - Invisible signature working end-to-end
-- Visible signature with placement UI (Stimulus controller for drag-drop on PDF)
+- Visible signature with automatic placement (bottom-left fill, existing-signature collision avoidance)
 - Verification endpoint
 - Test signed PDFs against Adobe Acrobat — confirm "valid signature, identity unknown" outcome
 - Integration tests for full sign-verify cycle
@@ -451,12 +460,13 @@ Working backwards from defense window of late September 2026, with documentation
 - Upgrade signatures to PAdES-B-T
 - Display timestamp validity in verification UI
 - Handle TSA failures gracefully (retry, fallback TSA)
+- Local RFC 3161 TSA container in compose as offline fallback (demo has zero internet dependencies)
 
-### Phase 7 — Async Signing & Mercure (Week 12)
-- Move signing to Symfony Messenger
-- Mercure publisher in worker
-- Stimulus controller subscribing to Mercure topic, updating UI on signing completion
-- Error states and retry handling
+### Phase 7 — Async Signing (Week 12)
+- Keyless remainder moved to Symfony Messenger (Redis transport); key step stays sync in-request (ADR-007)
+- `SigningJobToken` — single-use, user-initiated job authorization (see PAdES Signing Flow)
+- Frontend status: short-poll on signing status is sufficient; Mercure real-time push only if time allows (nice-to-have, not required)
+- Error states and retry handling (retry must re-check the job token's document-version binding, never re-sign)
 
 ### Phase 8 — Document Routing & Receipts (Weeks 13–14)
 - SigningRequest entity + Symfony Workflow configuration
@@ -525,7 +535,9 @@ Suggested chapter structure (adjust to TU Sofia requirements):
 | pyHanko integration fails or produces invalid PAdES | Medium | High | Allocate buffer in Phase 5; have SetaPDF-Signer as fallback (academic license request sent early) |
 | FreeTSA unavailable during demo | Low | Medium | Implement TSA fallback to alternative public TSA; cache last good timestamp for demo |
 | Acrobat doesn't recognize signature as valid | Medium | High | Test against Acrobat very early in Phase 5, not at the end |
-| Symfony learning curve slows progress | Medium | Medium | Allocate first 2 weeks specifically for ramp-up; use Symfony official tutorials |
+| pyHanko PKCS#11 signing path harder than the PEM path (less-traveled code path) | Medium | High | End-to-end spike **first task of Phase 3**: token keygen → pyHanko PKCS#11 sign → Acrobat-valid PDF, before building Certificate entities around it |
+| Schedule compression (~13 weeks remain vs 16 planned as of 02.07.2026) | High | High | Re-baselined plan; detached signatures and drag-drop already descoped; Mercure is the designated next cut; prioritize Phases 3–6 as critical path |
+| SoftHSM token store lost (volume deleted) ⇒ all keys + CA unrecoverable by design | Low | High | Back up token directory together with the DB; document as deliberate HSM-ops trade-off in thesis |
 | Documentation falls behind code | High | High | Write per-phase, not at end; capture screenshots and diagrams continuously |
 | Scope creep into Phase 9 face/OCR features | High | High | Strictly defer to thesis "Future Work" — do not implement |
 | Solo work, illness or disruption | Medium | High | Build buffer weeks (Phase 11); prioritize Phases 1–7 as critical path |

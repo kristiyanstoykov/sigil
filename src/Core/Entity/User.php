@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Auth\Entity;
+namespace App\Core\Entity;
 
-use App\Auth\Repository\UserRepository;
+use App\Core\Repository\UserRepository;
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
 use Doctrine\ORM\Mapping as ORM;
@@ -49,6 +49,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     #[ORM\Column(options: ['default' => false])]
     private bool $totpEnabled = false;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isVerified = false;
 
     // ── UserInterface ────────────────────────────────────────────────────────
 
@@ -196,6 +199,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     {
         $this->totpEnabled = false;
         $this->googleAuthenticatorSecret = null;
+
+        return $this;
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->isVerified;
+    }
+
+    public function setIsVerified(bool $isVerified): static
+    {
+        $this->isVerified = $isVerified;
 
         return $this;
     }

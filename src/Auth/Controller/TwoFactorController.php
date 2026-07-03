@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\Controller;
 
-use App\Auth\Entity\User;
+use App\Core\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
@@ -43,6 +43,12 @@ class TwoFactorController extends AbstractController
         }
 
         if ($request->isMethod('POST')) {
+            if (!$this->isCsrfTokenValid('2fa_setup', $request->request->getString('_csrf_token'))) {
+                $this->addFlash('danger', 'Your session expired. Please try again.');
+
+                return $this->redirectToRoute('app_2fa_setup');
+            }
+
             $code = $request->request->getString('_auth_code');
 
             if ($this->googleAuthenticator->checkCode($user, $code)) {
@@ -54,7 +60,11 @@ class TwoFactorController extends AbstractController
                 return $this->redirectToRoute('app_dashboard');
             }
 
+            // Redirect (not re-render): Turbo discards non-redirect responses
+            // to form submissions, which would swallow the error message.
             $this->addFlash('danger', 'Invalid code. Please try again.');
+
+            return $this->redirectToRoute('app_2fa_setup');
         }
 
         $provisioningUri = $this->googleAuthenticator->getQRContent($user);
@@ -65,18 +75,9 @@ class TwoFactorController extends AbstractController
         ]);
     }
 
-    #[Route('/2fa/disable', name: 'app_2fa_disable', methods: ['POST'])]
-    public function disable(): Response
-    {
-        /** @var User $user */
-        $user = $this->getUser();
-        $user->disableTotp();
-        $this->em->flush();
-
-        $this->addFlash('success', 'Two-factor authentication has been disabled.');
-
-        return $this->redirectToRoute('app_dashboard');
-    }
+    // NOTE: self-service 2FA disable was intentionally removed — 2FA is mandatory
+    // (see TwoFactorEnrollmentSubscriber). Any future reset must be an admin-only,
+    // audited action, not a user-facing route.
 
     private function buildQrCodeDataUri(string $text): string
     {

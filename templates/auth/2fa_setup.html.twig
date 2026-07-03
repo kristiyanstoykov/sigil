@@ -34,6 +34,7 @@
             </details>
 
             <form method="post" class="space-y-4">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('2fa_setup') }}">
                 <div>
                     <label for="code" class="block text-sm font-medium mb-1.5" style="color: var(--sigil-text);">
                         Verification code

@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Choose a new password — Sigil{% endblock %}
+
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-4 py-10" style="background-color: var(--sigil-bg);">
+    <div class="w-full max-w-md">
+
+        <div class="text-center mb-8">
+            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
+            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Signum Veritatis — Digital Document Signing</p>
+        </div>
+
+        <div class="rounded-card border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
+            <h2 class="text-lg font-semibold mb-6" style="color: var(--sigil-text);">Choose a new password</h2>
+
+            {{ form_start(resetForm, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
+                {% set field_password = constant('App\\Auth\\Form\\ChangePasswordForm::E_PASSWORD') %}
+                <div>
+                    {{ form_label(resetForm[field_password].first, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
+                    {{ form_widget(resetForm[field_password].first, {attr: {
+                        class: 'w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
+                        style: 'background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);'
+                    }}) }}
+                </div>
+
+                <div>
+                    {{ form_label(resetForm[field_password].second, null, {label_attr: {class: 'block text-sm font-medium mb-1.5', style: 'color: var(--sigil-text);'}}) }}
+                    {{ form_widget(resetForm[field_password].second, {attr: {
+                        class: 'w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
+                        style: 'background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);'
+                    }}) }}
+                    {{ form_errors(resetForm[field_password]) }}
+                </div>
+
+                <p class="text-xs" style="color: var(--sigil-text-secondary);">Minimum 10 characters.</p>
+
+                <button
+                    type="submit"
+                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
+                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
+                >
+                    Save new password
+                </button>
+            {{ form_end(resetForm) }}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

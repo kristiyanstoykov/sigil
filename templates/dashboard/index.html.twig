@@ -12,15 +12,21 @@
                 Welcome back, {{ app.user.fullName }}
             </p>
         </div>
-        <a href="{{ path('app_logout') }}"
-           class="px-4 py-2 text-sm font-medium rounded-btn border transition-colors
-                  hover:bg-danger/5 hover:border-danger/30 hover:text-danger"
-           style="border-color: var(--sigil-border); color: var(--sigil-text-secondary);">
-            Sign out
-        </a>
+        <form method="post" action="{{ path('app_logout') }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+            <button type="submit"
+               class="px-4 py-2 text-sm font-medium rounded-btn border transition-colors
+                      hover:bg-danger/5 hover:border-danger/30 hover:text-danger"
+               style="border-color: var(--sigil-border); color: var(--sigil-text-secondary);">
+                Sign out
+            </button>
+        </form>
     </div>
 
-    {% if not app.user.isGoogleAuthenticatorEnabled() %}
+    {% if false %}
+        {# Mandatory 2FA (TwoFactorEnrollmentSubscriber) means the dashboard is only
+           reachable once TOTP is enabled, so this nudge banner is never shown. Kept
+           disabled rather than deleted in case an admin-reset UX needs it later. #}
         <div class="mb-6 flex items-start gap-3 px-4 py-4 rounded-card border bg-warning/5 border-warning/20">
             <svg class="w-5 h-5 text-warning mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

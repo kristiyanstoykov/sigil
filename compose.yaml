@@ -13,7 +13,9 @@ services:
       APP_ENV: dev
       APP_SECRET: "${APP_SECRET:-sigil_dev_secret_change_in_production}"
       DATABASE_URL: "postgresql://sigil:sigil@db:5432/sigil?serverVersion=16&charset=utf8"
-      MAILER_DSN: "${MAILER_DSN:-null://null}"
+      # MAILER_DSN is intentionally NOT set here: it carries a secret Brevo API key,
+      # so it is provided via .env.local (bind-mounted into the container). A container
+      # env var would override .env.local. Falls back to null://null from .env otherwise.
       MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
       SOFTHSM2_CONF: /etc/softhsm2.conf
       PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so

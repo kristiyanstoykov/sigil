@@ -5,7 +5,7 @@ security:
     providers:
         app_user_provider:
             entity:
-                class: App\Auth\Entity\User
+                class: App\Core\Entity\User
                 property: email
 
     firewalls:
@@ -15,6 +15,7 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            user_checker: App\Auth\Security\UserChecker
             form_login:
                 login_path: app_login
                 check_path: app_login
@@ -22,17 +23,24 @@ security:
                 default_target_path: app_dashboard
                 username_parameter: email
                 password_parameter: password
+            login_throttling:
+                max_attempts: 5          # failed attempts per interval, keyed on (IP + username)
+                interval: '15 minutes'   # window before the counter resets; a broader IP-only limiter (5x) also applies
             logout:
                 path: app_logout
                 target: app_login
+                enable_csrf: true
             two_factor:
                 auth_form_path: 2fa_login
                 check_path: 2fa_login_check
                 default_target_path: app_dashboard
 
     access_control:
+        - { path: ^/logout$, roles: PUBLIC_ACCESS }   # must be reachable mid-2FA (TwoFactorToken is not FULLY authenticated)
         - { path: ^/login, roles: PUBLIC_ACCESS }
         - { path: ^/register, roles: PUBLIC_ACCESS }
+        - { path: ^/verify/, roles: PUBLIC_ACCESS }
+        - { path: ^/reset-password, roles: PUBLIC_ACCESS }
         - { path: ^/2fa$, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/2fa_check, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/assets, roles: PUBLIC_ACCESS }

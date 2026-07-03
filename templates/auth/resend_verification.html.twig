@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Verify your email — Sigil{% endblock %}
+
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-4" style="background-color: var(--sigil-bg);">
+    <div class="w-full max-w-md">
+
+        <div class="text-center mb-8">
+            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
+            <p class="mt-1 text-sm" style="color: var(--sigil-text-secondary);">Signum Veritatis — Digital Document Signing</p>
+        </div>
+
+        <div class="rounded-card border p-8 shadow-sm" style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
+            <h2 class="text-lg font-semibold mb-2" style="color: var(--sigil-text);">Verify your email address</h2>
+            <p class="text-sm mb-6" style="color: var(--sigil-text-secondary);">
+                Your account isn't verified yet. Enter your email address and we'll send you a new confirmation link.
+            </p>
+
+            <form method="post" class="space-y-4">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('resend_verification') }}">
+
+                <div>
+                    <label for="email" class="block text-sm font-medium mb-1.5" style="color: var(--sigil-text);">
+                        Email address
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value="{{ prefill_email }}"
+                        autocomplete="email"
+                        required
+                        class="w-full px-3 py-2 text-sm rounded-btn border outline-none transition-colors
+                               focus:border-primary focus:ring-1 focus:ring-primary"
+                        style="background-color: var(--sigil-input-bg); border-color: var(--sigil-border); color: var(--sigil-text);"
+                    >
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full py-2.5 px-4 text-sm font-semibold text-white rounded-btn bg-primary
+                           hover:bg-primary-hover transition-all duration-150 hover:scale-[1.01]"
+                >
+                    Send confirmation link
+                </button>
+            </form>
+        </div>
+
+        <p class="mt-4 text-center text-sm" style="color: var(--sigil-text-secondary);">
+            Already verified?
+            <a href="{{ path('app_login') }}" class="font-medium text-primary hover:text-primary-hover transition-colors">
+                Sign in
+            </a>
+        </p>
+
+    </div>
+</div>
+{% endblock %}

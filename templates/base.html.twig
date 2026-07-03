@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Sigil{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     {% block stylesheets %}{% endblock %}
     {% block javascripts %}
         {% block importmap %}{{ importmap('app') }}{% endblock %}
@@ -14,18 +11,21 @@
 </head>
 <body class="min-h-screen" style="background-color: var(--sigil-bg); color: var(--sigil-text);">
 
-{% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
-    {% for message in messages %}
-        <div class="fixed top-4 right-4 z-50 max-w-sm px-4 py-3 rounded-card text-sm font-medium shadow-lg
-                   {{ type == 'success' ? 'bg-success/10 text-success border border-success/20'
-                   : type == 'danger' ? 'bg-danger/10 text-danger border border-danger/20'
-                   : type == 'warning' ? 'bg-warning/10 text-warning border border-warning/20'
-                   : 'bg-info/10 text-info border border-info/20' }}"
-             style="backdrop-filter: blur(12px);">
-            {{ message }}
-        </div>
+{# Top-center toast stack: one fixed container so multiple flashes don't overlap #}
+<div class="fixed top-4 inset-x-0 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none">
+    {% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
+        {% for message in messages %}
+            <div class="w-full max-w-md px-4 py-3 rounded-card text-sm font-medium text-center shadow-lg pointer-events-auto
+                       {{ type == 'success' ? 'bg-success/10 text-success border border-success/20'
+                       : type == 'danger' ? 'bg-danger/10 text-danger border border-danger/20'
+                       : type == 'warning' ? 'bg-warning/10 text-warning border border-warning/20'
+                       : 'bg-info/10 text-info border border-info/20' }}"
+                 style="backdrop-filter: blur(12px);">
+                {{ message }}
+            </div>
+        {% endfor %}
     {% endfor %}
-{% endfor %}
+</div>
 
 {% block body %}{% endblock %}
 
