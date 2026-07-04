@@ -1,33 +1,73 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-{# ── Fixed header ─────────────────────────────────────────────────────────── #}
-<header class="fixed top-0 left-0 right-0 z-40 h-16 flex items-center px-6 border-b"
-        style="background-color: var(--sigil-surface); border-color: var(--sigil-border);">
+<div data-controller="sidebar">
+
+{# ── Fixed header (solid — never glass) ──────────────────────────────────── #}
+<header class="fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-6 bg-surface border-b border-line shadow-sm">
 
     {# Logo + name #}
-    <a href="{{ path('app_dashboard') }}"
-       class="flex items-center gap-3 no-underline group"
-       style="text-decoration: none;">
-
-        <img src="{{ asset('images/sigil-blue-900.svg') }}"
-             alt="Sigil" width="52" height="36"
+    <a href="{{ path('app_dashboard') }}" class="flex items-center gap-3 no-underline group">
+        <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="" width="52" height="36"
              class="shrink-0 transition-opacity duration-150 group-hover:opacity-80">
-
-        {# App name #}
-        <div class="flex flex-col leading-none">
-            <span class="text-sm font-bold tracking-tight" style="color: var(--sigil-text);">Sigil</span>
-            <span class="text-[10px] tracking-widest uppercase font-medium" style="color: var(--sigil-text-secondary);">Signum Veritatis</span>
-        </div>
-
+        <span class="flex flex-col leading-none">
+            <span class="text-base font-extrabold tracking-tight text-body">Sigil</span>
+            <span class="text-[9px] tracking-widest uppercase font-medium text-muted">Signum Veritatis</span>
+        </span>
     </a>
 
-    {% block header_right %}{% endblock %}
+    {# People search — routing a document straight to a person (Document module, todo) #}
+    <div class="hidden md:flex items-center gap-2.5 flex-1 max-w-md mx-7 px-3.5 py-2 rounded-[10px] border border-line bg-[var(--sigil-bg)] text-[color:var(--sigil-text-disabled)]"
+         title="Coming soon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.4"/><path d="M4 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 11h5M19.5 8.5v5"/></svg>
+        <span class="text-[13px]">Find a person to send a file to…</span>
+    </div>
+
+    <div class="flex items-center gap-3.5">
+        {% block header_right %}{% endblock %}
+
+        {# Notifications (Mercure-fed, todo) #}
+        <button type="button" title="Notifications — coming soon"
+                class="relative inline-flex w-[38px] h-[38px] items-center justify-center border border-line bg-surface rounded-[10px] text-label cursor-default">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg>
+        </button>
+
+        {# User chip + dropdown (Flowbite) #}
+        <button type="button" data-dropdown-toggle="user-menu"
+                class="flex items-center gap-2.5 py-1 pl-1 pr-2 border border-line rounded-full cursor-pointer bg-surface">
+            <span class="w-[30px] h-[30px] rounded-full bg-linear-to-br from-primary-light to-primary text-white text-xs font-bold flex items-center justify-center">
+                {{ app.user.firstName|first|upper }}{{ app.user.lastName|first|upper }}
+            </span>
+            <span class="text-[13px] font-semibold text-label">{{ app.user.firstName }} {{ app.user.lastName|first|upper }}.</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div id="user-menu" class="hidden z-50 w-48 bg-surface border border-line rounded-card shadow-lg py-1.5">
+            <div class="px-4 py-2 border-b border-line">
+                <p class="text-[13px] font-semibold text-body truncate">{{ app.user.fullName }}</p>
+                <p class="text-xs text-muted truncate">{{ app.user.email }}</p>
+            </div>
+            <form method="post" action="{{ path('app_logout') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                <button type="submit" data-no-loader
+                        class="w-full text-left px-4 py-2 text-[13px] font-medium text-danger hover:bg-danger/5 transition-colors cursor-pointer">
+                    Sign out
+                </button>
+            </form>
+        </div>
+    </div>
 
 </header>
 
-{# ── Page content (offset for fixed header) ──────────────────────────────── #}
-<main class="pt-16 min-h-screen" style="background-color: var(--sigil-bg);">
-    {% block content %}{% endblock %}
-</main>
+{# ── Sidebar + content ───────────────────────────────────────────────────── #}
+<div class="flex pt-16 min-h-screen app-bg">
+
+    {{ include('components/sidebar.html.twig', {badges: sidebar_badges|default({})}) }}
+
+    <main class="flex-1 min-w-0 px-8 py-7 pb-10">
+        {% block content %}{% endblock %}
+    </main>
+
+</div>
+
+</div>
 {% endblock %}

@@ -156,6 +156,17 @@ body {
     }
 }
 
+@layer components {
+    /* Faint brand glows behind the whole authenticated app (layout/app.html.twig). */
+    .app-bg {
+        background:
+            radial-gradient(520px 420px at 12% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
+            radial-gradient(460px 460px at 100% 100%, rgba(30, 58, 138, 0.10), transparent 60%),
+            var(--sigil-bg);
+    }
+
+}
+
 /* Card entrance on auth pages. */
 @keyframes auth-rise {
     from { opacity: 0; transform: translateY(12px) scale(0.99); }
