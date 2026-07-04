@@ -58,6 +58,12 @@ jobs:
             - name: PHPStan
               run: composer phpstan
 
+            # The functional tests render real pages; without the compiled
+            # Tailwind CSS, AssetMapper tries to resolve @import "tailwindcss"
+            # as a file asset and every page 500s.
+            - name: Build Tailwind CSS
+              run: php bin/console tailwind:build --minify
+
             - name: Prepare test database
               run: |
                   php bin/console -e test doctrine:database:create --if-not-exists -n
