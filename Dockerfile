@@ -25,6 +25,13 @@ RUN mkdir -p /var/lib/softhsm/tokens
 ENV SOFTHSM2_CONF=/etc/softhsm2.conf \
     PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so
 
+# pyHanko (PAdES signing, ADR-007). tzdata is required — pyHanko resolves a
+# ZoneInfo at import time. image-support extra = Pillow, for visible stamps.
+RUN apk add --no-cache python3 py3-pip tzdata \
+    && pip3 install --break-system-packages --no-cache-dir \
+        "pyhanko[pkcs11,image-support,qr,opentype]" pyhanko-cli \
+    && rm -rf /var/cache/apk/*
+
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
