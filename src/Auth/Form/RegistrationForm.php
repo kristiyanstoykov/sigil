@@ -15,6 +15,9 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
+/**
+ * @extends AbstractType<User>
+ */
 class RegistrationForm extends AbstractType
 {
     public const E_FIRST_NAME = 'firstName';

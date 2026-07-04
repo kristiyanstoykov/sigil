@@ -3,7 +3,15 @@ framework:
     secret: '%env(APP_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    session:
+        enabled: true
+        # Hardened cookie flags. httponly is the Symfony default; secure: auto
+        # sends the Secure flag whenever the request is HTTPS.
+        cookie_secure: auto
+        cookie_samesite: lax
+        # Server-side GC backstop, aligned with the 30-minute idle timeout that
+        # SessionTimeoutSubscriber enforces (plus 2h absolute lifetime).
+        gc_maxlifetime: 1800
 
     #esi: true
     #fragments: true

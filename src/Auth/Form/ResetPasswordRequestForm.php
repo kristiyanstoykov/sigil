@@ -9,6 +9,9 @@ use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
+/**
+ * @extends AbstractType<array<string, mixed>>
+ */
 class ResetPasswordRequestForm extends AbstractType
 {
     public const E_EMAIL = 'email';

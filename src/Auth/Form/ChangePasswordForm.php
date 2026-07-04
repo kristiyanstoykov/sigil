@@ -11,6 +11,9 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
+/**
+ * @extends AbstractType<array<string, mixed>>
+ */
 class ChangePasswordForm extends AbstractType
 {
     public const E_PASSWORD = 'plainPassword';

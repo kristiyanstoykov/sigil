@@ -1,0 +1,56 @@
+name: CI
+
+on:
+    push:
+        branches: [master]
+    pull_request:
+
+jobs:
+    ci:
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:16-alpine
+                env:
+                    POSTGRES_USER: sigil
+                    POSTGRES_PASSWORD: sigil
+                    POSTGRES_DB: sigil
+                ports: ['5432:5432']
+                options: >-
+                    --health-cmd "pg_isready -U sigil"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+
+        env:
+            APP_ENV: test
+            DATABASE_URL: "postgresql://sigil:sigil@127.0.0.1:5432/sigil?serverVersion=16&charset=utf8"
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.4'
+                  extensions: intl, pdo_pgsql, sodium, gd, zip
+                  coverage: none
+
+            # .env is git-ignored (real values live outside the repo); the app
+            # boots from the committed example in CI.
+            - name: Provide env files
+              run: cp .env.example .env
+
+            - name: Install dependencies
+              run: composer install --no-interaction --no-progress --prefer-dist
+
+            - name: PHPStan
+              run: composer phpstan
+
+            - name: Prepare test database
+              run: |
+                  php bin/console -e test doctrine:database:create --if-not-exists -n
+                  php bin/console -e test doctrine:migrations:migrate -n
+
+            - name: PHPUnit
+              run: php bin/phpunit
