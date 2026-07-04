@@ -44,6 +44,14 @@ jobs:
             - name: Install dependencies
               run: composer install --no-interaction --no-progress --prefer-dist
 
+            - name: Audit dependencies
+              run: composer audit
+
+            # PHPStan's Symfony extension reads the compiled dev container XML
+            # (containerXmlPath in phpstan.dist.neon), so build it first.
+            - name: Warm up dev container for PHPStan
+              run: php bin/console -e dev cache:warmup
+
             - name: PHPStan
               run: composer phpstan
 
