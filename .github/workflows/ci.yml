@@ -28,7 +28,7 @@ jobs:
             DATABASE_URL: "postgresql://sigil:sigil@127.0.0.1:5432/sigil?serverVersion=16&charset=utf8"
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             - uses: shivammathur/setup-php@v2
               with:
@@ -36,10 +36,13 @@ jobs:
                   extensions: intl, pdo_pgsql, sodium, gd, zip
                   coverage: none
 
-            # .env is git-ignored (real values live outside the repo); the app
-            # boots from the committed example in CI.
+            # .env / .env.test are git-ignored (real values live outside the
+            # repo); CI boots from the committed examples. .env.test carries
+            # KERNEL_CLASS, which the WebTestCase kernel boot requires.
             - name: Provide env files
-              run: cp .env.example .env
+              run: |
+                  cp .env.example .env
+                  cp .env.test.example .env.test
 
             - name: Install dependencies
               run: composer install --no-interaction --no-progress --prefer-dist
