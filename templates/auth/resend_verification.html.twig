@@ -1,10 +1,10 @@
 {% extends 'auth/base_auth.html.twig' %}
 
-{% block title %}Verify your email — Sigil{% endblock %}
+{% block title %}Verify your email - Sigil{% endblock %}
 
 {% block card %}
-    <h2 class="text-lg font-bold mb-1.5 text-body">Verify your email address</h2>
-    <p class="text-[13px] leading-relaxed mb-5 text-muted">
+    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-2">Verify your email address</h1>
+    <p class="text-sm text-gray-500 leading-relaxed mb-5">
         Your account isn't verified yet. Enter your email address and we'll send you a new confirmation link.
     </p>
 
@@ -12,30 +12,22 @@
         <input type="hidden" name="_csrf_token" value="{{ csrf_token('resend_verification') }}">
 
         <div>
-            <label for="email" class="block text-[12.5px] font-semibold mb-1.5 text-label">
-                Email address
-            </label>
-            <input
-                type="email"
-                id="email"
-                name="email"
-                value="{{ prefill_email }}"
-                placeholder="you@company.com"
-                autocomplete="email"
-                required
-                class="form-input"
-            >
+            <label for="email" class="block mb-2 text-sm font-medium text-gray-900">Email address</label>
+            <input type="email" id="email" name="email" value="{{ prefill_email }}"
+                   placeholder="you@company.com" autocomplete="email" required
+                   class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm">
         </div>
 
-        <button type="submit" class="btn-primary mt-2">Send confirmation link</button>
+        <button type="submit"
+                class="w-full text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center cursor-pointer">
+            Send confirmation link
+        </button>
     </form>
 {% endblock %}
 
 {% block footer %}
-    <p class="mt-5 text-center text-[13px] text-muted">
+    <p class="mt-5 text-center text-sm font-light text-gray-500">
         Already verified?
-        <a href="{{ path('app_login') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
-            Sign in
-        </a>
+        <a href="{{ path('app_login') }}" class="font-medium text-primary-600 hover:underline">Sign in</a>
     </p>
 {% endblock %}

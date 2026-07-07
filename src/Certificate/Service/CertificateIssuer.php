@@ -160,7 +160,7 @@ class CertificateIssuer
     public function bootstrapCa(): string
     {
         if (is_file($this->caCertPath)) {
-            throw new DomainException('CA already initialized — refusing to overwrite.');
+            throw new DomainException('CA already initialized - refusing to overwrite.');
         }
 
         // token survives (named volume) but var/ was wiped: re-export the

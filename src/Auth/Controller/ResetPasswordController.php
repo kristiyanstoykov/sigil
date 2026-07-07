@@ -108,7 +108,7 @@ class ResetPasswordController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            // A password reset token should be used only once — remove it.
+            // A password reset token should be used only once - remove it.
             $this->resetPasswordHelper->removeResetRequest($token);
 
             $user->setPassword($passwordHasher->hashPassword(

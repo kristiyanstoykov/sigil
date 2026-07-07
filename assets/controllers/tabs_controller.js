@@ -13,10 +13,10 @@ export default class extends Controller {
 
         this.tabTargets.forEach((tab) => {
             const active = tab.dataset.tabsNameParam === name;
-            tab.classList.toggle('bg-surface', active);
-            tab.classList.toggle('text-primary', active);
-            tab.classList.toggle('shadow-sm', active);
-            tab.classList.toggle('text-muted', !active);
+            tab.classList.toggle('text-primary-700', active);
+            tab.classList.toggle('bg-primary-100', active);
+            tab.classList.toggle('hover:text-gray-900', !active);
+            tab.classList.toggle('hover:bg-gray-100', !active);
         });
 
         this.panelTargets.forEach((panel) => {

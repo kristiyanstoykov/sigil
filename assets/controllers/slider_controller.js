@@ -21,10 +21,10 @@ export default class extends Controller {
 
         this.dotTargets.forEach((dot, d) => {
             const active = d === this.index;
-            dot.classList.toggle('bg-primary', active);
-            dot.classList.toggle('w-[22px]', active);
-            dot.classList.toggle('bg-line', !active);
-            dot.classList.toggle('w-[7px]', !active);
+            dot.classList.toggle('bg-primary-700', active);
+            dot.classList.toggle('w-5', active);
+            dot.classList.toggle('bg-gray-300', !active);
+            dot.classList.toggle('w-1.5', !active);
         });
     }
 }

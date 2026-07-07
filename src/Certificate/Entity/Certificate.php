@@ -13,7 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * A user's X.509 signing certificate. Holds public material and the ADR-008
- * PIN gate state ONLY — the private key lives in a dedicated PKCS#11 token
+ * PIN gate state ONLY - the private key lives in a dedicated PKCS#11 token
  * (one token per certificate) and never leaves it (ADR-005).
  */
 #[ORM\Entity(repositoryClass: CertificateRepository::class)]
@@ -39,7 +39,7 @@ class Certificate
     #[ORM\Column(length: 255)]
     private string $subjectDn;
 
-    /** Public certificate only — never any private-key material. */
+    /** Public certificate only - never any private-key material. */
     #[ORM\Column(type: 'text')]
     private string $certificatePem;
 

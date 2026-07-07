@@ -1,21 +1,22 @@
 {% extends 'auth/base_auth.html.twig' %}
 
-{% block title %}Create account — Sigil{% endblock %}
+{% block title %}Create account - Sigil{% endblock %}
 
 {% block card %}
-    <h2 class="text-lg font-bold mb-5 text-body">Create your account</h2>
+    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-5">Create your account</h1>
 
     {{ form_start(form, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
 
     {% set form_class = 'App\\Auth\\Form\\RegistrationForm' %}
     {% set field_password = constant(form_class ~ '::E_PASSWORD') %}
-    {% set label_class = 'block text-[12.5px] font-semibold mb-1.5 text-label' %}
+    {% set label_class = 'block mb-2 text-sm font-medium text-gray-900' %}
+    {% set input_class = 'bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm' %}
 
     <div class="flex gap-3">
         {% for field in [constant(form_class ~ '::E_FIRST_NAME'), constant(form_class ~ '::E_LAST_NAME')] %}
             <div class="flex-1">
                 {{ form_label(form[field], null, {label_attr: {class: label_class}}) }}
-                {{ form_widget(form[field], {attr: {class: 'form-input'}}) }}
+                {{ form_widget(form[field], {attr: {class: input_class}}) }}
                 {{ form_errors(form[field]) }}
             </div>
         {% endfor %}
@@ -24,36 +25,37 @@
     {% set field_email = constant(form_class ~ '::E_EMAIL') %}
     <div>
         {{ form_label(form[field_email], null, {label_attr: {class: label_class}}) }}
-        {{ form_widget(form[field_email], {attr: {class: 'form-input'}}) }}
+        {{ form_widget(form[field_email], {attr: {class: input_class}}) }}
         {{ form_errors(form[field_email]) }}
     </div>
 
     <div>
         {{ form_label(form[field_password].first, null, {label_attr: {class: label_class}}) }}
-        {{ form_widget(form[field_password].first, {attr: {class: 'form-input'}}) }}
+        {{ form_widget(form[field_password].first, {attr: {class: input_class}}) }}
     </div>
 
     <div>
         {{ form_label(form[field_password].second, null, {label_attr: {class: label_class}}) }}
-        {{ form_widget(form[field_password].second, {attr: {class: 'form-input'}}) }}
+        {{ form_widget(form[field_password].second, {attr: {class: input_class}}) }}
         {{ form_errors(form[field_password]) }}
         {{ form_errors(form[field_password].first) }}
     </div>
 
-    <p class="text-[11.5px] text-muted">
+    <p class="text-xs text-gray-500">
         Minimum 10 characters. You will set up two-factor authentication after your first login.
     </p>
 
-    <button type="submit" class="btn-primary mt-1">Create account</button>
+    <button type="submit"
+            class="w-full text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center cursor-pointer">
+        Create account
+    </button>
 
     {{ form_end(form) }}
 {% endblock %}
 
 {% block footer %}
-    <p class="mt-5 text-center text-[13px] text-muted">
+    <p class="mt-5 text-center text-sm font-light text-gray-500">
         Already have an account?
-        <a href="{{ path('app_login') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
-            Sign in
-        </a>
+        <a href="{{ path('app_login') }}" class="font-medium text-primary-600 hover:underline">Sign in</a>
     </p>
 {% endblock %}

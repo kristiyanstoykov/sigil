@@ -1,28 +1,32 @@
 {% extends 'auth/base_auth.html.twig' %}
 
-{% block title %}Choose a new password — Sigil{% endblock %}
+{% block title %}Choose a new password - Sigil{% endblock %}
 
 {% block card %}
-    <h2 class="text-lg font-bold mb-5 text-body">Choose a new password</h2>
+    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-5">Choose a new password</h1>
 
     {{ form_start(resetForm, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
         {% set field_password = constant('App\\Auth\\Form\\ChangePasswordForm::E_PASSWORD') %}
-        {% set label_class = 'block text-[12.5px] font-semibold mb-1.5 text-label' %}
+        {% set label_class = 'block mb-2 text-sm font-medium text-gray-900' %}
+        {% set input_class = 'bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm' %}
 
         <div>
             {{ form_label(resetForm[field_password].first, null, {label_attr: {class: label_class}}) }}
-            {{ form_widget(resetForm[field_password].first, {attr: {class: 'form-input'}}) }}
+            {{ form_widget(resetForm[field_password].first, {attr: {class: input_class}}) }}
         </div>
 
         <div>
             {{ form_label(resetForm[field_password].second, null, {label_attr: {class: label_class}}) }}
-            {{ form_widget(resetForm[field_password].second, {attr: {class: 'form-input'}}) }}
+            {{ form_widget(resetForm[field_password].second, {attr: {class: input_class}}) }}
             {{ form_errors(resetForm[field_password]) }}
             {{ form_errors(resetForm[field_password].first) }}
         </div>
 
-        <p class="text-[11.5px] text-muted">Minimum 10 characters.</p>
+        <p class="text-xs text-gray-500">Minimum 10 characters.</p>
 
-        <button type="submit" class="btn-primary mt-1">Save new password</button>
+        <button type="submit"
+                class="w-full text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center cursor-pointer">
+            Save new password
+        </button>
     {{ form_end(resetForm) }}
 {% endblock %}

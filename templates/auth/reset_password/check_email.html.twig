@@ -1,23 +1,21 @@
 {% extends 'auth/base_auth.html.twig' %}
 
-{% block title %}Check your email — Sigil{% endblock %}
+{% block title %}Check your email - Sigil{% endblock %}
 
 {% block card %}
-    <h2 class="text-lg font-bold mb-1.5 text-body">Check your email</h2>
-    <p class="text-[13px] leading-relaxed text-muted">
+    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-2">Check your email</h1>
+    <p class="text-sm text-gray-500 leading-relaxed">
         If an account matches that email address, we've sent a link to reset your password. The link will
         expire in {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.
     </p>
-    <p class="text-[13px] leading-relaxed mt-3 text-muted">
+    <p class="text-sm text-gray-500 leading-relaxed mt-3">
         Didn't get it? Check your spam folder, or
-        <a href="{{ path('app_forgot_password_request') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">try again</a>.
+        <a href="{{ path('app_forgot_password_request') }}" class="font-medium text-primary-600 hover:underline">try again</a>.
     </p>
 {% endblock %}
 
 {% block footer %}
-    <p class="mt-5 text-center text-[13px] text-muted">
-        <a href="{{ path('app_login') }}" class="font-semibold text-primary hover:text-primary-hover transition-colors">
-            Back to sign in
-        </a>
+    <p class="mt-5 text-center text-sm font-light text-gray-500">
+        <a href="{{ path('app_login') }}" class="font-medium text-primary-600 hover:underline">Back to sign in</a>
     </p>
 {% endblock %}

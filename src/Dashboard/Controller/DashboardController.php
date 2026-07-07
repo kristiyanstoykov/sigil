@@ -49,13 +49,16 @@ class DashboardController extends AbstractController
             'sidebar_badges' => ['signing_requests' => 2],
             'stats' => [
                 'awaiting_me' => 2,
+                'awaiting_delivery' => 1,
                 'sent_pending' => 3,
                 'signed_30d' => 18,
                 'documents' => 41,
             ],
+            // deliveries (receive/acknowledge, no signature) always sort before signing requests
             'inbox_requests' => [
-                ['document' => 'Series-B SAFE agreement.pdf', 'from' => 'Daniel Petrov', 'due' => 'due today'],
-                ['document' => 'NDA — Aurelia Labs.pdf', 'from' => 'Lena Fischer', 'due' => 'due in 2 days'],
+                ['type' => 'deliver', 'document' => 'Updated employment contract.pdf', 'from' => 'HR - Maria Koleva', 'due' => 'delivered today'],
+                ['type' => 'sign', 'document' => 'Series-B SAFE agreement.pdf', 'from' => 'Daniel Petrov', 'due' => 'due today'],
+                ['type' => 'sign', 'document' => 'NDA - Aurelia Labs.pdf', 'from' => 'Lena Fischer', 'due' => 'due in 2 days'],
             ],
             'sent_requests' => [
                 ['document' => 'Vendor MSA v3.pdf', 'to' => 'Orion GmbH', 'status' => 'Awaiting', 'meta' => 'sent 1 day ago'],
@@ -67,6 +70,15 @@ class DashboardController extends AbstractController
                 ['type' => 'uploaded', 'text' => 'Uploaded <strong>Q3 report.pdf</strong>', 'when' => 'Yesterday'],
                 ['type' => 'shared', 'text' => 'Shared <strong>MSA v3.pdf</strong> with Orion', 'when' => '2 days ago'],
             ],
+            'monthly' => array_map(
+                static fn (int $i): array => [
+                    'label' => (new \DateTimeImmutable("first day of -{$i} months"))->format('M'),
+                    'signed' => [9, 14, 11, 17, 21, 26][5 - $i],
+                    'sent' => [5, 8, 12, 9, 15, 19][5 - $i],
+                    'received' => [7, 10, 8, 13, 11, 16][5 - $i],
+                ],
+                range(5, 0),
+            ),
             'recent_documents' => [
                 ['name' => 'Payroll addendum.pdf', 'version' => 'v3', 'updated' => '2h ago', 'status' => 'Signed', 'people' => ['MK', 'DP']],
                 ['name' => 'Series-B SAFE.pdf', 'version' => 'v1', 'updated' => 'today', 'status' => 'Pending', 'people' => ['DP']],

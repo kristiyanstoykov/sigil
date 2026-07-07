@@ -39,7 +39,7 @@ class AuthController extends AbstractController
     #[Route('/logout', name: 'app_logout')]
     public function logout(): never
     {
-        throw new \LogicException('Symfony handles logout via the firewall — this line is never reached.');
+        throw new \LogicException('Symfony handles logout via the firewall - this line is never reached.');
     }
 
     #[Route('/register', name: 'app_register')]

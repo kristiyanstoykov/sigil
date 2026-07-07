@@ -11,7 +11,7 @@ use Symfony\Component\Mime\Address;
 
 /**
  * Central outbound-mail entry point. Owns the sender identity so no controller or
- * service has to know the "From" address — they build a TemplatedEmail (to /
+ * service has to know the "From" address - they build a TemplatedEmail (to /
  * subject / template / context) and hand it here. The sender is configured once
  * via MAILER_FROM / MAILER_FROM_NAME (see .env) and must be a Brevo-verified
  * sender, otherwise delivery is rejected.

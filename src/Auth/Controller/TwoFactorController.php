@@ -75,7 +75,7 @@ class TwoFactorController extends AbstractController
         ]);
     }
 
-    // NOTE: self-service 2FA disable was intentionally removed — 2FA is mandatory
+    // NOTE: self-service 2FA disable was intentionally removed - 2FA is mandatory
     // (see TwoFactorEnrollmentSubscriber). Any future reset must be an admin-only,
     // audited action, not a user-facing route.
 

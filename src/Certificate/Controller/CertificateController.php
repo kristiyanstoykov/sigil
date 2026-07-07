@@ -61,7 +61,7 @@ class CertificateController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid() && !$atLimit) {
             if (!$certificateIssueLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
-                $this->addFlash('danger', 'Too many issuance attempts — please try again later.');
+                $this->addFlash('danger', 'Too many issuance attempts - please try again later.');
 
                 return $this->redirectToRoute('app_certificate_new');
             }
@@ -135,7 +135,7 @@ class CertificateController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             if (!$pinVerificationLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
-                $this->addFlash('danger', 'Too many PIN attempts — please try again later.');
+                $this->addFlash('danger', 'Too many PIN attempts - please try again later.');
 
                 return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
             }
@@ -155,7 +155,7 @@ class CertificateController extends AbstractController
                     // hash matched but the token refused → desync tripwire
                     $this->pinGate->reportTokenPinRejected($certificate);
 
-                    throw new CertificateLockedException('PIN integrity check failed — the certificate was locked as a precaution. Please re-issue it.');
+                    throw new CertificateLockedException('PIN integrity check failed - the certificate was locked as a precaution. Please re-issue it.');
                 }
 
                 $certificate->setPinHash(password_hash($newPin, \PASSWORD_ARGON2ID));
@@ -203,7 +203,7 @@ class CertificateController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             if (!$certificateUnlockLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
-                $this->addFlash('danger', 'Too many unlock attempts — please try again later.');
+                $this->addFlash('danger', 'Too many unlock attempts - please try again later.');
 
                 return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
             }
@@ -237,7 +237,7 @@ class CertificateController extends AbstractController
         $certificate = $this->ownedCertificate($id);
 
         if (!$this->isCsrfTokenValid('revoke-certificate-'.$id, (string) $request->request->get('_token'))) {
-            $this->addFlash('danger', 'Invalid security token — please try again.');
+            $this->addFlash('danger', 'Invalid security token - please try again.');
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
         }

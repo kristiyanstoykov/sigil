@@ -1,73 +1,64 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-<div data-controller="sidebar">
 
-{# ── Fixed header (solid — never glass) ──────────────────────────────────── #}
-<header class="fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-6 bg-surface border-b border-line shadow-sm">
-
-    {# Logo + name #}
-    <a href="{{ path('app_dashboard') }}" class="flex items-center gap-3 no-underline group">
-        <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="" width="52" height="36"
-             class="shrink-0 transition-opacity duration-150 group-hover:opacity-80">
-        <span class="flex flex-col leading-none">
-            <span class="text-base font-extrabold tracking-tight text-body">Sigil</span>
-            <span class="text-[9px] tracking-widest uppercase font-medium text-muted">Signum Veritatis</span>
-        </span>
-    </a>
-
-    {# People search — routing a document straight to a person (Document module, todo) #}
-    <div class="hidden md:flex items-center gap-2.5 flex-1 max-w-md mx-7 px-3.5 py-2 rounded-[10px] border border-line bg-[var(--sigil-bg)] text-[color:var(--sigil-text-disabled)]"
-         title="Coming soon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.4"/><path d="M4 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 11h5M19.5 8.5v5"/></svg>
-        <span class="text-[13px]">Find a person to send a file to…</span>
-    </div>
-
-    <div class="flex items-center gap-3.5">
-        {% block header_right %}{% endblock %}
-
-        {# Notifications (Mercure-fed, todo) #}
-        <button type="button" title="Notifications — coming soon"
-                class="relative inline-flex w-[38px] h-[38px] items-center justify-center border border-line bg-surface rounded-[10px] text-label cursor-default">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg>
-        </button>
-
-        {# User chip + dropdown (Flowbite) #}
-        <button type="button" data-dropdown-toggle="user-menu"
-                class="flex items-center gap-2.5 py-1 pl-1 pr-2 border border-line rounded-full cursor-pointer bg-surface">
-            <span class="w-[30px] h-[30px] rounded-full bg-linear-to-br from-primary-light to-primary text-white text-xs font-bold flex items-center justify-center">
-                {{ app.user.firstName|first|upper }}{{ app.user.lastName|first|upper }}
-            </span>
-            <span class="text-[13px] font-semibold text-label">{{ app.user.firstName }} {{ app.user.lastName|first|upper }}.</span>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div id="user-menu" class="hidden z-50 w-48 bg-surface border border-line rounded-card shadow-lg py-1.5">
-            <div class="px-4 py-2 border-b border-line">
-                <p class="text-[13px] font-semibold text-body truncate">{{ app.user.fullName }}</p>
-                <p class="text-xs text-muted truncate">{{ app.user.email }}</p>
-            </div>
-            <form method="post" action="{{ path('app_logout') }}">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
-                <button type="submit" data-no-loader
-                        class="w-full text-left px-4 py-2 text-[13px] font-medium text-danger hover:bg-danger/5 transition-colors cursor-pointer">
-                    Sign out
+{# ── Top navbar (stock Flowbite fixed navbar) ────────────────────────────── #}
+<nav class="fixed top-0 z-50 w-full bg-white border-b border-gray-200">
+    <div class="px-3 py-3 lg:px-5 lg:pl-3">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center justify-start rtl:justify-end">
+                <button data-drawer-target="app-sidebar" data-drawer-toggle="app-sidebar" aria-controls="app-sidebar" type="button"
+                        class="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200">
+                    <span class="sr-only">Open sidebar</span>
+                    <svg class="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"/></svg>
                 </button>
-            </form>
+                <a href="{{ path('app_dashboard') }}" class="flex items-center ms-2 md:me-24">
+                    <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="44" height="30" class="me-3">
+                    <span class="self-center text-xl font-semibold whitespace-nowrap">Sigil</span>
+                </a>
+            </div>
+            <div class="flex items-center gap-2">
+                {% block header_right %}{% endblock %}
+
+                <button type="button" title="Notifications - coming soon"
+                        class="p-2 text-gray-500 rounded-lg hover:text-gray-900 hover:bg-gray-100 cursor-default">
+                    <span class="sr-only">Notifications</span>
+                    <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 14 20"><path d="M12.133 10.632v-1.8A5.406 5.406 0 0 0 7.979 3.57.946.946 0 0 0 8 3.464V1.1a1 1 0 0 0-2 0v2.364a.946.946 0 0 0 .021.106 5.406 5.406 0 0 0-4.154 5.262v1.8C1.867 13.018 0 13.614 0 14.807 0 15.4 0 16 .538 16h12.924C14 16 14 15.4 14 14.807c0-1.193-1.867-1.789-1.867-4.175ZM3.823 17a3.453 3.453 0 0 0 6.354 0H3.823Z"/></svg>
+                </button>
+
+                <button type="button" data-dropdown-toggle="user-menu"
+                        class="flex items-center text-sm rounded-full focus:ring-4 focus:ring-gray-300">
+                    <span class="sr-only">Open user menu</span>
+                    <span class="w-8 h-8 rounded-full bg-primary-700 text-white text-xs font-semibold flex items-center justify-center">
+                        {{ app.user.firstName|first|upper }}{{ app.user.lastName|first|upper }}
+                    </span>
+                </button>
+                <div id="user-menu" class="z-50 hidden my-4 text-base list-none bg-white divide-y divide-gray-100 rounded-lg shadow-lg border border-gray-100">
+                    <div class="px-4 py-3">
+                        <p class="text-sm text-gray-900">{{ app.user.fullName }}</p>
+                        <p class="text-sm font-medium text-gray-500 truncate">{{ app.user.email }}</p>
+                    </div>
+                    <ul class="py-1">
+                        <li>
+                            <form method="post" action="{{ path('app_logout') }}">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                                <button type="submit" data-no-loader
+                                        class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                                    Sign out
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
+</nav>
 
-</header>
+{{ include('components/sidebar.html.twig', {badges: sidebar_badges|default({})}) }}
 
-{# ── Sidebar + content ───────────────────────────────────────────────────── #}
-<div class="flex pt-16 min-h-screen app-bg">
+<main class="p-4 sm:ml-64 pt-20">
+    {% block content %}{% endblock %}
+</main>
 
-    {{ include('components/sidebar.html.twig', {badges: sidebar_badges|default({})}) }}
-
-    <main class="flex-1 min-w-0 px-8 py-7 pb-10">
-        {% block content %}{% endblock %}
-    </main>
-
-</div>
-
-</div>
 {% endblock %}

@@ -51,7 +51,7 @@ final class TwoFactorEnrollmentSubscriber implements EventSubscriberInterface
 
         $user = $this->security->getUser();
         if (!$user instanceof User) {
-            return; // anonymous (login, register, assets) — nothing to enforce
+            return; // anonymous (login, register, assets) - nothing to enforce
         }
 
         if ($user->isGoogleAuthenticatorEnabled()) {

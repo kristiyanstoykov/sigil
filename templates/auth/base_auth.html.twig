@@ -1,28 +1,30 @@
 {#
-    Shared standalone auth layout: radial-glow backdrop, centered logo header,
-    frosted glass card, optional footer link. Auth pages extend this and fill:
-      block card       — the card contents (required)
-      block subtitle   — text under the logo
-      block card_width — max-width utility (default max-w-md)
-      block footer     — centered text/links under the card
+    Shared standalone auth layout - stock Flowbite authentication page:
+    gray backdrop, centered logo, white card. Auth pages extend this and fill:
+      block card       - the card contents (required)
+      block subtitle   - text under the logo
+      block card_width - max-width utility (default max-w-md)
+      block footer     - centered text/links under the card
 #}
 {% extends 'base.html.twig' %}
 
 {% block body %}
-<div class="auth-bg flex items-center justify-center px-4 py-12">
-    <div class="rise w-full {% block card_width %}max-w-md{% endblock %}">
+<section class="bg-gray-50">
+    <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto min-h-screen lg:py-0">
+        <div class="w-full {% block card_width %}max-w-md{% endblock %}">
 
-        <div class="text-center mb-8">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="78" height="54" class="mx-auto">
-            <p class="mt-2 text-[13px] text-muted">{% block subtitle %}Signum Veritatis — Digital Document Signing{% endblock %}</p>
+            <div class="flex flex-col items-center mb-6">
+                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="72" height="50">
+                <p class="mt-2 text-sm text-gray-500">{% block subtitle %}Signum Veritatis - Digital Document Signing{% endblock %}</p>
+            </div>
+
+            <div class="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-8">
+                {% block card %}{% endblock %}
+            </div>
+
+            {% block footer %}{% endblock %}
+
         </div>
-
-        <div class="glass-card p-8">
-            {% block card %}{% endblock %}
-        </div>
-
-        {% block footer %}{% endblock %}
-
     </div>
-</div>
+</section>
 {% endblock %}

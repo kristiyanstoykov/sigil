@@ -13,7 +13,7 @@ use Symfony\Component\Validator\Constraints\Regex;
 
 /**
  * ADR-008 unlock: password AND a fresh TOTP code, both re-proven at unlock
- * time — an active session is not sufficient.
+ * time - an active session is not sufficient.
  *
  * @extends AbstractType<array<string, mixed>>
  */

@@ -8,7 +8,7 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 
 /**
  * One implementation per supported signature suite (ADR-006). The algorithm
- * is a fixed strong default stored on the Certificate by its stable id —
+ * is a fixed strong default stored on the Certificate by its stable id -
  * never a user setting. Adding a suite = adding a class; nothing else changes.
  */
 #[AutoconfigureTag('app.signature_algorithm')]

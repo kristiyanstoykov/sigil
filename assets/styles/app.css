@@ -24,212 +24,33 @@
 }
 
 @theme {
-    /* ── Brand Primary ── */
-    --color-primary: #1E3A8A;
-    --color-primary-hover: #1E40AF;
-    --color-primary-light: #3B82F6;
-
-    /* ── Semantic ── */
-    --color-success: #059669;
-    --color-warning: #D97706;
-    --color-danger: #DC2626;
-    --color-info: #2563EB;
-
-    /* Neutrals as Tailwind utilities (text-body, text-muted, border-line, bg-surface)
-       — resolved from the --sigil-* system below so a dark theme is a variable swap. */
-    --color-body: var(--sigil-text);
-    --color-muted: var(--sigil-text-secondary);
-    --color-label: var(--sigil-label);
-    --color-line: var(--sigil-border);
-    --color-surface: var(--sigil-surface);
-
-    /* ── Typography ── */
     --font-sans: "Sofia Sans", ui-sans-serif, system-ui, sans-serif;
-    --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", monospace;
 
-    /* ── Border Radius ── */
-    --radius-btn: 10px;
-    --radius-input: 10px;
-    --radius-card: 12px;
-    --radius-modal: 16px;
-    --radius-glass: 18px;
+    /*
+     * Brand primary palette (Sigil blue, anchored on #1E3A8A at the 700 stop)
+     * shaped as the primary-* scale that stock Flowbite components expect
+     * (bg-primary-700, hover:bg-primary-800, focus:ring-primary-300, …).
+     */
+    --color-primary-50: #EFF6FF;
+    --color-primary-100: #DBEAFE;
+    --color-primary-200: #BFDBFE;
+    --color-primary-300: #93C5FD;
+    --color-primary-400: #60A5FA;
+    --color-primary-500: #3B82F6;
+    --color-primary-600: #2563EB;
+    --color-primary-700: #1E3A8A;
+    --color-primary-800: #172E6E;
+    --color-primary-900: #122452;
+    --color-primary-950: #0B1733;
 }
 
-/*
- * CSS custom properties for the full color system (cool slate neutrals with a
- * faint blue cast, per the design refresh — same names, cooler values).
- * All UI elements use these — swap values here to add dark theme later.
- */
-:root {
-    --sigil-bg: #F5F7FB;
-    --sigil-bg-deep: #EDF1F9;          /* auth backdrop under the radial glows */
-    --sigil-surface: #FFFFFF;          /* solid content cards, tables, headers */
-    --sigil-glass: rgba(255, 255, 255, 0.55);
-    --sigil-glass-border: rgba(255, 255, 255, 0.65);
-    --sigil-border: #E2E8F0;
-    --sigil-input-border: rgba(15, 23, 42, 0.10);
-    --sigil-input-bg: rgba(255, 255, 255, 0.60);
-    --sigil-input-bg-focus: rgba(255, 255, 255, 0.85);
-    --sigil-text: #0F172A;
-    --sigil-label: #334155;
-    --sigil-text-secondary: #64748B;
-    --sigil-text-disabled: #94A3B8;
-    /* Primary button gradient top stop (bottom stop is --color-primary). */
-    --sigil-primary-gradient-top: #2A4BA0;
+/* Slightly smaller type across the board — all Tailwind sizes are rem-based. */
+html {
+    font-size: 15px;
 }
 
 body {
-    background-color: var(--sigil-bg);
-    color: var(--sigil-text);
-    font-family: var(--font-sans);
-}
-
-/*
- * ── Component recipes ─────────────────────────────────────────────────────
- * Repeated design-system recipes (glass card, inputs, primary button) live
- * here instead of being restated as utility soup in every template.
- * Glass is reserved for: auth card, modals (PIN), toasts, sidebar, active
- * document cards. Headers, tables and content cards stay solid surface.
- */
-@layer components {
-    /* Full-viewport auth backdrop: two soft blue radial glows on a cool base. */
-    .auth-bg {
-        min-height: 100vh;
-        background:
-            radial-gradient(620px 520px at 18% 8%, rgba(59, 130, 246, 0.30), transparent 60%),
-            radial-gradient(520px 520px at 92% 96%, rgba(30, 58, 138, 0.20), transparent 60%),
-            var(--sigil-bg-deep);
-    }
-
-    /* Frosted glass card: inset top highlight + layered blue-tinted shadows. */
-    .glass-card {
-        border-radius: var(--radius-glass);
-        background: var(--sigil-glass);
-        backdrop-filter: blur(24px) saturate(160%);
-        -webkit-backdrop-filter: blur(24px) saturate(160%);
-        border: 1px solid var(--sigil-glass-border);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.9),
-            0 1px 2px rgba(30, 58, 138, 0.06),
-            0 18px 40px -16px rgba(30, 58, 138, 0.22);
-    }
-
-    .form-input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 11px 14px;
-        font-size: 14px;
-        font-family: inherit;
-        border-radius: var(--radius-input);
-        border: 1px solid var(--sigil-input-border);
-        background: var(--sigil-input-bg);
-        color: var(--sigil-text);
-        outline: none;
-        transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
-    }
-    .form-input:focus {
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.13);
-        background: var(--sigil-input-bg-focus);
-    }
-
-    .btn-primary {
-        width: 100%;
-        padding: 12px 16px;
-        font-size: 14px;
-        font-weight: 650;
-        font-family: inherit;
-        color: #fff;
-        border: none;
-        border-radius: var(--radius-btn);
-        background: linear-gradient(180deg, var(--sigil-primary-gradient-top), var(--color-primary));
-        box-shadow: 0 1px 2px rgba(30, 58, 138, 0.4), 0 8px 20px -6px rgba(30, 58, 138, 0.5);
-        cursor: pointer;
-        transition: transform 0.15s, box-shadow 0.2s;
-    }
-    .btn-primary:hover {
-        transform: translateY(-1px) scale(1.01);
-        box-shadow: 0 2px 4px rgba(30, 58, 138, 0.45), 0 14px 30px -8px rgba(30, 58, 138, 0.55);
-    }
-    .btn-primary:active {
-        transform: translateY(0) scale(1);
-    }
-
-    /* PIN entry: monospace + wide tracking, on top of .form-input. */
-    .pin-input {
-        font-size: 15px;
-        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-        letter-spacing: 0.3em;
-    }
-
-    /* Confirm-dialog surface: near-opaque white with a whisper of blur —
-       deliberately less glassy than .glass-card so the text stays crisp. */
-    .modal-card {
-        background: rgba(255, 255, 255, 0.94);
-        backdrop-filter: blur(10px) saturate(140%);
-        -webkit-backdrop-filter: blur(10px) saturate(140%);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.9),
-            0 30px 70px -20px rgba(15, 23, 42, 0.5);
-        animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-    }
-    @keyframes modal-pop {
-        from { opacity: 0; transform: translateY(14px) scale(0.98); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    /* Backdrop fade, applied to the modal wrapper. */
-    .modal-backdrop-fade {
-        animation: modal-backdrop-fade 0.2s ease-out both;
-    }
-    @keyframes modal-backdrop-fade {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    /* Reverse animations, added by confirm_controller.js while closing. */
-    .modal-card.modal-card-out {
-        animation: modal-pop-out 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
-    }
-    @keyframes modal-pop-out {
-        from { opacity: 1; transform: translateY(0) scale(1); }
-        to { opacity: 0; transform: translateY(14px) scale(0.98); }
-    }
-    .modal-backdrop-fade.modal-backdrop-out {
-        animation: modal-backdrop-fade 0.2s ease-in both reverse;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .modal-card, .modal-backdrop-fade,
-        .modal-card.modal-card-out, .modal-backdrop-fade.modal-backdrop-out { animation: none; }
-    }
-
-    /* Guilloche security-print texture on the certificate ID cards
-       (crosshatched fine lines, like a banknote). Gradient stops are too
-       gnarly for a utility class. */
-    .cert-guilloche {
-        background:
-            repeating-linear-gradient(115deg, rgba(30, 58, 138, 0.05) 0 1px, transparent 1px 7px),
-            repeating-linear-gradient(65deg, rgba(30, 58, 138, 0.04) 0 1px, transparent 1px 9px);
-    }
-}
-
-@layer components {
-    /* Faint brand glows behind the whole authenticated app (layout/app.html.twig). */
-    .app-bg {
-        background:
-            radial-gradient(520px 420px at 12% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
-            radial-gradient(460px 460px at 100% 100%, rgba(30, 58, 138, 0.10), transparent 60%),
-            var(--sigil-bg);
-    }
-
-}
-
-/* Card entrance on auth pages. */
-@keyframes auth-rise {
-    from { opacity: 0; transform: translateY(12px) scale(0.99); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.rise {
-    animation: auth-rise 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    @apply bg-gray-50 text-gray-900 antialiased;
 }
 
 /*
@@ -251,7 +72,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .rise { animation: none; }
     .s-path { animation: none; stroke-dashoffset: 0; opacity: 0.5; }
 }
 
@@ -275,8 +95,42 @@ button[aria-busy="true"] {
     cursor: progress;
 }
 
+/*
+ * Confirm-dialog open/close animations (assets/controllers/confirm_controller.js
+ * toggles the -out classes while closing). Animation only — the dialog surface
+ * itself is styled with Flowbite modal classes in the template.
+ */
+.modal-card {
+    animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes modal-pop {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-backdrop-fade {
+    animation: modal-backdrop-fade 0.2s ease-out both;
+}
+@keyframes modal-backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.modal-card.modal-card-out {
+    animation: modal-pop-out 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+}
+@keyframes modal-pop-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+.modal-backdrop-fade.modal-backdrop-out {
+    animation: modal-backdrop-fade 0.2s ease-in both reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+    .modal-card, .modal-backdrop-fade,
+    .modal-card.modal-card-out, .modal-backdrop-fade.modal-backdrop-out { animation: none; }
+}
+
 /* Turbo's built-in progress bar (slow page navigations) in brand color. */
 .turbo-progress-bar {
     height: 3px;
-    background-color: var(--color-primary-light);
+    background-color: var(--color-primary-600);
 }

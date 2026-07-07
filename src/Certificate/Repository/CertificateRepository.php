@@ -39,7 +39,7 @@ class CertificateRepository extends ServiceEntityRepository
     }
 
     /**
-     * ADR-008: atomic, guarded failure counting — a single UPDATE so
+     * ADR-008: atomic, guarded failure counting - a single UPDATE so
      * concurrent wrong-PIN requests cannot race past the limit. Resets the
      * window when the last failure is older than PIN_WINDOW_SECONDS, locks
      * the certificate when the limit is reached.

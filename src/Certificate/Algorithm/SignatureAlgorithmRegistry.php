@@ -9,7 +9,7 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 
 /**
  * Looks up signature suites by their stable id. The default is fixed here
- * (ADR-006) — it is a deployment decision, not a user choice.
+ * (ADR-006) - it is a deployment decision, not a user choice.
  */
 final class SignatureAlgorithmRegistry
 {

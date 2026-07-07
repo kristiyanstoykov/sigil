@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
  * Thin shell-out wrapper around pkcs11-tool / softhsm2-util (ADR-005).
  *
  * One PKCS#11 token per certificate. PINs are passed to child processes via
- * environment references (pkcs11-tool's `env:` syntax) — NEVER as argv,
+ * environment references (pkcs11-tool's `env:` syntax) - NEVER as argv,
  * which is world-readable in /proc. The SO PIN is random and discarded at
  * init time on purpose: a server-held SO PIN could reset User PINs, which
  * ADR-008 explicitly rejects. Locked/forgotten PIN ⇒ delete token, re-issue.
@@ -132,7 +132,7 @@ class Pkcs11TokenManager
 
     /**
      * ADR-008 PIN change, token side. Caller updates the DB hash afterwards
-     * (token first — a failed DB write is caught by the desync tripwire).
+     * (token first - a failed DB write is caught by the desync tripwire).
      */
     public function changeUserPin(
         string $tokenLabel,
@@ -192,7 +192,7 @@ class Pkcs11TokenManager
 
     /**
      * @param list<string>          $command
-     * @param array<string, string> $secretEnv PIN material — env only, never argv
+     * @param array<string, string> $secretEnv PIN material - env only, never argv
      */
     private function run(array $command, array $secretEnv = []): void
     {

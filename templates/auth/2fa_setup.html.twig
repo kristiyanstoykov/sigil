@@ -1,26 +1,26 @@
 {% extends 'auth/base_auth.html.twig' %}
 
-{% block title %}Set up two-factor authentication — Sigil{% endblock %}
+{% block title %}Set up two-factor authentication - Sigil{% endblock %}
 
 {% block subtitle %}Secure your account{% endblock %}
 
 {% block card %}
-    <h2 class="text-lg font-bold mb-1.5 text-body">Set up two-factor authentication</h2>
-    <p class="text-[13px] leading-relaxed mb-5 text-muted">
+    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-2">Set up two-factor authentication</h1>
+    <p class="text-sm text-gray-500 leading-relaxed mb-5">
         Use Google Authenticator, Authy, or any TOTP app to scan the QR code below. Then enter the 6-digit code to confirm.
     </p>
 
     <div class="flex justify-center mb-5">
-        <div class="p-3 rounded-modal border border-line bg-surface inline-block">
+        <div class="p-3 rounded-lg border border-gray-200 bg-white inline-block">
             <img src="{{ qr_code_data_uri }}" alt="TOTP QR code" width="200" height="200">
         </div>
     </div>
 
-    <details class="mb-5 text-[13px] text-muted">
-        <summary class="cursor-pointer font-semibold hover:text-primary transition-colors">
+    <details class="mb-5 text-sm text-gray-500">
+        <summary class="cursor-pointer font-medium hover:text-primary-700">
             Can't scan the QR code?
         </summary>
-        <p class="mt-2 font-mono text-xs break-all p-3 rounded-btn border border-line bg-surface/60">
+        <p class="mt-2 font-mono text-xs break-all p-3 rounded-lg border border-gray-200 bg-gray-50">
             {{ provisioning_uri }}
         </p>
     </details>
@@ -28,23 +28,16 @@
     <form method="post" class="space-y-4">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token('2fa_setup') }}">
         <div>
-            <label for="code" class="block text-[12.5px] font-semibold mb-1.5 text-label">
-                Verification code
-            </label>
-            <input
-                type="text"
-                id="code"
-                name="_auth_code"
-                inputmode="numeric"
-                pattern="[0-9]{6}"
-                maxlength="6"
-                autocomplete="one-time-code"
-                autofocus
-                placeholder="000000"
-                class="form-input text-center !text-xl tracking-[0.4em] font-mono !py-3"
-            >
+            <label for="code" class="block mb-2 text-sm font-medium text-gray-900">Verification code</label>
+            <input type="text" id="code" name="_auth_code"
+                   inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                   autocomplete="one-time-code" autofocus placeholder="000000"
+                   class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-3 text-center text-xl tracking-[0.4em] font-mono">
         </div>
 
-        <button type="submit" class="btn-primary">Enable two-factor authentication</button>
+        <button type="submit"
+                class="w-full text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center cursor-pointer">
+            Enable two-factor authentication
+        </button>
     </form>
 {% endblock %}

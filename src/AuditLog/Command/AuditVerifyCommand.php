@@ -41,7 +41,7 @@ final class AuditVerifyCommand extends Command
             }
             $recomputed = hash('sha256', $entry->getPreviousHash().$entry->canonicalPayload());
             if (!hash_equals($recomputed, $entry->getEntryHash())) {
-                $errors[] = 'entryHash mismatch — entry content was modified';
+                $errors[] = 'entryHash mismatch - entry content was modified';
             }
 
             if ([] !== $errors) {
@@ -62,7 +62,7 @@ final class AuditVerifyCommand extends Command
         }
 
         $io->success(0 === $count
-            ? 'Audit log is empty — nothing to verify.'
+            ? 'Audit log is empty - nothing to verify.'
             : sprintf('Audit chain intact: %d entries verified.', $count));
 
         return Command::SUCCESS;

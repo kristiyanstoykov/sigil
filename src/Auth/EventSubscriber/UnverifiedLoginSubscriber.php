@@ -14,7 +14,7 @@ use Symfony\Component\Security\Http\Event\LoginFailureEvent;
  * When a login fails because the account's email is not verified, send the user
  * to the resend-verification page instead of showing the generic login error.
  * The attempted email is stashed in the session so the resend form is prefilled
- * — it is never put in the URL.
+ * - it is never put in the URL.
  */
 final class UnverifiedLoginSubscriber implements EventSubscriberInterface
 {

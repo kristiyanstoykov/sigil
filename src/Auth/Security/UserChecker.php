@@ -12,7 +12,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 /**
  * Runs during authentication, before credentials are checked. This is the
  * correct place to reject an account that exists but is not allowed to log in
- * yet — here, an unverified email address.
+ * yet - here, an unverified email address.
  */
 final class UserChecker implements UserCheckerInterface
 {

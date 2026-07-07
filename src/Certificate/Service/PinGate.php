@@ -20,7 +20,7 @@ use Psr\Clock\ClockInterface;
  * rate limiter (controller) → this gate → open PKCS#11 session.
  *
  * The desync tripwire (hash matched but the token later rejected the PIN)
- * is reported back via reportTokenPinRejected() — integrity alarm, fail closed.
+ * is reported back via reportTokenPinRejected() - integrity alarm, fail closed.
  */
 class PinGate
 {
@@ -69,7 +69,7 @@ class PinGate
         );
 
         if ($locked) {
-            throw new CertificateLockedException('Too many failed attempts — this certificate is now locked.');
+            throw new CertificateLockedException('Too many failed attempts - this certificate is now locked.');
         }
 
         throw new InvalidPinException(sprintf(
@@ -80,7 +80,7 @@ class PinGate
 
     /**
      * ADR-008 desync tripwire: the Argon2id hash matched but the token
-     * rejected the PIN. Hash and token have desynchronized — lock the
+     * rejected the PIN. Hash and token have desynchronized - lock the
      * certificate, audit at high severity, require re-issue. Fail closed.
      */
     public function reportTokenPinRejected(Certificate $certificate): void
