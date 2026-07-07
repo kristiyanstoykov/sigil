@@ -26,9 +26,22 @@ jobs:
         env:
             APP_ENV: test
             DATABASE_URL: "postgresql://sigil:sigil@127.0.0.1:5432/sigil?serverVersion=16&charset=utf8"
+            PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
+            SOFTHSM2_CONF: /home/runner/softhsm2.conf
 
         steps:
             - uses: actions/checkout@v5
+
+            # Key custody stack (ADR-005): SoftHSM2 token store, pkcs11-tool
+            # (opensc) for keygen, and the python-pkcs11/asn1crypto libs the
+            # bin/issue_cert.py driver imports. Tokens live in a runner-owned
+            # dir so no group membership games are needed.
+            - name: Install PKCS#11 stack
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends softhsm2 opensc python3-pkcs11 python3-asn1crypto
+                  mkdir -p /home/runner/softhsm-tokens
+                  printf 'directories.tokendir = /home/runner/softhsm-tokens\nobjectstore.backend = file\n' > /home/runner/softhsm2.conf
 
             - uses: shivammathur/setup-php@v2
               with:
@@ -68,6 +81,11 @@ jobs:
               run: |
                   php bin/console -e test doctrine:database:create --if-not-exists -n
                   php bin/console -e test doctrine:migrations:migrate -n
+
+            # The certificate issuance tests exercise the real chain and
+            # need an initialized CA (in-token key + var/ca/ca.crt).
+            - name: Initialize test CA
+              run: php bin/console -e test sigil:ca:init
 
             - name: PHPUnit
               run: php bin/phpunit

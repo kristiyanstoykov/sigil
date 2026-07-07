@@ -51,7 +51,8 @@ class CertificateIssueTest extends AuthWebTestCase
         // the certificate chains to the Sigil CA
         $pemFile = (string) tempnam(sys_get_temp_dir(), 'sigil-test-cert-');
         file_put_contents($pemFile, $certificate->getCertificatePem());
-        $verify = new Process(['openssl', 'verify', '-CAfile', 'var/ca/ca.crt', $pemFile], cwd: '/app');
+        $projectDir = (string) static::getContainer()->getParameter('kernel.project_dir');
+        $verify = new Process(['openssl', 'verify', '-CAfile', 'var/ca/ca.crt', $pemFile], cwd: $projectDir);
         $verify->run();
         @unlink($pemFile);
         self::assertStringContainsString('OK', $verify->getOutput(), $verify->getErrorOutput());
