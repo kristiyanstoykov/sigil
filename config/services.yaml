@@ -21,3 +21,24 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    # AuditLog: single write entry point for the hash-chained audit log
+    App\AuditLog\AuditLoggerInterface: '@App\AuditLog\Service\DoctrineAuditLogger'
+
+when@test:
+    services:
+        _defaults:
+            autowire: true
+            autoconfigure: true
+
+        App\AuditLog\Service\DoctrineAuditLogger:
+            public: true
+
+        App\Certificate\Service\CertificateIssuer:
+            public: true
+
+        App\Certificate\Service\Pkcs11TokenManager:
+            public: true
+
+        App\Certificate\Service\PinGate:
+            public: true

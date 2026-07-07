@@ -18,6 +18,7 @@
             {{ form_label(resetForm[field_password].second, null, {label_attr: {class: label_class}}) }}
             {{ form_widget(resetForm[field_password].second, {attr: {class: 'form-input'}}) }}
             {{ form_errors(resetForm[field_password]) }}
+            {{ form_errors(resetForm[field_password].first) }}
         </div>
 
         <p class="text-[11.5px] text-muted">Minimum 10 characters.</p>

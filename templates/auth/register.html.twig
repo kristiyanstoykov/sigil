@@ -37,6 +37,7 @@
         {{ form_label(form[field_password].second, null, {label_attr: {class: label_class}}) }}
         {{ form_widget(form[field_password].second, {attr: {class: 'form-input'}}) }}
         {{ form_errors(form[field_password]) }}
+        {{ form_errors(form[field_password].first) }}
     </div>
 
     <p class="text-[11.5px] text-muted">

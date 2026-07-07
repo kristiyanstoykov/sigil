@@ -1,0 +1,29 @@
+{# Shared bits for the Certificate pages. Status colors mirror the design:
+   active=success, locked=danger, revoked=slate, expired=warning. #}
+
+{% macro badge(status, big = false) %}
+    {% set size = big ? 'text-[12px] px-3 py-[5px]' : 'text-[11px] px-2.5 py-1' %}
+    {% if status == 'active' %}
+        <span class="inline-flex items-center gap-1.5 font-bold rounded-full whitespace-nowrap text-[color:#047857] bg-success/10 {{ size }}"><span class="w-[7px] h-[7px] rounded-full bg-success"></span>Active</span>
+    {% elseif status == 'locked' %}
+        <span class="inline-flex items-center gap-1.5 font-bold rounded-full whitespace-nowrap text-[color:#B91C1C] bg-danger/10 {{ size }}"><span class="w-[7px] h-[7px] rounded-full bg-danger"></span>Locked</span>
+    {% elseif status == 'revoked' %}
+        <span class="inline-flex items-center gap-1.5 font-bold rounded-full whitespace-nowrap text-[color:#475569] bg-[color:rgba(100,116,139,.12)] {{ size }}"><span class="w-[7px] h-[7px] rounded-full bg-[color:#94A3B8]"></span>Revoked</span>
+    {% else %}
+        <span class="inline-flex items-center gap-1.5 font-bold rounded-full whitespace-nowrap text-[color:#B45309] bg-warning/12 {{ size }}"><span class="w-[7px] h-[7px] rounded-full bg-warning"></span>Expired</span>
+    {% endif %}
+{% endmacro %}
+
+{% macro accent_class(status) %}{{ status == 'active' ? 'bg-success' : (status == 'locked' ? 'bg-danger' : (status == 'expired' ? 'bg-warning' : 'bg-[color:#94A3B8]')) }}{% endmacro %}
+
+{# First 16 hex chars of the serial, uppercased, grouped in fours: 5F12 9E3F C4F2 5132 #}
+{% macro serial_short(serial) %}
+    {%- set s = serial|upper -%}
+    {{- [s|slice(0, 4), s|slice(4, 4), s|slice(8, 4), s|slice(12, 4)]|join(' ') -}}
+{% endmacro %}
+
+{% macro back_link(href, label) %}
+    <a href="{{ href }}" class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-body transition-colors mb-4">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>{{ label }}
+    </a>
+{% endmacro %}

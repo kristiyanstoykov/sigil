@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Dashboard\Controller;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
+use App\Certificate\Enum\CertificateStatus;
+use App\Certificate\Repository\CertificateRepository;
+use App\Core\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -13,12 +17,34 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class DashboardController extends AbstractController
 {
     #[Route('/', name: 'app_dashboard')]
-    public function index(): Response
-    {
-        // TODO: replace every array below with repository queries once the
-        // Certificate / Document / Signing / AuditLog modules exist. The shapes
-        // mirror the planned entities so the template won't need to change.
-        // Set them all empty ([] / 0) to see the onboarding empty state.
+    public function index(
+        CertificateRepository $certificateRepository,
+        SignatureAlgorithmRegistry $algorithms,
+    ): Response {
+        $user = $this->getUser();
+        \assert($user instanceof User);
+
+        $certificates = [];
+        foreach ($certificateRepository->findByUser($user) as $certificate) {
+            if (CertificateStatus::Revoked === $certificate->getStatus()) {
+                continue;
+            }
+            $daysLeft = (int) (new \DateTimeImmutable())->diff($certificate->getNotAfter())->format('%r%a');
+            $expiring = CertificateStatus::Active === $certificate->getStatus() && $daysLeft <= 30;
+            $certificates[] = [
+                'id' => $certificate->getId(),
+                'name' => 'Personal signing',
+                'cn' => $certificate->getSubjectDn(),
+                'algorithm' => $algorithms->get($certificate->getAlgorithmId())->label(),
+                'valid_until' => $certificate->getNotAfter()->format('d M Y'),
+                'status' => $expiring ? 'expiring' : $certificate->getStatus()->value,
+                'expires_in' => $expiring ? max(0, $daysLeft).'d' : null,
+            ];
+        }
+
+        // TODO: replace the remaining arrays below with repository queries once
+        // the Document / Signing modules exist. The shapes mirror the planned
+        // entities so the template won't need to change.
         return $this->render('dashboard/index.html.twig', [
             'sidebar_badges' => ['signing_requests' => 2],
             'stats' => [
@@ -35,11 +61,7 @@ class DashboardController extends AbstractController
                 ['document' => 'Vendor MSA v3.pdf', 'to' => 'Orion GmbH', 'status' => 'Awaiting', 'meta' => 'sent 1 day ago'],
                 ['document' => 'Board consent Q3.pdf', 'to' => '4 signers', 'status' => 'In progress', 'meta' => '2 of 4 signed'],
             ],
-            'certificates' => [
-                ['name' => 'Personal signing', 'cn' => 'Maria Koleva', 'algorithm' => 'ECDSA P-384', 'valid_until' => '14 Mar 2027', 'status' => 'active'],
-                ['name' => 'Acme Ltd · company', 'cn' => 'Acme Ltd / M. Koleva', 'algorithm' => 'RSA-3072', 'valid_until' => '09 Nov 2026', 'status' => 'active'],
-                ['name' => 'Qualified eIDAS', 'cn' => 'Maria Koleva', 'algorithm' => 'ECDSA P-384', 'valid_until' => '15 Jul 2026', 'status' => 'expiring', 'expires_in' => '12d'],
-            ],
+            'certificates' => $certificates,
             'activity' => [
                 ['type' => 'signed', 'text' => 'You signed <strong>Payroll addendum.pdf</strong>', 'when' => '2 hours ago'],
                 ['type' => 'uploaded', 'text' => 'Uploaded <strong>Q3 report.pdf</strong>', 'when' => 'Yesterday'],

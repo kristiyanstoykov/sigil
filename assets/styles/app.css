@@ -154,6 +154,62 @@ body {
     .btn-primary:active {
         transform: translateY(0) scale(1);
     }
+
+    /* PIN entry: monospace + wide tracking, on top of .form-input. */
+    .pin-input {
+        font-size: 15px;
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        letter-spacing: 0.3em;
+    }
+
+    /* Confirm-dialog surface: near-opaque white with a whisper of blur —
+       deliberately less glassy than .glass-card so the text stays crisp. */
+    .modal-card {
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(10px) saturate(140%);
+        -webkit-backdrop-filter: blur(10px) saturate(140%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.9),
+            0 30px 70px -20px rgba(15, 23, 42, 0.5);
+        animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    @keyframes modal-pop {
+        from { opacity: 0; transform: translateY(14px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    /* Backdrop fade, applied to the modal wrapper. */
+    .modal-backdrop-fade {
+        animation: modal-backdrop-fade 0.2s ease-out both;
+    }
+    @keyframes modal-backdrop-fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    /* Reverse animations, added by confirm_controller.js while closing. */
+    .modal-card.modal-card-out {
+        animation: modal-pop-out 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+    }
+    @keyframes modal-pop-out {
+        from { opacity: 1; transform: translateY(0) scale(1); }
+        to { opacity: 0; transform: translateY(14px) scale(0.98); }
+    }
+    .modal-backdrop-fade.modal-backdrop-out {
+        animation: modal-backdrop-fade 0.2s ease-in both reverse;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .modal-card, .modal-backdrop-fade,
+        .modal-card.modal-card-out, .modal-backdrop-fade.modal-backdrop-out { animation: none; }
+    }
+
+    /* Guilloche security-print texture on the certificate ID cards
+       (crosshatched fine lines, like a banknote). Gradient stops are too
+       gnarly for a utility class. */
+    .cert-guilloche {
+        background:
+            repeating-linear-gradient(115deg, rgba(30, 58, 138, 0.05) 0 1px, transparent 1px 7px),
+            repeating-linear-gradient(65deg, rgba(30, 58, 138, 0.04) 0 1px, transparent 1px 9px);
+    }
 }
 
 @layer components {

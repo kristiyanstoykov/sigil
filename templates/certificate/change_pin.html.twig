@@ -1,0 +1,51 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'certificate/_helpers.html.twig' as helpers %}
+
+{% block title %}Change PIN — Sigil{% endblock %}
+
+{% block content %}
+    <div class="max-w-[460px] mx-auto mt-2">
+        {{ helpers.back_link(path('app_certificate_show', {id: certificate.id}), 'Back to certificate') }}
+
+        <div class="bg-surface border border-line rounded-2xl shadow-sm p-6.5">
+            <div class="flex items-center gap-3 mb-1.5">
+                <span class="inline-flex w-10 h-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                </span>
+                <h1 class="text-xl font-extrabold tracking-tight text-body">Change your PIN</h1>
+            </div>
+            <p class="text-[13.5px] text-muted leading-relaxed mb-5">Enter your current PIN, then choose a new one. Your key and certificate stay the same.</p>
+
+            {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+            {% set label_class = 'block text-[12.5px] font-semibold mb-1.5 text-label' %}
+            {% set current = constant('App\\Certificate\\Form\\ChangePinForm::E_CURRENT_PIN') %}
+            {% set new = constant('App\\Certificate\\Form\\ChangePinForm::E_NEW_PIN') %}
+
+            <div class="mb-4">
+                {{ form_label(form[current], null, {label_attr: {class: label_class}}) }}
+                {{ form_widget(form[current], {attr: {class: 'form-input pin-input', placeholder: '••••••'}}) }}
+                {{ form_errors(form[current]) }}
+            </div>
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    {{ form_label(form[new].first, null, {label_attr: {class: label_class}}) }}
+                    {{ form_widget(form[new].first, {attr: {class: 'form-input pin-input', placeholder: '6–8 digits'}}) }}
+                </div>
+                <div class="flex-1">
+                    {{ form_label(form[new].second, null, {label_attr: {class: label_class}}) }}
+                    {{ form_widget(form[new].second, {attr: {class: 'form-input pin-input', placeholder: 'Repeat'}}) }}
+                </div>
+            </div>
+            {# RepeatedType maps violations to its FIRST child #}
+            <div class="mb-2">
+                {{ form_errors(form[new]) }}
+                {{ form_errors(form[new].first) }}
+                {{ form_errors(form[new].second) }}
+            </div>
+            <p class="text-[11.5px] text-[color:var(--sigil-text-disabled)] leading-normal mb-5">5 wrong attempts within an hour lock the certificate.</p>
+
+            <button type="submit" class="btn-primary w-full py-3 text-[14px] font-bold rounded-[11px] text-white">Update PIN</button>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

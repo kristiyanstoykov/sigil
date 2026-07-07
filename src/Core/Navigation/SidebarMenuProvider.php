@@ -38,8 +38,8 @@ final readonly class SidebarMenuProvider
                 badgeKey: 'signing_requests',
             ),
             new MenuItem(
-                label: 'Certificate',
-                route: null, // TODO: app_certificate (Certificate module)
+                label: 'Certificates',
+                route: 'app_certificates',
                 icon: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
             ),
             new MenuItem(

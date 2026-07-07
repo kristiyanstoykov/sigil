@@ -1,0 +1,15 @@
+{# App-wide form theme (registered in config/packages/twig.yaml).
+   Only overrides error rendering — widgets/labels are styled per-template
+   with Tailwind classes. #}
+{% block form_errors %}
+    {% if errors|length > 0 %}
+        <ul class="mt-1.5 space-y-0.5" role="alert">
+            {% for error in errors %}
+                <li class="flex items-start gap-1.5 text-[12px] font-medium text-danger">
+                    <svg class="shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+                    {{ error.message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endblock %}
