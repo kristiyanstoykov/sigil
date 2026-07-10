@@ -19,9 +19,34 @@ services:
       MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
       SOFTHSM2_CONF: /etc/softhsm2.conf
       PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
+      # Object storage (ADR-004/009). Active backend comes from .env (dev=minio)
+      # / .env.test (test=local) - NOT overridden here, so tests inside the
+      # container still use the local backend. Only the endpoint must point at
+      # the compose service instead of localhost.
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_REGION: us-east-1
+      MINIO_BUCKET: sigil-documents
+      MINIO_ACCESS_KEY: sigil
+      MINIO_SECRET_KEY: sigil_minio_dev
+      # AWS_* (real S3) are provided via .env.local when you want to test AWS,
+      # then flip SIGIL_STORAGE_ACTIVE_BACKEND=aws. Never commit real creds.
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console (http://localhost:9001, sigil / sigil_minio_dev)
+    environment:
+      MINIO_ROOT_USER: sigil
+      MINIO_ROOT_PASSWORD: sigil_minio_dev
+    volumes:
+      - minio_data:/data
 
   db:
     image: postgres:16-alpine
@@ -42,3 +67,4 @@ services:
 volumes:
   db_data:
   softhsm_tokens:
+  minio_data:

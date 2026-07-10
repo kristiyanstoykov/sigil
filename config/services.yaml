@@ -7,6 +7,13 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Where document ciphertext blobs live (ADR-004). Override with the
+    # SIGIL_DOCUMENT_STORAGE_PATH env var (e.g. a mounted volume) in prod.
+    default_document_storage_path: '%kernel.project_dir%/var/documents'
+
+    # Max uploadable document size (ADR-006). 10 MiB - files are buffered whole
+    # in memory for AEAD at this size. Single source of truth for the upload flow.
+    app.max_document_size_bytes: 10485760
 
 services:
     # default configuration for services in *this* file
@@ -18,12 +25,48 @@ services:
     # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
+        exclude:
+            # Configured per-instance below (minio/aws) - not a single autowired service
+            - '../src/Document/Service/S3StorageBackend.php'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
     # AuditLog: single write entry point for the hash-chained audit log
     App\AuditLog\AuditLoggerInterface: '@App\AuditLog\Service\DoctrineAuditLogger'
+
+    # Crypto: the only symmetric-crypto entry point (ADR-004/006)
+    App\Core\Crypto\EncryptionServiceInterface: '@App\Core\Crypto\EnvelopeEncryptionService'
+
+    # Document storage (ADR-009): the app depends on the routing facade, which
+    # dispatches to the backend stamped into each storage key.
+    App\Document\Service\DocumentStorageInterface: '@App\Document\Service\RoutingDocumentStorage'
+
+    # Storage backend: MinIO (dev, S3-compatible). Tagged app.storage_backend
+    # automatically via the interface's Autoconfigure attribute.
+    storage.backend.minio:
+        class: App\Document\Service\S3StorageBackend
+        arguments:
+            $id: 'minio'
+            $endpoint: '%env(MINIO_ENDPOINT)%'
+            $region: '%env(MINIO_REGION)%'
+            $bucket: '%env(MINIO_BUCKET)%'
+            $accessKey: '%env(MINIO_ACCESS_KEY)%'
+            $secretKey: '%env(MINIO_SECRET_KEY)%'
+            $pathStyleEndpoint: true
+
+    # Storage backend: real AWS S3. Dormant until AWS_* are supplied (lazy client);
+    # activate with SIGIL_STORAGE_ACTIVE_BACKEND=aws.
+    storage.backend.aws:
+        class: App\Document\Service\S3StorageBackend
+        arguments:
+            $id: 'aws'
+            $endpoint: '%env(AWS_ENDPOINT)%'
+            $region: '%env(AWS_REGION)%'
+            $bucket: '%env(AWS_BUCKET)%'
+            $accessKey: '%env(AWS_ACCESS_KEY_ID)%'
+            $secretKey: '%env(AWS_SECRET_ACCESS_KEY)%'
+            $pathStyleEndpoint: false
 
 when@test:
     services:
@@ -41,4 +84,22 @@ when@test:
             public: true
 
         App\Certificate\Service\PinGate:
+            public: true
+
+        App\Document\Service\KeyManagementService:
+            public: true
+
+        App\Document\Service\DocumentStorageInterface:
+            public: true
+
+        App\Document\Service\StorageKeyGenerator:
+            public: true
+
+        App\Document\Repository\UserEncryptionKeyRepository:
+            public: true
+
+        App\Document\Repository\DocumentRepository:
+            public: true
+
+        App\Document\Repository\DocumentKeyGrantRepository:
             public: true

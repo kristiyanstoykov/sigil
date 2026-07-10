@@ -49,13 +49,15 @@ jobs:
                   extensions: intl, pdo_pgsql, sodium, gd, zip
                   coverage: none
 
-            # .env / .env.test are git-ignored (real values live outside the
-            # repo); CI boots from the committed examples. .env.test carries
-            # KERNEL_CLASS, which the WebTestCase kernel boot requires.
-            - name: Provide env files
+            # .env is git-ignored (real values live outside the repo); CI boots
+            # it from the committed .env.example. .env.test is committed (it
+            # carries KERNEL_CLASS, which the WebTestCase kernel boot requires).
+            # SIGIL_ROOT_KEY is deliberately blank in the template (no real key
+            # in git), so generate an ephemeral one per run for the crypto tests.
+            - name: Provide env file
               run: |
                   cp .env.example .env
-                  cp .env.test.example .env.test
+                  echo "SIGIL_ROOT_KEY=$(php -r 'echo base64_encode(random_bytes(32));')" >> .env
 
             - name: Install dependencies
               run: composer install --no-interaction --no-progress --prefer-dist
