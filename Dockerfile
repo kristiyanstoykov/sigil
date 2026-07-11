@@ -36,6 +36,10 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
+# Raise PHP upload limits above the app's 10 MB document cap (placed late so the
+# heavy apk/pip layers above stay cached on rebuild).
+COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-sigil-uploads.ini
+
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

@@ -1,0 +1,92 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}{{ document.title }} · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set latest = document.latestVersion %}
+<div class="docs-rise mx-auto max-w-4xl">
+
+    <a href="{{ path('app_documents') }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Documents
+    </a>
+
+    {# ── header card ────────────────────────────────────────────────────── #}
+    <div class="rounded-xl border border-gray-200 bg-white/90 p-6 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex min-w-0 items-start gap-4">
+                {{ docs.pdf_icon('lg') }}
+                <div class="min-w-0">
+                    <h1 class="truncate text-xl font-extrabold tracking-tight text-gray-900">{{ document.title }}</h1>
+                    <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                        <span>Uploaded {{ (latest ? latest.createdAt : document.createdAt)|date('d M Y') }}</span>
+                        <span class="text-gray-300">·</span>
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                            Encrypted at rest
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <a href="{{ path('app_document_download', {id: document.id}) }}" data-turbo="false"
+                   class="inline-flex items-center gap-2 rounded-lg bg-primary-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-800 focus:ring-4 focus:ring-primary-300">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
+                    Download
+                </a>
+                <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
+                   class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                    View
+                </a>
+                <span class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-400 cursor-not-allowed" title="Coming soon">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg>
+                    Sign
+                    <span class="text-[10px] font-bold uppercase tracking-wide">Soon</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    {# ── versions timeline ──────────────────────────────────────────────── #}
+    <div class="mt-6">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-gray-500">Versions</h2>
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white/90 shadow-sm">
+            <ul class="divide-y divide-gray-100">
+                {% for v in document.versions|reverse %}
+                    <li class="flex flex-wrap items-center gap-x-4 gap-y-3 p-5">
+                        <div class="flex min-w-0 flex-1 items-center gap-3">
+                            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-xs font-bold text-primary-700">v{{ v.versionNumber }}</span>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    {{ docs.status_badge(v.kind) }}
+                                    <span class="text-sm text-gray-500">{{ docs.filesize(v.sizeBytes) }} · {{ v.createdAt|date('d M Y, H:i') }}</span>
+                                </div>
+                                <div class="mt-1.5 flex items-center gap-2">
+                                    <span class="text-[11px] font-medium uppercase tracking-wide text-gray-400">Integrity fingerprint</span>
+                                    <code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">{{ v.contentHash|slice(0, 10) }}…{{ v.contentHash|slice(-6) }}</code>
+                                    <input type="text" value="{{ v.contentHash }}" id="fp-{{ v.id }}" readonly class="sr-only" aria-hidden="true">
+                                    <button type="button" data-copy-to-clipboard-target="fp-{{ v.id }}"
+                                            class="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-gray-700">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="{{ path('app_document_version_download', {id: document.id, number: v.versionNumber}) }}" data-turbo="false"
+                           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                            <svg class="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
+                            Download
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <p class="mt-3 text-xs text-gray-400">Every version is kept - the original and each future signed copy - for a complete, tamper-evident record.</p>
+    </div>
+</div>
+{% endblock %}

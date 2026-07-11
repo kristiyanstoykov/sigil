@@ -28,7 +28,7 @@ final readonly class SidebarMenuProvider
             ),
             new MenuItem(
                 label: 'Documents',
-                route: null, // TODO: app_documents (Document module)
+                route: 'app_documents',
                 icon: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
             ),
             new MenuItem(

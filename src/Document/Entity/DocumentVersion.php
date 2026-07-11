@@ -6,6 +6,7 @@ namespace App\Document\Entity;
 
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
+use App\Core\Exception\DomainException;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentVersionRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -92,6 +93,18 @@ class DocumentVersion
     public function getStorageKey(): string
     {
         return $this->storageKey;
+    }
+
+    /**
+     * Write-once: the storage key is only known after the ciphertext is stored
+     * (the router stamps it with the backend id). Set exactly once, at creation.
+     */
+    public function setStorageKey(string $storageKey): void
+    {
+        if ('' !== $this->storageKey) {
+            throw new DomainException('Storage key is write-once.');
+        }
+        $this->storageKey = $storageKey;
     }
 
     public function getMimeType(): string

@@ -89,7 +89,14 @@ when@test:
         App\Document\Service\KeyManagementService:
             public: true
 
+        App\Document\Service\DocumentUploader:
+            public: true
+
+        App\Document\Service\DocumentDownloader:
+            public: true
+
         App\Document\Service\DocumentStorageInterface:
+            alias: App\Document\Service\RoutingDocumentStorage
             public: true
 
         App\Document\Service\StorageKeyGenerator:

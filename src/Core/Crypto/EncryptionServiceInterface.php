@@ -40,4 +40,18 @@ interface EncryptionServiceInterface
 
     /** Fresh random key sized for the default suite (32 bytes). For KEKs and DEKs. */
     public function generateKey(): string;
+
+    /**
+     * Derive a 32-byte subkey from input key material for a fixed purpose (HKDF).
+     * Lets one root key safely yield distinct, independent keys per use - e.g. a
+     * MAC key that is separate from any wrapping key.
+     */
+    public function deriveKey(string $inputKeyMaterial, string $context): string;
+
+    /**
+     * Keyed MAC (HMAC-SHA-384) of $message under $key, raw bytes (48).
+     * For integrity tags that must NOT be forgeable or recomputable without the
+     * key - unlike a bare hash, this leaks nothing to someone holding only the DB.
+     */
+    public function mac(string $message, string $key): string;
 }

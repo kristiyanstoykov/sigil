@@ -77,6 +77,16 @@ final class EnvelopeEncryptionService implements EncryptionServiceInterface
         return random_bytes($this->registry->default()->keyLength());
     }
 
+    public function deriveKey(string $inputKeyMaterial, string $context): string
+    {
+        return hash_hkdf('sha256', $inputKeyMaterial, 32, $context);
+    }
+
+    public function mac(string $message, string $key): string
+    {
+        return hash_hmac('sha384', $message, $key, true);
+    }
+
     /** Bind the framing that must not be tampered with into the AEAD AAD. */
     private function bindAad(string $algoId, string $callerAad): string
     {

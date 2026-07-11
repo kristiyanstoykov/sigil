@@ -1,0 +1,61 @@
+{#
+    Shared Documents macros. Import with:
+      {% import 'documents/_macros.html.twig' as docs %}
+#}
+
+{% macro filesize(bytes) %}
+{%- if bytes < 1024 -%}{{ bytes }} B
+{%- elseif bytes < 1048576 -%}{{ (bytes / 1024)|round }} KB
+{%- else -%}{{ (bytes / 1048576)|number_format(1) }} MB
+{%- endif -%}
+{% endmacro %}
+
+{% macro status_badge(kind) %}
+    {% set signed = kind.value == 'signed' %}
+    <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold
+                 {{ signed ? 'border-green-200 bg-green-100 text-green-800' : 'border-gray-200 bg-gray-100 text-gray-700' }}">
+        {{ signed ? 'Signed' : 'Original' }}
+    </span>
+{% endmacro %}
+
+{% macro pdf_icon(size) %}
+    <span class="inline-flex items-center justify-center rounded-lg bg-red-50 text-red-600 {{ size == 'lg' ? 'w-11 h-11' : 'w-9 h-9' }}">
+        <svg class="{{ size == 'lg' ? 'w-5 h-5' : 'w-[17px] h-[17px]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>
+        </svg>
+    </span>
+{% endmacro %}
+
+{#
+    Row overflow menu. Rendered via the `menu` Stimulus controller, which moves
+    the menu into <body> with fixed positioning on open so the table's overflow
+    never clips it. `suffix` is unused now (kept for call-site compatibility).
+#}
+{% macro row_menu(document, suffix) %}
+    <div data-controller="menu" class="inline-block">
+        <button type="button" data-action="menu#toggle" data-menu-target="button"
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">
+            <span class="sr-only">More actions</span>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </button>
+        <div data-menu-target="menu" class="hidden w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl">
+            <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
+               class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                View
+            </a>
+            <div class="my-1 border-t border-gray-100"></div>
+            {% for soon in [
+                {label: 'Sign',   icon: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/>'},
+                {label: 'Share',  icon: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>'},
+                {label: 'Delete', icon: '<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'}
+            ] %}
+                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-400 cursor-not-allowed" title="Coming soon">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ soon.icon|raw }}</svg>
+                    {{ soon.label }}
+                    <span class="ml-auto text-[10px] font-bold uppercase tracking-wide">Soon</span>
+                </span>
+            {% endfor %}
+        </div>
+    </div>
+{% endmacro %}

@@ -33,6 +33,21 @@ class KeyManagementServiceTest extends AuthWebTestCase
         self::assertStringNotContainsString($kek1, base64_decode($record->getWrappedKek()));
     }
 
+    public function testInsertIfAbsentPreservesTheFirstKek(): void
+    {
+        $user = $this->createUser($this->uniqueEmail('race'));
+        $service = $this->service();
+        $repo = static::getContainer()->get(UserEncryptionKeyRepository::class);
+
+        $kek1 = $service->userKek($user); // creates the row
+
+        // Simulate a losing concurrent insert with a different value - the
+        // ON CONFLICT DO NOTHING must ignore it, leaving the first KEK intact.
+        $repo->insertIfAbsent($user, base64_encode('would-be-second-kek-envelope'));
+
+        self::assertSame($kek1, $service->userKek($user));
+    }
+
     public function testDekWrapRoundTripsUnderUserKek(): void
     {
         $user = $this->createUser($this->uniqueEmail('dek'));

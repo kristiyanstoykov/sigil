@@ -1,6 +1,12 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
+{# One documents-upload controller wraps the whole shell so the sidebar's Upload
+   button (and the Documents page buttons) can open the modal in place, from any
+   page, without navigating away. #}
+<div data-controller="documents-upload"
+     data-documents-upload-max-value="{{ max_document_size_bytes }}"
+     data-documents-upload-open-value="{{ app.request.query.get('upload') ? 'true' : 'false' }}">
 
 {# ── Top navbar (stock Flowbite fixed navbar) ────────────────────────────── #}
 <nav class="fixed top-0 z-50 w-full bg-white border-b border-gray-200">
@@ -57,8 +63,10 @@
 
 {{ include('components/sidebar.html.twig', {badges: sidebar_badges|default({})}) }}
 
-<main class="p-4 sm:ml-64 pt-20">
+<main class="p-4 sm:ml-64 pt-20 {% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
 </main>
 
+{{ include('documents/_upload_modal.html.twig') }}
+</div>
 {% endblock %}

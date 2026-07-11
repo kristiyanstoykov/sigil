@@ -134,3 +134,94 @@ button[aria-busy="true"] {
     height: 3px;
     background-color: var(--color-primary-600);
 }
+
+/*
+ * Documents module — frosted-gradient content background (ADR trial). Applied
+ * only on /documents/* via {% block main_class %}docs-gradient{% endblock %}.
+ * Scoped here so it's a single, reversible switch before any wider rollout.
+ * Two soft radial washes of the brand blue over a near-white base; the -mt/pt
+ * from the layout's <main> padding keeps it behind the content comfortably.
+ */
+.docs-gradient {
+    min-height: 100vh;
+    background:
+        radial-gradient(820px 640px at 12% -6%, rgba(59, 130, 246, 0.06), transparent 70%),
+        radial-gradient(680px 620px at 102% 104%, rgba(30, 58, 138, 0.05), transparent 68%),
+        #FAFBFE;
+}
+
+/* A subtly frosted card used for the docs surfaces on the gradient. */
+.docs-rise {
+    animation: docs-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes docs-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .docs-rise { animation: none; }
+}
+
+/*
+ * Modal ergonomics (fixes 2026-07-11).
+ * - scrollbar-gutter keeps the scrollbar's space reserved so opening a modal
+ *   (which locks background scroll) never shifts the page sideways.
+ * - Tailwind v4's Preflight leaves <button> at cursor:default; restore pointer.
+ */
+html {
+    scrollbar-gutter: stable;
+}
+button:not(:disabled),
+summary,
+label[data-dropzone],
+[role="button"] {
+    cursor: pointer;
+}
+
+/*
+ * Native <dialog> modal (documents upload). Renders in the browser top layer,
+ * so it is always above the navbar/sidebar with no z-index juggling. The
+ * ::backdrop is the frosted-glass overlay behind the popup.
+ */
+dialog.docs-modal {
+    /* Tailwind Preflight resets `margin:0` on every element, which cancels the
+       UA `dialog { margin:auto }` centering — restore it explicitly. */
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+    max-width: 32rem;
+    width: calc(100% - 2rem);
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    border: 0;
+    border-radius: 0.75rem;
+    background: transparent;
+    overflow: visible;
+}
+dialog.docs-modal::backdrop {
+    background: rgba(17, 24, 39, 0.35);
+    -webkit-backdrop-filter: blur(5px) saturate(1.05);
+    backdrop-filter: blur(5px) saturate(1.05);
+}
+/* Lock background scroll while open (no shift thanks to scrollbar-gutter). */
+html:has(dialog.docs-modal[open]) {
+    overflow: hidden;
+}
+dialog.docs-modal[open] {
+    animation: docs-modal-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+dialog.docs-modal[open]::backdrop {
+    animation: docs-backdrop-in 0.2s ease-out;
+}
+@keyframes docs-modal-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes docs-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    dialog.docs-modal[open], dialog.docs-modal[open]::backdrop { animation: none; }
+}

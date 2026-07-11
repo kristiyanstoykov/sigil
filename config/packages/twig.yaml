@@ -1,5 +1,8 @@
 twig:
     file_name_pattern: '*.twig'
+    globals:
+        # Exposed for the layout-level upload modal (present on every page).
+        max_document_size_bytes: '%app.max_document_size_bytes%'
     form_themes:
         - 'form/theme.html.twig'
 
