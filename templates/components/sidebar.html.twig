@@ -1,44 +1,64 @@
 {#
-    App sidebar - stock Flowbite sidebar. Items come from SidebarMenuProvider
-    (src/Core/Navigation/) via the sidebar_menu() Twig function - add/role-gate
-    entries there, not here. On mobile it's a Flowbite drawer, toggled by the
-    hamburger in the navbar (data-drawer-toggle="app-sidebar").
+    App sidebar (first-design drawer). Items come from SidebarMenuProvider
+    (src/Core/Navigation/) via sidebar_menu(). Collapse is pure Tailwind: the
+    sidebar controller flips data-collapsed on the <aside>; all show/hide reacts
+    via (group-)data-[collapsed] variants - no custom CSS. On mobile the aside is
+    an off-canvas drawer toggled by data-mobile-open (header hamburger).
 
-    Optional context: badges - map of MenuItem.badgeKey → int (live counts).
+    Optional context: badges - map of MenuItem.badgeKey -> int (live counts).
 #}
-<aside id="app-sidebar" aria-label="Sidebar"
-       class="fixed top-0 left-0 z-40 w-64 h-screen pt-[4.3rem] transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0">
-    <div class="h-full px-3 py-4 overflow-y-auto flex flex-col">
-        <ul class="space-y-2 font-medium">
-            {% for item in sidebar_menu() %}
-                {% set enabled = item.route is not null %}
-                {% set active = enabled and app.current_route == item.route %}
-                {% set badge = item.badgeKey ? badges[item.badgeKey]|default(0) : 0 %}
-                <li>
-                    <a href="{{ enabled ? path(item.route) : '#' }}"
-                       {% if active %}aria-current="page"{% endif %}
-                       {% if not enabled %}title="Coming soon" aria-disabled="true"{% endif %}
-                       class="flex items-center p-2 rounded-lg group
-                              {{ active ? 'bg-gray-100 text-primary-700' : 'text-gray-900 hover:bg-gray-100' }}
-                              {{ not enabled ? 'opacity-50 cursor-default hover:bg-transparent' }}">
-                        <svg class="w-5 h-5 shrink-0 transition duration-75 {{ active ? 'text-primary-700' : 'text-gray-500 group-hover:text-gray-900' }}"
-                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ item.icon|raw }}</svg>
-                        <span class="flex-1 ms-3 whitespace-nowrap">{{ item.label }}</span>
-                        {% if badge > 0 %}
-                            <span class="inline-flex items-center justify-center px-2 ms-3 text-sm font-medium text-red-800 bg-red-100 rounded-full">{{ badge }}</span>
-                        {% endif %}
-                    </a>
-                </li>
-            {% endfor %}
-        </ul>
+<aside data-sidebar-target="aside"
+       class="group flex flex-col gap-1.5 shrink-0 px-3.5 py-[18px] overflow-y-auto overflow-x-hidden
+              bg-white/75 backdrop-blur-xl backdrop-saturate-150 border-r border-white/70
+              w-[236px] data-[collapsed]:w-[68px] transition-[width,transform] duration-200
+              md:sticky md:top-16 md:h-[calc(100vh-4rem)]
+              max-md:fixed max-md:top-16 max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:w-[236px]
+              max-md:-translate-x-full max-md:shadow-2xl data-[mobile-open]:max-md:translate-x-0">
 
-        <div class="pt-4 mt-4 space-y-2 border-t border-gray-200">
-            {# Upload - opens the upload modal in place, from whatever page you're on #}
-            <button type="button" data-action="documents-upload#open"
-                    class="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-primary-700 hover:bg-primary-800 rounded-lg">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
-                Upload document
-            </button>
-        </div>
+    <button type="button" data-action="sidebar#toggle" title="Toggle sidebar"
+            class="flex items-center justify-center w-[34px] h-[34px] mb-2 ml-1 shrink-0 border border-gray-200 bg-white rounded-[9px] text-gray-500 cursor-pointer hover:text-primary-700 transition-colors">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+    </button>
+
+    {% for item in sidebar_menu() %}
+        {% set enabled = item.route is not null %}
+        {% set active = enabled and app.current_route == item.route %}
+        {% set badge = item.badgeKey ? badges[item.badgeKey]|default(0) : 0 %}
+        <a href="{{ enabled ? path(item.route) : '#' }}"
+           {% if active %}aria-current="page"{% endif %}
+           {% if not enabled %}title="Coming soon" aria-disabled="true"{% endif %}
+           class="flex items-center gap-[13px] w-full px-[13px] py-2.5 group-data-[collapsed]:px-0 group-data-[collapsed]:justify-center
+                  rounded-xl text-sm font-semibold no-underline transition-colors duration-150
+                  {{ active
+                      ? 'bg-primary-700/10 text-primary-700 shadow-[inset_3px_0_0_var(--color-primary-700)]'
+                      : 'text-gray-700 hover:bg-primary-700/[0.06] hover:text-primary-700' }}
+                  {{ not enabled ? 'opacity-55 cursor-default hover:bg-transparent hover:text-gray-700' }}">
+            <span class="relative inline-flex shrink-0">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ item.icon|raw }}</svg>
+                {% if badge > 0 %}
+                    <span class="hidden group-data-[collapsed]:block absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white/80"></span>
+                {% endif %}
+            </span>
+            <span class="flex-1 group-data-[collapsed]:hidden">{{ item.label }}</span>
+            {% if badge > 0 %}
+                <span class="group-data-[collapsed]:hidden shrink-0 min-w-5 text-center text-[11px] font-bold text-white bg-red-500 rounded-full px-1.5 py-px">{{ badge }}</span>
+            {% endif %}
+        </a>
+    {% endfor %}
+
+    <div class="h-px bg-gray-200 my-3 mx-1.5"></div>
+
+    {# Upload - opens the upload modal in place, from whatever page you're on #}
+    <button type="button" data-action="documents-upload#open" title="Upload document"
+            class="flex items-center justify-center gap-2 py-[11px] px-3 group-data-[collapsed]:px-0 rounded-xl bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold cursor-pointer transition-colors">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+        <span class="group-data-[collapsed]:hidden">Upload document</span>
+    </button>
+
+    <div class="flex-1"></div>
+
+    <div class="group-data-[collapsed]:hidden flex items-center gap-2 px-1.5 py-2 text-xs text-gray-400">
+        <span class="inline-flex text-primary-700">{% include 'components/s_loader.html.twig' with {size: 20} only %}</span>
+        Synced just now
     </div>
 </aside>

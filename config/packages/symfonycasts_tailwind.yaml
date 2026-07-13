@@ -1,6 +1,7 @@
 symfonycasts_tailwind:
-    # Specify the EXACT version of Tailwind CSS you want to use
+    # Pin the exact Tailwind CSS standalone binary (no Node). Our input
+    # assets/styles/app.css is a UTILITIES-ONLY build (no Preflight): Able Pro's
+    # precompiled assets/able-pro/css/style.css supplies Preflight + components,
+    # and this build regenerates the utility classes our templates use (Able
+    # Pro's precompiled CSS only shipped ~57% of them).
     binary_version: 'v4.1.11'
-
-    # Alternatively, you can specify the path to the binary that you manage yourself
-    #binary: 'node_modules/.bin/tailwindcss'

@@ -9,22 +9,22 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-<section class="bg-gray-50">
-    <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto min-h-screen lg:py-0">
-        <div class="w-full {% block card_width %}max-w-md{% endblock %}">
+{# Frosted-glass auth: strong radial-glow backdrop (.auth-bg), centered logo,
+   frosted glass card (.glass-card). Single viewport, no forced overflow. #}
+<section class="auth-bg flex min-h-dvh items-center justify-center p-6">
+    <div class="rise w-full {% block card_width %}max-w-md{% endblock %}">
 
-            <div class="flex flex-col items-center mb-6">
-                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="72" height="50">
-                <p class="mt-2 text-sm text-gray-500">{% block subtitle %}Signum Veritatis - Digital Document Signing{% endblock %}</p>
-            </div>
-
-            <div class="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-8">
-                {% block card %}{% endblock %}
-            </div>
-
-            {% block footer %}{% endblock %}
-
+        <div class="flex flex-col items-center mb-6">
+            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="72" height="50">
+            <p class="mt-2 text-sm text-gray-500">{% block subtitle %}Signum Veritatis - Digital Document Signing{% endblock %}</p>
         </div>
+
+        <div class="glass-card p-6 sm:p-8">
+            {% block card %}{% endblock %}
+        </div>
+
+        {% block footer %}{% endblock %}
+
     </div>
 </section>
 {% endblock %}

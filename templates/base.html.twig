@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-pc-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,15 +7,28 @@
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('images/favicon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/favicon-512.png') }}">
-    {% block stylesheets %}{% endblock %}
+
+    {# Vendored Able Pro theme (precompiled Tailwind v4 build) + icon fonts.
+       assets/styles/app.css (imported by app.js below) loads AFTER these and
+       recolors --primary-*/--color-primary-* to Sigil blue + Sofia Sans. #}
+    {% block stylesheets %}
+        <link rel="stylesheet" href="{{ asset('able-pro/css/style.css') }}">
+        <link rel="stylesheet" href="{{ asset('able-pro/fonts/tabler-icons.min.css') }}">
+        <link rel="stylesheet" href="{{ asset('able-pro/fonts/phosphor/duotone/style.css') }}">
+    {% endblock %}
+
+    {# Popper as a classic global (window.Popper) for the dropdown controller.
+       Non-deferred so it is ready before the deferred app module runs. #}
+    <script src="{{ asset('able-pro/js/plugins/popper.min.js') }}"></script>
+
     {% block javascripts %}
         {% block importmap %}{{ importmap('app') }}{% endblock %}
     {% endblock %}
 </head>
-<body class="min-h-screen bg-gray-50">
+<body>
 
 {# Top-center toast stack: one fixed container so multiple flashes don't overlap #}
-<div class="fixed top-20 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none">
+<div class="fixed top-20 inset-x-0 z-[1030] flex flex-col items-center gap-2 px-4 pointer-events-none">
     {% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
         {% for message in messages %}
             {% set flash_id = 'flash-' ~ type ~ '-' ~ loop.index %}
@@ -23,12 +36,13 @@
                        {{ type == 'success' ? 'text-green-800 bg-green-50 border-green-200'
                        : type == 'danger' ? 'text-red-800 bg-red-50 border-red-200'
                        : type == 'warning' ? 'text-yellow-800 bg-yellow-50 border-yellow-200'
-                       : 'text-blue-800 bg-blue-50 border-blue-200' }}">
+                       : 'text-blue-800 bg-blue-50 border-blue-200' }}"
+                 data-controller="dismiss" data-dismiss-auto-value="6000">
                 <span class="flex-1 text-left">{{ message }}</span>
-                <button type="button" data-dismiss-target="#{{ flash_id }}" aria-label="Close"
-                        class="-my-1 -me-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5 focus:outline-none focus:ring-2 focus:ring-black/10">
+                <button type="button" data-action="dismiss#close" aria-label="Close"
+                        class="-my-1 -me-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5">
                     <span class="sr-only">Dismiss</span>
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1 1 12 12M13 1 1 13"/></svg>
+                    <i class="ti ti-x text-base leading-none"></i>
                 </button>
             </div>
         {% endfor %}

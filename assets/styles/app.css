@@ -1,11 +1,28 @@
-@import "tailwindcss";
+/*
+ * Sigil app styles: Tailwind v4 UTILITIES-ONLY, layered on the vendored Able
+ * Pro theme (assets/able-pro/css/style.css, which loads BEFORE this file).
+ *
+ * Preflight is intentionally omitted - Able Pro's style.css already ships it.
+ * This build regenerates ONLY the utility classes our own templates use, because
+ * Able Pro's precompiled CSS shipped ~57% of the ones we need. Keep the @source
+ * directives or the utility build comes out empty (no utilities). This file also
+ * recolors Able Pro to Sigil blue + Sofia Sans and holds our brand CSS
+ * (S-loader, confirm modal, form spinner); a future glass skin slots in here too.
+ */
+@import "tailwindcss/theme" layer(theme);
+/* source(none) disables Tailwind's automatic project-wide content detection, so
+   ONLY the explicit @source dirs below are scanned. Without this, Tailwind also
+   scans the vendored Able Pro theme + docs/, whose arbitrary-value utilities
+   like bg-[url('../images/...')] would be re-generated here and break
+   AssetMapper's url() resolution (the relative path resolves from app.css). */
+@import "tailwindcss/utilities" layer(utilities) source(none);
 
 @source "../../templates";
 @source "../../src";
 
 /*
- * Sofia Sans — self-hosted variable font (OFL, assets/fonts/Sofia_Sans).
- * Two variable-weight files cover every weight 1–1000, upright + italic.
+ * Sofia Sans - self-hosted variable font (OFL, assets/fonts/Sofia_Sans).
+ * Two variable-weight files cover every weight 1-1000, upright + italic.
  * AssetMapper rewrites these relative url()s to versioned asset paths.
  */
 @font-face {
@@ -23,14 +40,11 @@
     font-display: swap;
 }
 
+/* Brand primary (Sigil blue, 700 = #1E3A8A). Drives our own utilities:
+   bg-primary-*, text-primary-*, ring-primary-*, border-primary-*, ... */
 @theme {
     --font-sans: "Sofia Sans", ui-sans-serif, system-ui, sans-serif;
 
-    /*
-     * Brand primary palette (Sigil blue, anchored on #1E3A8A at the 700 stop)
-     * shaped as the primary-* scale that stock Flowbite components expect
-     * (bg-primary-700, hover:bg-primary-800, focus:ring-primary-300, …).
-     */
     --color-primary-50: #EFF6FF;
     --color-primary-100: #DBEAFE;
     --color-primary-200: #BFDBFE;
@@ -44,18 +58,38 @@
     --color-primary-950: #0B1733;
 }
 
-/* Slightly smaller type across the board — all Tailwind sizes are rem-based. */
+/* Point Able Pro's own brand tokens at Sigil blue too, so its components
+   (.pc-sidebar active state, .btn-primary, badges, ...) match. Unlayered :root
+   wins the cascade over Able Pro's @layer theme regardless of source order. */
+:root {
+    --primary-50: #EFF6FF;  --color-primary-50: #EFF6FF;
+    --primary-100: #DBEAFE; --color-primary-100: #DBEAFE;
+    --primary-200: #BFDBFE; --color-primary-200: #BFDBFE;
+    --primary-300: #93C5FD; --color-primary-300: #93C5FD;
+    --primary-400: #60A5FA; --color-primary-400: #60A5FA;
+    --primary-500: #3B82F6; --color-primary-500: #3B82F6;
+    --primary-600: #2563EB; --color-primary-600: #2563EB;
+    --primary-700: #1E3A8A; --color-primary-700: #1E3A8A;
+    --primary-800: #172E6E; --color-primary-800: #172E6E;
+    --primary-900: #122452; --color-primary-900: #122452;
+    --primary-950: #0B1733; --color-primary-950: #0B1733;
+}
+
+/* Force Sofia Sans everywhere (Able Pro hardcodes "Inter var" on some rules). */
+body,
+input, button, select, textarea,
+.pc-sidebar, .pc-header {
+    font-family: "Sofia Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Slightly smaller type across the board. */
 html {
     font-size: 15px;
 }
 
-body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-}
-
 /*
  * S-loader (templates/components/s_loader.html.twig): the logo's single
- * continuous stroke draws itself out — write, hold, fade, repeat.
+ * continuous stroke draws itself out - write, hold, fade, repeat.
  * Stroke is currentColor; the surrounding context sets the color.
  */
 @keyframes sigil-draw {
@@ -83,7 +117,7 @@ body {
  */
 .sigil-spinner {
     display: inline-block;
-    /* Logo viewBox is 260×180 — keep the aspect ratio at text size. */
+    /* Logo viewBox is 260x180 - keep the aspect ratio at text size. */
     width: 1.6em;
     height: 1.1em;
     margin-right: 0.4rem;
@@ -97,8 +131,8 @@ button[aria-busy="true"] {
 
 /*
  * Confirm-dialog open/close animations (assets/controllers/confirm_controller.js
- * toggles the -out classes while closing). Animation only — the dialog surface
- * itself is styled with Flowbite modal classes in the template.
+ * toggles the -out classes while closing). Animation only - the dialog surface
+ * itself is styled with component classes in the template.
  */
 .modal-card {
     animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
@@ -136,19 +170,78 @@ button[aria-busy="true"] {
 }
 
 /*
- * Documents module — frosted-gradient content background (ADR trial). Applied
- * only on /documents/* via {% block main_class %}docs-gradient{% endblock %}.
- * Scoped here so it's a single, reversible switch before any wider rollout.
- * Two soft radial washes of the brand blue over a near-white base; the -mt/pt
- * from the layout's <main> padding keeps it behind the content comfortably.
+ * .docs-gradient (documents {% block main_class %}) - now a no-op: the app-wide
+ * glass canvas below provides the gradient, so this must stay transparent to let
+ * it show through. Kept as a hook so the template block doesn't need touching.
  */
 .docs-gradient {
     min-height: 100vh;
-    background:
-        radial-gradient(820px 640px at 12% -6%, rgba(59, 130, 246, 0.06), transparent 70%),
-        radial-gradient(680px 620px at 102% 104%, rgba(30, 58, 138, 0.05), transparent 68%),
-        #FAFBFE;
+    background: transparent;
 }
+
+/* ==========================================================================
+ * GLASS SKIN (2026-07-12) - the glassier look, layered entirely here over the
+ * stable Able Pro shell + pipeline. No template changes. Fully reversible:
+ * delete this block to return to Able Pro's flat native look.
+ *
+ * Strategy: an app-wide gradient canvas + translucent, backdrop-blurred
+ * surfaces (shell chrome, Able Pro .card, and the utility card containers used
+ * by the dashboard/documents/auth pages). Card containers are selected by their
+ * compound utility signature (bg-white + rounded + shadow) so small white bits
+ * (buttons, badges, avatars) stay solid.
+ * ========================================================================== */
+
+/* App content canvas - the frosted brand-glow gradient behind the whole
+   authenticated app (shows through in the content area; the solid white header
+   and sidebar sit on top). Replicated from the old design's .app-bg. */
+body {
+    background:
+        radial-gradient(520px 420px at 12% 0%, rgba(59, 130, 246, 0.12), transparent 62%),
+        radial-gradient(460px 460px at 100% 100%, rgba(30, 58, 138, 0.10), transparent 60%),
+        #F5F7FB;
+    background-attachment: fixed;
+}
+
+/* Full-viewport auth backdrop - two stronger blue radial glows on a cool base
+   (old design's .auth-bg). Applied by base_auth.html.twig. */
+.auth-bg {
+    min-height: 100dvh;
+    background:
+        radial-gradient(620px 520px at 18% 8%, rgba(59, 130, 246, 0.30), transparent 60%),
+        radial-gradient(520px 520px at 92% 96%, rgba(30, 58, 138, 0.20), transparent 60%),
+        #EDF1F9;
+    background-attachment: fixed;
+}
+
+/* Frosted glass card for auth pages (old design's .glass-card). */
+.glass-card {
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 1px 2px rgba(30, 58, 138, 0.06),
+        0 18px 40px -16px rgba(30, 58, 138, 0.22);
+}
+
+/* Auth card entrance. */
+@keyframes auth-rise {
+    from { opacity: 0; transform: translateY(12px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rise {
+    animation: auth-rise 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .rise { animation: none; }
+}
+
+/* The shell is now the first-design layout (fixed top bar + sticky frosted
+ * sidebar), built with pure Tailwind utilities - no custom shell CSS needed.
+ * The sidebar frost + user-menu popup frost are Tailwind (bg-white/75 +
+ * backdrop-blur-*); the native <dialog> ::backdrop frost lives further down. */
 
 /* A subtly frosted card used for the docs surfaces on the gradient. */
 .docs-rise {
@@ -163,14 +256,11 @@ button[aria-busy="true"] {
 }
 
 /*
- * Modal ergonomics (fixes 2026-07-11).
- * - scrollbar-gutter keeps the scrollbar's space reserved so opening a modal
- *   (which locks background scroll) never shifts the page sideways.
- * - Tailwind v4's Preflight leaves <button> at cursor:default; restore pointer.
+ * Modal ergonomics.
+ * (scrollbar-gutter:stable was dropped - it reserved a permanent gutter that
+ * read as a phantom scrollbar on short pages like login.)
+ * - Restore pointer cursor on interactive elements.
  */
-html {
-    scrollbar-gutter: stable;
-}
 button:not(:disabled),
 summary,
 label[data-dropzone],
@@ -183,9 +273,12 @@ label[data-dropzone],
  * so it is always above the navbar/sidebar with no z-index juggling. The
  * ::backdrop is the frosted-glass overlay behind the popup.
  */
+/* Guarantee the dialog is hidden unless actually opened (showModal adds [open]).
+   Belt-and-suspenders against any Preflight/UA edge case that left it visible. */
+dialog.docs-modal:not([open]) {
+    display: none;
+}
 dialog.docs-modal {
-    /* Tailwind Preflight resets `margin:0` on every element, which cancels the
-       UA `dialog { margin:auto }` centering — restore it explicitly. */
     position: fixed;
     inset: 0;
     margin: auto;
