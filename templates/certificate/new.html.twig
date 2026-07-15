@@ -7,14 +7,13 @@
     {% if at_limit %}
         <div class="max-w-xl mx-auto mt-6">
             {{ helpers.back_link(path('app_certificates'), 'Back to certificates') }}
-            <div class="bg-white border border-gray-200 rounded-lg shadow-sm px-8 py-9 text-center">
-                <div class="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-primary-100 text-primary-700 mb-4">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            <div class="card !mb-0 px-8 py-9 text-center">
+                <div class="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500 mb-4 mx-auto">
+                    <i class="ti ti-info-circle text-2xl leading-none" aria-hidden="true"></i>
                 </div>
-                <h2 class="text-xl font-bold text-gray-900">You're at the certificate limit</h2>
-                <p class="mx-auto mt-2 mb-5 text-sm text-gray-500 max-w-md">You already hold the maximum of <strong>{{ max_certificates }} certificates</strong>. To issue a new signing identity, revoke one you no longer use.</p>
-                <a href="{{ path('app_certificates') }}"
-                   class="inline-flex py-2.5 px-5 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700">Manage certificates</a>
+                <h2 class="text-xl font-bold text-theme-headings">You're at the certificate limit</h2>
+                <p class="mx-auto mt-2 mb-5 text-sm text-theme-secondarytextcolor max-w-md">You already hold the maximum of <strong>{{ max_certificates }} certificates</strong>. To issue a new signing identity, revoke one you no longer use.</p>
+                <a href="{{ path('app_certificates') }}" class="btn btn-outline-secondary inline-flex mx-auto">Manage certificates</a>
             </div>
         </div>
     {% else %}
@@ -23,46 +22,46 @@
 
             {# header #}
             <div class="text-center mb-6">
-                <div class="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-primary-700 text-white mb-3">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                <div class="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-primary-500 text-white mb-3">
+                    <i class="ti ti-shield-check text-2xl leading-none" aria-hidden="true"></i>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-900">Create your certificate</h1>
-                <p class="mx-auto mt-2 text-sm text-gray-500 max-w-md">This issues your cryptographic signing identity. Review the details, then choose a PIN to protect it.</p>
+                <h1 class="text-2xl font-bold text-theme-headings">Create your certificate</h1>
+                <p class="mx-auto mt-2 text-sm text-theme-secondarytextcolor max-w-md">This issues your cryptographic signing identity. Review the details, then choose a PIN to protect it.</p>
             </div>
 
             {# (a) subject preview #}
             <div class="mb-6">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Certificate subject</div>
-                <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-                    <div class="flex items-center gap-2 mb-3 text-gray-400 text-xs font-medium uppercase tracking-wide">
-                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16"/></svg>
+                <div class="text-xs font-semibold uppercase tracking-wide text-theme-secondarytextcolor mb-2">Certificate subject</div>
+                <div class="card !mb-0 p-5">
+                    <div class="flex items-center gap-2 mb-3 text-theme-secondarytextcolor text-xs font-medium uppercase tracking-wide">
+                        <i class="ti ti-id text-sm leading-none" aria-hidden="true"></i>
                         From your profile · read-only
                     </div>
                     <div class="flex flex-col gap-2.5 text-sm">
                         {% for label, value in subject_preview %}
                             {% if value %}
                                 <div class="flex justify-between gap-3">
-                                    <span class="text-gray-500">{{ label }}</span>
-                                    <span class="{{ loop.first ? 'font-semibold' : 'font-medium' }} text-gray-900 text-right">{{ value }}</span>
+                                    <span class="text-theme-secondarytextcolor">{{ label }}</span>
+                                    <span class="{{ loop.first ? 'font-semibold' : 'font-medium' }} text-theme-headings text-right">{{ value }}</span>
                                 </div>
                             {% endif %}
                         {% endfor %}
                     </div>
-                    <div class="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2.5 text-sm text-gray-700">
-                        <svg class="shrink-0 w-4 h-4 text-primary-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg>
-                        <span><strong class="text-gray-900">ECDSA P-384 with SHA-384</strong> · valid 1 year</span>
+                    <div class="mt-4 pt-3 border-t border-theme-border/60 flex items-center gap-2.5 text-sm text-theme-bodycolor">
+                        <i class="ti ti-shield-lock shrink-0 text-base leading-none text-primary-500" aria-hidden="true"></i>
+                        <span><strong class="text-theme-headings">ECDSA P-384 with SHA-384</strong> · valid 1 year</span>
                     </div>
                 </div>
-                <p class="mt-2 text-xs text-gray-400">Taken from your profile. Update your name or company before issuing if these aren't right.</p>
+                <p class="mt-2 text-xs text-theme-secondarytextcolor">Taken from your profile. Update your name or company before issuing if these aren't right.</p>
             </div>
 
             {# (b) PIN choice #}
             <div>
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Protect it with a PIN</div>
-                <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
+                <div class="text-xs font-semibold uppercase tracking-wide text-theme-secondarytextcolor mb-2">Protect it with a PIN</div>
+                <div class="card !mb-0 p-5">
                     {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
-                    {% set label_class = 'block mb-2 text-sm font-medium text-gray-900' %}
-                    {% set pin_class = 'bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm font-mono tracking-[0.3em]' %}
+                    {% set label_class = 'form-label text-sm font-medium' %}
+                    {% set pin_class = 'form-control font-mono tracking-[0.3em]' %}
                     {% set pin = constant('App\\Certificate\\Form\\NewCertificateForm::E_PIN') %}
 
                     <div class="flex gap-3">
@@ -82,19 +81,18 @@
                         {{ form_errors(form[pin].second) }}
                     </div>
 
-                    <div class="flex items-start gap-3 p-4 mb-4 text-sm text-yellow-800 border border-yellow-200 rounded-lg bg-yellow-50" role="alert">
-                        <svg class="shrink-0 w-4 h-4 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                    <div class="alert alert-warning flex items-start gap-3 !mb-4 text-sm" role="alert">
+                        <i class="ti ti-lock shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
                         <div>
                             <strong>Keep this PIN safe.</strong> It protects your private key and is required every time you sign. For security, we can't recover it - if you forget it, you'll simply issue a fresh certificate.
                         </div>
                     </div>
 
-                    <button type="submit"
-                            class="w-full inline-flex items-center justify-center gap-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-3 cursor-pointer">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                    <button type="submit" class="btn btn-primary w-full inline-flex items-center justify-center gap-2 !py-3">
+                        <i class="ti ti-shield-check text-base leading-none" aria-hidden="true"></i>
                         Generate my certificate
                     </button>
-                    <p class="mt-2.5 text-center text-xs text-gray-400">Generating a key pair takes a couple of seconds.</p>
+                    <p class="mt-2.5 text-center text-xs text-theme-secondarytextcolor">Generating a key pair takes a couple of seconds.</p>
                     {{ form_end(form) }}
                 </div>
             </div>

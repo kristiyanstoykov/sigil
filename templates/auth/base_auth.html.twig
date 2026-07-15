@@ -1,6 +1,7 @@
 {#
-    Shared standalone auth layout - stock Flowbite authentication page:
-    gray backdrop, centered logo, white card. Auth pages extend this and fill:
+    Shared standalone auth layout — the Sigil auth design: soft radial "aurora"
+    backdrop, centered logo, frosted-glass card (.sigil-aurora / .glass-card
+    recipes in app.css). Auth pages extend this and fill:
       block card       - the card contents (required)
       block subtitle   - text under the logo
       block card_width - max-width utility (default max-w-md)
@@ -8,17 +9,19 @@
 #}
 {% extends 'base.html.twig' %}
 
+{% block body_class %}sigil-aurora{% endblock %}
+
 {% block body %}
-<section class="bg-gray-50">
+<section>
     <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto min-h-screen lg:py-0">
         <div class="w-full {% block card_width %}max-w-md{% endblock %}">
 
             <div class="flex flex-col items-center mb-6">
                 <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="72" height="50">
-                <p class="mt-2 text-sm text-gray-500">{% block subtitle %}Signum Veritatis - Digital Document Signing{% endblock %}</p>
+                <p class="mt-2 text-sm text-theme-secondarytextcolor">{% block subtitle %}Signum Veritatis - Digital Document Signing{% endblock %}</p>
             </div>
 
-            <div class="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-8">
+            <div class="w-full glass-card p-6 sm:p-8">
                 {% block card %}{% endblock %}
             </div>
 

@@ -2,45 +2,48 @@
 
 {% block title %}Sign in - Sigil{% endblock %}
 
+{# Able Pro form-control, frosted for the glass card #}
+{% set input_class = 'form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85' %}
+
 {% block card %}
-    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 mb-5">Sign in to your account</h1>
+    <h1 class="text-lg font-bold text-theme-headings mb-5">Sign in to your account</h1>
 
     {% if error %}
-        <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-200" role="alert">
+        <div class="alert alert-danger text-sm" role="alert">
             {{ error.messageKey | trans(error.messageData, 'security') }}
         </div>
     {% endif %}
 
     <form method="post" class="space-y-4 md:space-y-5">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+        <input type="hidden" name="_csrf_token" data-controller="csrf-protection" value="{{ csrf_token('authenticate') }}">
 
         <div>
-            <label for="email" class="block mb-2 text-sm font-medium text-gray-900">Email address</label>
+            <label for="email" class="form-label text-sm font-semibold">Email address</label>
             <input type="email" id="email" name="email" value="{{ last_username }}"
                    placeholder="you@company.com" autocomplete="email" required
-                   class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm">
+                   class="{{ input_class }}">
         </div>
 
         <div>
-            <div class="flex items-center justify-between mb-2">
-                <label for="password" class="block text-sm font-medium text-gray-900">Password</label>
-                <a href="{{ path('app_forgot_password_request') }}" class="text-sm font-medium text-primary-600 hover:underline">Forgot password?</a>
+            <div class="flex items-center justify-between">
+                <label for="password" class="form-label text-sm font-semibold">Password</label>
+                <a href="{{ path('app_forgot_password_request') }}" class="text-sm font-semibold text-primary-500 hover:underline">Forgot password?</a>
             </div>
             <input type="password" id="password" name="password" autocomplete="current-password" required
                    placeholder="••••••••"
-                   class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 text-sm">
+                   class="{{ input_class }}">
         </div>
 
         <button type="submit"
-                class="w-full text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center cursor-pointer">
+                class="btn btn-primary w-full bg-linear-to-b from-primary-600 to-primary-500 shadow-lg shadow-primary-500/30 hover:-translate-y-px transition">
             Sign in
         </button>
     </form>
 {% endblock %}
 
 {% block footer %}
-    <p class="mt-5 text-center text-sm font-light text-gray-500">
+    <p class="mt-5 text-center text-sm text-theme-secondarytextcolor">
         Don't have an account?
-        <a href="{{ path('app_register') }}" class="font-medium text-primary-600 hover:underline">Create one</a>
+        <a href="{{ path('app_register') }}" class="font-semibold text-primary-500 hover:underline">Create one</a>
     </p>
 {% endblock %}

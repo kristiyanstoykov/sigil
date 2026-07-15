@@ -1,0 +1,7 @@
+
+Fatal error: Uncaught Symfony\Component\DependencyInjection\Exception\ServiceNotFoundException: The "twig" service or alias has been removed or inlined when the container was compiled. You should either make it public, or stop using the container directly and use dependency injection instead. in /app/vendor/symfony/dependency-injection/Container.php:241
+Stack trace:
+#0 /app/vendor/symfony/dependency-injection/Container.php(203): Symfony\Component\DependencyInjection\Container::make(Object(ContainerWrI27x6\App_KernelDevContainer), 'twig', 1)
+#1 /tmp/render_err.php(7): Symfony\Component\DependencyInjection\Container->get('twig')
+#2 {main}
+  thrown in /app/vendor/symfony/dependency-injection/Container.php on line 241

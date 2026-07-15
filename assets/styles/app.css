@@ -1,7 +1,24 @@
-@import "tailwindcss";
+/*
+ * Sigil utilities build — companion to the vendored Able Pro theme.
+ *
+ * assets/able-pro/style.css (precompiled, untouched vendor file) supplies
+ * Preflight + every Able Pro component class (.card, .btn, .pc-sidebar, .modal,
+ * .dropdown-menu, …). This file is a UTILITIES-ONLY Tailwind 4 build: it
+ * regenerates the utility classes our Twig templates use (the precompiled
+ * vendor CSS only ships the utilities Able Pro's own demo pages used), and
+ * carries the Sigil brand preset + the few hand-written brand flourishes
+ * (S-loader). Load order in base.html.twig: able-pro/style.css →
+ * able-pro/fonts/tabler-icons.css → this file (later wins on conflicts).
+ */
+@import "tailwindcss/theme.css" layer(theme);
+/* source(none) kills Tailwind's automatic source detection — without it the
+   scan walks the whole repo and picks up the Able Pro demo HTML in docs/,
+   regenerating url() utilities whose images we don't ship. */
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
 
 @source "../../templates";
 @source "../../src";
+@source "../controllers";
 
 /*
  * Sofia Sans — self-hosted variable font (OFL, assets/fonts/Sofia_Sans).
@@ -23,34 +40,289 @@
     font-display: swap;
 }
 
-@theme {
+/*
+ * IMPORTANT: `static` — without it Tailwind emits only the tokens our own
+ * templates use, tree-shaking overrides that exist purely for the VENDOR's
+ * components (e.g. .alert-info paints text with --color-info-800; no template
+ * uses an info-800 utility, so the override vanished and Able Pro's cyan
+ * showed through).
+ */
+@theme static {
     --font-sans: "Sofia Sans", ui-sans-serif, system-ui, sans-serif;
 
     /*
-     * Brand primary palette (Sigil blue, anchored on #1E3A8A at the 700 stop)
-     * shaped as the primary-* scale that stock Flowbite components expect
-     * (bg-primary-700, hover:bg-primary-800, focus:ring-primary-300, …).
+     * Able Pro's type-scale deviations from the Tailwind defaults. They must
+     * be repeated here: this stylesheet loads after the vendor file, so if a
+     * template uses text-sm/text-base our build would otherwise re-emit the
+     * stock 0.875rem/1rem values and silently upsize the whole theme.
      */
-    --color-primary-50: #EFF6FF;
-    --color-primary-100: #DBEAFE;
-    --color-primary-200: #BFDBFE;
-    --color-primary-300: #93C5FD;
-    --color-primary-400: #60A5FA;
-    --color-primary-500: #3B82F6;
-    --color-primary-600: #2563EB;
-    --color-primary-700: #1E3A8A;
-    --color-primary-800: #172E6E;
-    --color-primary-900: #122452;
-    --color-primary-950: #0B1733;
+    /* One notch above Able Pro's stock scale (sm 12px→13px, base 14px→15px):
+       vendor components reference var(--text-base) too, so buttons/inputs
+       scale with it. Line heights are unitless ratios and follow along. */
+    --text-sm: 0.8125rem;
+    --text-sm--line-height: calc(1.25 / 0.875);
+    --text-base: 0.9375rem;
+    --text-base--line-height: calc(1.5 / 1);
+
+    /* Able Pro layout dimension tokens (h-header-height, w-sidebar-width, …). */
+    --spacing-sidebar-width: 280px;
+    --spacing-header-height: 74px;
+    --spacing-topbar-height: 60px;
+    --spacing-sidebar-collapsed-width: 100px;
+    --spacing-sidebar-collapsed-active-width: 300px;
+
+    /*
+     * Brand primary — same indirection as Able Pro's preset system: the
+     * --color-primary-* theme tokens point at --primary-* variables, whose
+     * values come from the Sigil preset on :root below. Components in the
+     * vendor CSS resolve through the identical chain, so utilities and
+     * components can never disagree on the brand color.
+     */
+    --color-primary-50: var(--primary-50);
+    --color-primary-100: var(--primary-100);
+    --color-primary-200: var(--primary-200);
+    --color-primary-300: var(--primary-300);
+    --color-primary-400: var(--primary-400);
+    --color-primary-500: var(--primary-500);
+    --color-primary-600: var(--primary-600);
+    --color-primary-700: var(--primary-700);
+    --color-primary-800: var(--primary-800);
+    --color-primary-900: var(--primary-900);
+    --color-primary-950: var(--primary-950);
+    --color-primary: var(--primary-500);
+
+    /*
+     * Semantic anchors per docs/design/DESIGN_BRIEF.md (success #059669,
+     * warning #D97706, danger #DC2626, info #2563EB). The 500 stop is the
+     * component anchor; 600/700 are Able Pro's hover/active stops. Light
+     * stops (50–400) keep the vendor ramps — same hue family, used only
+     * for badge/alert tints.
+     */
+    --color-success-500: #059669;
+    --color-success-600: #047857;
+    --color-success-700: #065F46;
+    --color-success-800: #064E3B;
+    --color-success: #059669;
+    --color-danger-500: #DC2626;
+    --color-danger-600: #B91C1C;
+    --color-danger-700: #991B1B;
+    --color-danger-800: #7F1D1D;
+    --color-danger: #DC2626;
+    --color-warning-500: #D97706;
+    --color-warning-600: #B45309;
+    --color-warning-700: #92400E;
+    --color-warning-800: #78350F;
+    --color-warning: #D97706;
+    /* Info moves from Able Pro's cyan to the brief's blue — full ramp. */
+    --color-info-50: #EFF6FF;
+    --color-info-100: #DBEAFE;
+    --color-info-200: #BFDBFE;
+    --color-info-300: #93C5FD;
+    --color-info-400: #60A5FA;
+    --color-info-500: #2563EB;
+    --color-info-600: #1D4ED8;
+    --color-info-700: #1E40AF;
+    --color-info-800: #1E3A8A;
+    --color-info-900: #172E6E;
+    --color-info-950: #0B1733;
+    --color-info: #2563EB;
+
+    /*
+     * Sigil neutrals — Able Pro's theme-* tokens re-anchored on the slate
+     * ramp of the docs/design/pages mockups (headings #0F172A, secondary
+     * #64748B, body bg #F5F7FB, borders #E2E8F0). The header token is
+     * translucent on purpose: the frosted-glass header/sidebar recipe.
+     */
+    --color-theme-headings: #0F172A;
+    --color-theme-bodycolor: #1E293B;
+    --color-theme-bodybg: #F5F7FB;
+    --color-theme-border: #E2E8F0;
+    --color-theme-secondarytextcolor: #64748B;
+    --color-theme-sidebarcolor: #475569;
+    --color-theme-sidebarbordercolor: #E2E8F0;
+    --color-theme-sidebaruserbg: #F3F6FC;
+    --color-theme-headerbg: rgba(255, 255, 255, 0.72);
+    --color-theme-headercolor: #475569;
+    --color-theme-activebg: #EEF2FB;
+    --color-theme-cardbg: #ffffff;
+    --color-theme-inputbg: #ffffff;
+    --color-theme-inputborder: #CBD5E1;
 }
 
-/* Slightly smaller type across the board — all Tailwind sizes are rem-based. */
-html {
-    font-size: 15px;
+/*
+ * Sigil preset — the brand palette behind every --color-primary-* token,
+ * exactly like Able Pro's .preset-* classes. Anchor #1E3A8A sits at the 500
+ * stop because that is the stop Able Pro components paint with (btn-primary,
+ * active nav, links). 600 (#1E40AF, the brief's hover color) is deliberately
+ * a touch brighter than 500: on a near-black navy button, hover reads as a
+ * lift, not a darkening. 700 darkens again for the pressed state.
+ */
+:root {
+    --primary-50: #EFF6FF;
+    --primary-100: #DBEAFE;
+    --primary-200: #BFDBFE;
+    --primary-300: #93C5FD;
+    --primary-400: #3B82F6;
+    --primary-500: #1E3A8A;
+    --primary-600: #1E40AF;
+    --primary-700: #172E6E;
+    --primary-800: #122452;
+    --primary-900: #0E1B3D;
+    --primary-950: #0B1733;
+    --primary: #1E3A8A;
 }
 
-body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+/*
+ * Sigil glass recipes (design brief: glass only on sidebar navigation, modals,
+ * toasts, hovered/active document cards, the signature panel — and the
+ * standalone auth card). Component classes rather than per-template utilities
+ * because the tints flow from the --primary-* tokens; inlining them as
+ * arbitrary-value utilities would hardcode hex in templates, which the brief
+ * forbids.
+ */
+.sigil-aurora {
+    background:
+        radial-gradient(620px 520px at 18% 8%, color-mix(in srgb, var(--primary-400) 30%, transparent), transparent 60%),
+        radial-gradient(520px 520px at 92% 96%, color-mix(in srgb, var(--primary-500) 20%, transparent), transparent 60%),
+        #EDF1F9;
+}
+.glass-card {
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 1px 2px color-mix(in srgb, var(--primary-500) 6%, transparent),
+        0 18px 40px -16px color-mix(in srgb, var(--primary-500) 22%, transparent);
+}
+
+/*
+ * Design brief: buttons are 8px radius — Able Pro ships 20px pills. Unlayered
+ * rule so it wins over the vendor component layer without per-template !important.
+ */
+.btn {
+    border-radius: var(--radius-lg);
+}
+
+/*
+ * .btn-primary hover — the vendor hovers 500→600, but the Sigil 600 stop
+ * (#1E40AF) is nearly the same luminance as the 500 anchor (#1E3A8A), so the
+ * state change was invisible. Hover/focus go to the darker 700 pressed stop,
+ * and :active one step beyond it.
+ */
+@media (hover: hover) {
+    .btn-primary:hover {
+        background-color: var(--primary-700);
+    }
+}
+.btn-primary:focus {
+    background-color: var(--primary-700);
+}
+.btn-primary:active {
+    background-color: color-mix(in srgb, var(--primary-700) 85%, black);
+}
+
+/*
+ * Phones get slightly smaller buttons — the vendor's desktop padding (16/8px at
+ * 15px text) eats too much width on 390px screens (e.g. the three certificate
+ * actions must fit one row). :not(.btn-sm) so this never enlarges small buttons.
+ */
+@media (width < 40rem) {
+    .btn:not(.btn-sm) {
+        padding-inline: calc(var(--spacing) * 3);
+        padding-block: calc(var(--spacing) * 1.5);
+        font-size: var(--text-sm);
+    }
+}
+
+/*
+ * Mobile drawer scrim — Able Pro ships a weak rgba(0,0,0,.15) + blur(3px)
+ * overlay that reads as a milky grey wash. A proper dark slate scrim (40% of
+ * the headings token) dims the page cleanly and makes the white drawer pop.
+ */
+.pc-sidebar .pc-menu-overlay {
+    background-color: color-mix(in srgb, var(--color-theme-headings) 40%, transparent);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+/*
+ * Secondary buttons — Able Pro's btn-outline-secondary floods solid slate-grey
+ * on hover, which clashes with the trust-blue palette. Restyled to the mockup
+ * recipe: white surface, soft border, primary accent on hover. Unlayered to
+ * beat the vendor component layer (incl. its @media(hover) hover rules).
+ */
+.btn-outline-secondary {
+    border-color: var(--color-theme-border);
+    background-color: var(--color-theme-cardbg);
+    color: var(--color-theme-bodycolor);
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:active {
+    border-color: var(--color-theme-border);
+    background-color: var(--color-theme-activebg);
+    color: var(--color-primary-500);
+}
+
+/*
+ * Softer alert tints — Able Pro paints .alert-* with a 20% color-mix that reads
+ * heavy on the light Sigil surfaces (dashboard banners especially). 10% wash +
+ * 20% border keeps the semantics but stays airy. Unlayered to beat the vendor
+ * component layer.
+ */
+.alert-primary { background-color: color-mix(in oklab, var(--color-primary-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-primary-500) 20%, transparent); }
+.alert-secondary { background-color: color-mix(in oklab, var(--color-secondary-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-secondary-500) 20%, transparent); }
+.alert-success { background-color: color-mix(in oklab, var(--color-success-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-success-500) 20%, transparent); }
+.alert-danger { background-color: color-mix(in oklab, var(--color-danger-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-danger-500) 20%, transparent); }
+.alert-warning { background-color: color-mix(in oklab, var(--color-warning-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-warning-500) 20%, transparent); }
+.alert-info { background-color: color-mix(in oklab, var(--color-info-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-info-500) 20%, transparent); }
+
+/*
+ * Collapsed sidebar = icon rail (per the dashboard mockup), replacing Able
+ * Pro's full hide (width 0 would swallow the in-sidebar toggle button).
+ * Labels/badges/caption hide via .sidebar-label; icons center in the rail.
+ * The sibling rules mirror the vendor's own `~ .pc-header/.pc-container`
+ * shift, just to the rail width instead of 0.
+ */
+@media (min-width: 64rem) {
+    .pc-sidebar.pc-sidebar-hide {
+        width: 76px;
+        border-right-width: 1px;
+    }
+    .pc-sidebar.pc-sidebar-hide .navbar-wrapper {
+        width: 76px;
+    }
+    .pc-sidebar.pc-sidebar-hide ~ .pc-header {
+        left: 76px;
+    }
+    .pc-sidebar.pc-sidebar-hide ~ .pc-container,
+    .pc-sidebar.pc-sidebar-hide ~ .pc-footer {
+        margin-left: 76px;
+    }
+    .pc-sidebar.pc-sidebar-hide .sidebar-label,
+    .pc-sidebar.pc-sidebar-hide .pc-mtext,
+    .pc-sidebar.pc-sidebar-hide .pc-badge {
+        display: none;
+    }
+    /* Rail brand row: logo mark on top, collapse toggle underneath. */
+    .pc-sidebar.pc-sidebar-hide .m-header {
+        height: auto;
+        flex-direction: column;
+        justify-content: center;
+        gap: calc(var(--spacing) * 2.5);
+        padding-block: calc(var(--spacing) * 4);
+        padding-inline: 0;
+    }
+    .pc-sidebar.pc-sidebar-hide .pc-navbar .pc-link {
+        text-align: center;
+        padding-inline: 0;
+    }
+    .pc-sidebar.pc-sidebar-hide .pc-navbar .pc-micon {
+        margin-right: 0;
+    }
 }
 
 /*
@@ -70,7 +342,6 @@ body {
     stroke-dasharray: 680;
     animation: sigil-draw 2.4s ease-in-out infinite;
 }
-
 @media (prefers-reduced-motion: reduce) {
     .s-path { animation: none; stroke-dashoffset: 0; opacity: 0.5; }
 }
@@ -89,7 +360,6 @@ body {
     margin-right: 0.4rem;
     vertical-align: -0.2em;
 }
-
 button[aria-busy="true"] {
     opacity: 0.75;
     cursor: progress;
@@ -98,7 +368,7 @@ button[aria-busy="true"] {
 /*
  * Confirm-dialog open/close animations (assets/controllers/confirm_controller.js
  * toggles the -out classes while closing). Animation only — the dialog surface
- * itself is styled with Flowbite modal classes in the template.
+ * itself is styled with Able Pro/utility classes in the template.
  */
 .modal-card {
     animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
@@ -136,21 +406,19 @@ button[aria-busy="true"] {
 }
 
 /*
- * Documents module — frosted-gradient content background (ADR trial). Applied
- * only on /documents/* via {% block main_class %}docs-gradient{% endblock %}.
- * Scoped here so it's a single, reversible switch before any wider rollout.
- * Two soft radial washes of the brand blue over a near-white base; the -mt/pt
- * from the layout's <main> padding keeps it behind the content comfortably.
+ * Documents module — frosted-gradient content background. Applied only on
+ * /documents/* via {% block main_class %}docs-gradient{% endblock %}. Two soft
+ * radial washes of the brand blue over a near-white base.
  */
 .docs-gradient {
     min-height: 100vh;
     background:
-        radial-gradient(820px 640px at 12% -6%, rgba(59, 130, 246, 0.06), transparent 70%),
-        radial-gradient(680px 620px at 102% 104%, rgba(30, 58, 138, 0.05), transparent 68%),
+        radial-gradient(820px 640px at 12% -6%, color-mix(in srgb, var(--primary-400) 6%, transparent), transparent 70%),
+        radial-gradient(680px 620px at 102% 104%, color-mix(in srgb, var(--primary-500) 5%, transparent), transparent 68%),
         #FAFBFE;
 }
 
-/* A subtly frosted card used for the docs surfaces on the gradient. */
+/* A subtle rise-in for the docs surfaces on the gradient. */
 .docs-rise {
     animation: docs-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -163,29 +431,13 @@ button[aria-busy="true"] {
 }
 
 /*
- * Modal ergonomics (fixes 2026-07-11).
- * - scrollbar-gutter keeps the scrollbar's space reserved so opening a modal
- *   (which locks background scroll) never shifts the page sideways.
- * - Tailwind v4's Preflight leaves <button> at cursor:default; restore pointer.
- */
-html {
-    scrollbar-gutter: stable;
-}
-button:not(:disabled),
-summary,
-label[data-dropzone],
-[role="button"] {
-    cursor: pointer;
-}
-
-/*
  * Native <dialog> modal (documents upload). Renders in the browser top layer,
  * so it is always above the navbar/sidebar with no z-index juggling. The
  * ::backdrop is the frosted-glass overlay behind the popup.
  */
 dialog.docs-modal {
-    /* Tailwind Preflight resets `margin:0` on every element, which cancels the
-       UA `dialog { margin:auto }` centering — restore it explicitly. */
+    /* Preflight resets `margin:0` on every element, which cancels the UA
+       `dialog { margin:auto }` centering — restore it explicitly. */
     position: fixed;
     inset: 0;
     margin: auto;
@@ -224,4 +476,20 @@ dialog.docs-modal[open]::backdrop {
 }
 @media (prefers-reduced-motion: reduce) {
     dialog.docs-modal[open], dialog.docs-modal[open]::backdrop { animation: none; }
+}
+
+/*
+ * Modal ergonomics.
+ * - scrollbar-gutter keeps the scrollbar's space reserved so opening a modal
+ *   (which locks background scroll) never shifts the page sideways.
+ * - Preflight leaves <button> at cursor:default; restore pointer.
+ */
+html {
+    scrollbar-gutter: stable;
+}
+button:not(:disabled),
+summary,
+label[data-dropzone],
+[role="button"] {
+    cursor: pointer;
 }

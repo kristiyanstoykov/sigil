@@ -1,137 +1,206 @@
 {% extends 'layout/app.html.twig' %}
 {% import 'certificate/_helpers.html.twig' as helpers %}
+{% import _self as ui %}
 
 {% block title %}Certificate - Sigil{% endblock %}
 
+{# PIN-confirmed action dialog (hold / resume / revoke). Lives inside its own
+   data-controller="confirm" scope together with the button that opens it. #}
+{% macro action_modal(form_action, csrf_value, icon_wrap_class, icon_class, title, body, submit_label, submit_class, with_pin) %}
+    <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+         data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+         class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+        {# solid white on phones - the 85% glass card over the dark scrim read grey; desktop keeps a near-solid glass #}
+        <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+            <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg {{ icon_wrap_class }} mb-4">
+                <i class="{{ icon_class }} text-xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-semibold text-theme-headings mb-2">{{ title }}</h2>
+            <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">{{ body }}</p>
+            <form method="post" action="{{ form_action }}" class="space-y-4">
+                <input type="hidden" name="_token" value="{{ csrf_value }}">
+                {% if with_pin %}
+                    <label class="block">
+                        <span class="form-label !inline-block text-sm font-semibold">Certificate PIN</span>
+                        <input type="password" name="_pin" required pattern="\d{6,8}" maxlength="8"
+                               inputmode="numeric" autocomplete="off" placeholder="••••••"
+                               class="form-control !bg-white/60 text-center font-mono tracking-[0.3em]">
+                    </label>
+                {% endif %}
+                <div class="flex gap-2.5">
+                    <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Cancel</button>
+                    <button type="submit" class="btn {{ submit_class }} flex-1">{{ submit_label }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endmacro %}
+
 {% block content %}
-    {% set status = certificate.status.value %}
-    <div class="max-w-3xl mx-auto" data-controller="confirm">
+    {% set status = certificate.displayStatus %}
+    <div class="max-w-3xl mx-auto">
         {{ helpers.back_link(path('app_certificates'), 'Back to certificates') }}
 
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <div class="h-1.5 {{ helpers.accent_class(status) }}"></div>
+        <div class="card !mb-0 overflow-hidden">
+            <div class="h-1.5 {{ status.accentClass }}"></div>
             <div class="p-6">
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">
-                        <div class="text-xs font-medium uppercase tracking-wide text-gray-400">Signing certificate</div>
-                        <h1 class="mt-1 text-2xl font-bold text-gray-900">{{ certificate.user.firstName }} {{ certificate.user.lastName }}</h1>
+                        <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Signing certificate</div>
+                        <h1 class="mt-1 text-2xl font-bold text-theme-headings">{{ certificate.user.firstName }} {{ certificate.user.lastName }}</h1>
                         {% if certificate.user.company %}
-                            <div class="mt-1 text-sm text-gray-500">{{ certificate.user.position ? certificate.user.position ~ ' · ' }}{{ certificate.user.company }}</div>
+                            <div class="mt-1 text-sm text-theme-secondarytextcolor">{{ certificate.user.position ? certificate.user.position ~ ' · ' }}{{ certificate.user.company }}</div>
                         {% endif %}
                     </div>
                     <span class="shrink-0">{{ helpers.badge(status, true) }}</span>
                 </div>
 
-                {% if status == 'locked' %}
-                    <div class="flex items-start gap-3 p-4 mt-5 text-sm text-red-800 border border-red-200 rounded-lg bg-red-50" role="alert">
-                        <svg class="shrink-0 w-4 h-4 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                {% if status.onHold %}
+                    <div class="alert alert-info flex items-start gap-3 !mb-0 mt-5 text-sm" role="alert">
+                        <i class="ti ti-player-pause shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
+                        <div><strong>This certificate is on hold.</strong> Signing with it is disabled until {{ certificate.heldUntil|date('d M Y, H:i') }} UTC. It resumes automatically then - or resume it now with your PIN.</div>
+                    </div>
+                {% elseif status.locked %}
+                    <div class="alert alert-danger flex items-start gap-3 !mb-0 mt-5 text-sm" role="alert">
+                        <i class="ti ti-lock shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
                         <div><strong>This certificate is locked.</strong> It was locked after too many failed PIN attempts. <a href="{{ path('app_certificate_unlock', {id: certificate.id}) }}" class="font-semibold underline">Unlock it</a> by re-verifying your identity.</div>
                     </div>
-                {% elseif status == 'revoked' %}
-                    <div class="flex items-start gap-3 p-4 mt-5 text-sm text-gray-800 border border-gray-200 rounded-lg bg-gray-50" role="alert">
-                        <svg class="shrink-0 w-4 h-4 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+                {% elseif status.revoked %}
+                    <div class="alert alert-secondary flex items-start gap-3 !mb-0 mt-5 text-sm" role="alert">
+                        <i class="ti ti-ban shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
                         <div><strong>This certificate has been revoked.</strong> It can no longer be used to sign. Revoked on {{ certificate.revokedAt|date('d M Y') }}.</div>
                     </div>
-                {% elseif status == 'expired' %}
-                    <div class="flex items-start gap-3 p-4 mt-5 text-sm text-yellow-800 border border-yellow-200 rounded-lg bg-yellow-50" role="alert">
-                        <svg class="shrink-0 w-4 h-4 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                {% elseif status.expired %}
+                    <div class="alert alert-warning flex items-start gap-3 !mb-0 mt-5 text-sm" role="alert">
+                        <i class="ti ti-clock shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
                         <div><strong>This certificate has expired.</strong> Issue a new certificate to keep signing.</div>
                     </div>
                 {% endif %}
 
                 {# facts #}
-                <div class="mt-5 relative overflow-x-auto border border-gray-200 rounded-lg">
-                    <table class="w-full text-sm text-left text-gray-500">
+                <div class="mt-5 relative overflow-x-auto border border-theme-border rounded-lg">
+                    <table class="w-full text-sm text-left text-theme-secondarytextcolor">
                         <tbody>
-                            <tr class="bg-white border-b border-gray-100">
-                                <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap align-top">Serial number</th>
-                                <td class="px-4 py-3 font-mono text-xs font-medium text-gray-900 break-all text-right">{{ certificate.serialNumber|upper }}</td>
+                            <tr class="bg-white border-b border-theme-border/60">
+                                <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap align-top">Serial number</th>
+                                <td class="px-4 py-3 font-mono text-xs font-medium text-theme-headings break-all text-right">{{ certificate.serialNumber|upper }}</td>
                             </tr>
-                            <tr class="bg-gray-50 border-b border-gray-100">
-                                <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap">Algorithm</th>
-                                <td class="px-4 py-3 font-medium text-gray-900 text-right">{{ algorithm_label }}</td>
+                            <tr class="bg-theme-bodybg/60 border-b border-theme-border/60">
+                                <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">Algorithm</th>
+                                <td class="px-4 py-3 font-medium text-theme-headings text-right">{{ algorithm_label }}</td>
                             </tr>
-                            <tr class="bg-white border-b border-gray-100">
-                                <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap">Valid from</th>
-                                <td class="px-4 py-3 font-medium text-gray-900 text-right">{{ certificate.notBefore|date('d M Y, H:i') }} UTC</td>
+                            <tr class="bg-white border-b border-theme-border/60">
+                                <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">Valid from</th>
+                                <td class="px-4 py-3 font-medium text-theme-headings text-right">{{ certificate.notBefore|date('d M Y, H:i') }} UTC</td>
                             </tr>
-                            <tr class="bg-gray-50 border-b border-gray-100">
-                                <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap">Valid until</th>
-                                <td class="px-4 py-3 font-medium text-right {{ status == 'expired' ? 'text-yellow-700' : 'text-gray-900' }}">{{ certificate.notAfter|date('d M Y, H:i') }} UTC</td>
+                            <tr class="bg-theme-bodybg/60 border-b border-theme-border/60">
+                                <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">Valid until</th>
+                                <td class="px-4 py-3 font-medium text-right {{ status.expired ? 'text-warning-600' : 'text-theme-headings' }}">{{ certificate.notAfter|date('d M Y, H:i') }} UTC</td>
                             </tr>
-                            {% if certificate.revokedAt %}
-                                <tr class="bg-white border-b border-gray-100">
-                                    <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap">Revoked</th>
-                                    <td class="px-4 py-3 font-medium text-gray-900 text-right">{{ certificate.revokedAt|date('d M Y, H:i') }} UTC</td>
+                            {% if status.onHold %}
+                                <tr class="bg-white border-b border-theme-border/60">
+                                    <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">On hold until</th>
+                                    <td class="px-4 py-3 font-medium text-info-600 text-right">{{ certificate.heldUntil|date('d M Y, H:i') }} UTC</td>
                                 </tr>
-                                <tr class="bg-gray-50 border-b border-gray-100">
-                                    <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap">Reason</th>
-                                    <td class="px-4 py-3 font-medium text-gray-900 text-right">{{ certificate.revocationReason }}</td>
+                            {% endif %}
+                            {% if certificate.revokedAt %}
+                                <tr class="bg-white border-b border-theme-border/60">
+                                    <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">Revoked</th>
+                                    <td class="px-4 py-3 font-medium text-theme-headings text-right">{{ certificate.revokedAt|date('d M Y, H:i') }} UTC</td>
+                                </tr>
+                                <tr class="bg-theme-bodybg/60 border-b border-theme-border/60">
+                                    <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap">Reason</th>
+                                    <td class="px-4 py-3 font-medium text-theme-headings text-right">{{ certificate.revocationReason }}</td>
                                 </tr>
                             {% endif %}
                             <tr class="bg-white">
-                                <th scope="row" class="px-4 py-3 font-normal text-gray-500 whitespace-nowrap align-top">Distinguished name</th>
-                                <td class="px-4 py-3 font-mono text-xs font-medium text-gray-700 break-words text-right">{{ certificate.subjectDn }}</td>
+                                <th scope="row" class="px-4 py-3 font-normal text-theme-secondarytextcolor whitespace-nowrap align-top">Distinguished name</th>
+                                <td class="px-4 py-3 font-mono text-xs font-medium text-theme-bodycolor break-words text-right">{{ certificate.subjectDn }}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                {# actions #}
-                <div class="mt-5 flex items-center gap-2.5 flex-wrap">
+                {# actions - on phones every button stretches to share its row evenly
+                   (max-sm:grow max-sm:basis-[calc(50%-0.25rem)]), so wherever the row wraps it stays symmetrical #}
+                <div class="mt-5 flex items-center gap-2 sm:gap-2.5 flex-wrap">
                     <a href="{{ path('app_certificate_download', {id: certificate.id}) }}" data-no-loader
-                       class="inline-flex items-center gap-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
+                       class="btn {{ helpers.action_class('download') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                        <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
                         Download .crt
                     </a>
-                    {% if status == 'active' %}
+                    {% if status.active %}
                         <a href="{{ path('app_certificate_change_pin', {id: certificate.id}) }}"
-                           class="inline-flex items-center gap-2 py-2.5 px-4 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                           class="btn {{ helpers.action_class('change_pin') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                            <i class="ti ti-lock text-base leading-none" aria-hidden="true"></i>
                             Change PIN
                         </a>
                     {% endif %}
-                    {% if status == 'locked' %}
+                    {% if status.locked %}
                         <a href="{{ path('app_certificate_unlock', {id: certificate.id}) }}"
-                           class="inline-flex items-center gap-2 py-2.5 px-4 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-1.5"/></svg>
+                           class="btn {{ helpers.action_class('unlock') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                            <i class="ti ti-lock-open text-base leading-none" aria-hidden="true"></i>
                             Unlock certificate
                         </a>
                     {% endif %}
-                    {% if status != 'revoked' %}
-                        <div class="flex-1 min-w-3"></div>
-                        <button type="button" data-action="confirm#open"
-                                class="inline-flex items-center gap-2 py-2.5 px-4 text-sm font-medium text-red-700 bg-white rounded-lg border border-red-300 hover:bg-red-50 cursor-pointer">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
-                            Revoke
-                        </button>
+                    {% if not status.revoked %}
+                        <div class="flex-1 min-w-3 max-sm:hidden"></div>
+
+                        {% if status.active %}
+                            {# 72h hold - the "certificateHold" story: pause signing without burning the identity #}
+                            <div data-controller="confirm" class="contents">
+                                <button type="button" data-action="confirm#open"
+                                        class="btn {{ helpers.action_class('hold') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                                    <i class="ti ti-player-pause text-base leading-none" aria-hidden="true"></i>
+                                    Hold
+                                </button>
+                                {{ ui.action_modal(
+                                    path('app_certificate_hold', {id: certificate.id}),
+                                    csrf_token('hold-certificate-' ~ certificate.id),
+                                    'bg-warning-500/10 text-warning-600', 'ti ti-player-pause',
+                                    'Put this certificate on hold?',
+                                    'Signing with this certificate will be disabled for the next ' ~ constant('App\\Certificate\\Entity\\Certificate::HOLD_HOURS') ~ ' hours. It resumes automatically after that - or earlier, with your PIN. Confirm with your PIN to place the hold.',
+                                    'Put on hold', 'btn-warning', true
+                                ) }}
+                            </div>
+                        {% elseif status.onHold %}
+                            <div data-controller="confirm" class="contents">
+                                <button type="button" data-action="confirm#open"
+                                        class="btn {{ helpers.action_class('resume') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                                    <i class="ti ti-player-play text-base leading-none" aria-hidden="true"></i>
+                                    Resume
+                                </button>
+                                {{ ui.action_modal(
+                                    path('app_certificate_resume', {id: certificate.id}),
+                                    csrf_token('resume-certificate-' ~ certificate.id),
+                                    'bg-success-500/10 text-success-600', 'ti ti-player-play',
+                                    'Resume this certificate?',
+                                    'The hold ends now and signing with this certificate is enabled again. Confirm with your PIN.',
+                                    'Resume', 'btn-success', true
+                                ) }}
+                            </div>
+                        {% endif %}
+
+                        {# PIN required while the certificate is otherwise usable; a locked/expired
+                           one is revocable without it (the PIN may be lost - re-issue starts here) #}
+                        <div data-controller="confirm" class="contents">
+                            <button type="button" data-action="confirm#open"
+                                    class="btn {{ helpers.action_class('revoke') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
+                                <i class="ti ti-ban text-base leading-none" aria-hidden="true"></i>
+                                Revoke
+                            </button>
+                            {{ ui.action_modal(
+                                path('app_certificate_revoke', {id: certificate.id}),
+                                csrf_token('revoke-certificate-' ~ certificate.id),
+                                'bg-danger-500/10 text-danger-600', 'ti ti-alert-triangle',
+                                'Revoke this certificate?',
+                                'Revoking is permanent. This signing identity will immediately stop working and can\'t be reactivated - you\'d need to issue a new one.' ~ (status.pinGuarded ? ' Confirm with your PIN.' : ''),
+                                'Revoke certificate', 'btn-danger', status.pinGuarded
+                            ) }}
+                        </div>
                     {% endif %}
                 </div>
             </div>
         </div>
-
-    {# revoke confirm modal (Stimulus confirm_controller - animated open AND close) #}
-    {% if status != 'revoked' %}
-        <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-             data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-             class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full bg-gray-900/50 modal-backdrop-fade">
-            <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 bg-white rounded-lg shadow-lg modal-card">
-                <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg bg-red-100 text-red-700 mb-4">
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-                </div>
-                <h2 class="text-lg font-semibold text-gray-900 mb-2">Revoke this certificate?</h2>
-                <p class="text-sm text-gray-500 leading-relaxed mb-5">Revoking is permanent. This signing identity will immediately stop working and can't be reactivated - you'd need to issue a new one.</p>
-                <div class="flex gap-2.5">
-                    <button type="button" data-action="confirm#close"
-                            class="flex-1 py-2.5 px-5 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer">Cancel</button>
-                    <form method="post" action="{{ path('app_certificate_revoke', {id: certificate.id}) }}" class="flex-1">
-                        <input type="hidden" name="_token" value="{{ csrf_token('revoke-certificate-' ~ certificate.id) }}">
-                        <button type="submit"
-                                class="w-full text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 cursor-pointer">Revoke certificate</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    {% endif %}
     </div>
 {% endblock %}

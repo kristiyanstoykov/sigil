@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Dashboard\Controller;
 
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
+use App\Certificate\Enum\CertificateDisplayStatus;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
@@ -37,7 +38,7 @@ class DashboardController extends AbstractController
                 'cn' => $certificate->getSubjectDn(),
                 'algorithm' => $algorithms->get($certificate->getAlgorithmId())->label(),
                 'valid_until' => $certificate->getNotAfter()->format('d M Y'),
-                'status' => $expiring ? 'expiring' : $certificate->getStatus()->value,
+                'status' => $expiring ? CertificateDisplayStatus::Expiring : $certificate->getDisplayStatus(),
                 'expires_in' => $expiring ? max(0, $daysLeft).'d' : null,
             ];
         }

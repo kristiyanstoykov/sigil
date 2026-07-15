@@ -1,44 +1,64 @@
 {#
-    App sidebar - stock Flowbite sidebar. Items come from SidebarMenuProvider
-    (src/Core/Navigation/) via the sidebar_menu() Twig function - add/role-gate
-    entries there, not here. On mobile it's a Flowbite drawer, toggled by the
-    hamburger in the navbar (data-drawer-toggle="app-sidebar").
+    App sidebar — Able Pro pc-sidebar with the Sigil frosted-glass finish
+    (glass on sidebar navigation per the design brief; blur + translucent
+    white over the body background, solid faint border instead of Able Pro's
+    dashed one). Items come from SidebarMenuProvider (src/Core/Navigation/)
+    via the sidebar_menu() Twig function — add/role-gate entries there, not
+    here. On mobile it slides in via #mobile-collapse (assets/able_pro.js).
 
-    Optional context: badges - map of MenuItem.badgeKey → int (live counts).
+    Optional context: badges — map of MenuItem.badgeKey → int (live counts).
 #}
-<aside id="app-sidebar" aria-label="Sidebar"
-       class="fixed top-0 left-0 z-40 w-64 h-screen pt-[4.3rem] transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0">
-    <div class="h-full px-3 py-4 overflow-y-auto flex flex-col">
-        <ul class="space-y-2 font-medium">
-            {% for item in sidebar_menu() %}
-                {% set enabled = item.route is not null %}
-                {% set active = enabled and app.current_route == item.route %}
-                {% set badge = item.badgeKey ? badges[item.badgeKey]|default(0) : 0 %}
-                <li>
-                    <a href="{{ enabled ? path(item.route) : '#' }}"
-                       {% if active %}aria-current="page"{% endif %}
-                       {% if not enabled %}title="Coming soon" aria-disabled="true"{% endif %}
-                       class="flex items-center p-2 rounded-lg group
-                              {{ active ? 'bg-gray-100 text-primary-700' : 'text-gray-900 hover:bg-gray-100' }}
-                              {{ not enabled ? 'opacity-50 cursor-default hover:bg-transparent' }}">
-                        <svg class="w-5 h-5 shrink-0 transition duration-75 {{ active ? 'text-primary-700' : 'text-gray-500 group-hover:text-gray-900' }}"
-                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ item.icon|raw }}</svg>
-                        <span class="flex-1 ms-3 whitespace-nowrap">{{ item.label }}</span>
-                        {% if badge > 0 %}
-                            <span class="inline-flex items-center justify-center px-2 ms-3 text-sm font-medium text-red-800 bg-red-100 rounded-full">{{ badge }}</span>
-                        {% endif %}
-                    </a>
-                </li>
-            {% endfor %}
-        </ul>
-
-        <div class="pt-4 mt-4 space-y-2 border-t border-gray-200">
-            {# Upload - opens the upload modal in place, from whatever page you're on #}
-            <button type="button" data-action="documents-upload#open"
-                    class="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-primary-700 hover:bg-primary-800 rounded-lg">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
-                Upload document
+{# Glass is desktop-only: on the mobile drawer the translucency composites over
+   the dark overlay and turns muddy grey, so the drawer surface is solid white. #}
+<nav class="pc-sidebar !bg-white lg:!bg-white/60 lg:!backdrop-blur-xl lg:!backdrop-saturate-150 !border-solid !border-white/70" aria-label="Sidebar">
+    {# Mobile: solid white so the drawer sits opaquely above the scrim (the
+       scrim is a full-viewport child of this nav; the wrapper is what rises
+       above it). Desktop: transparent so the nav's glass shows through. #}
+    <div class="navbar-wrapper !bg-white lg:!bg-transparent">
+        <div class="m-header flex items-center justify-between gap-2 py-4 px-6 h-header-height">
+            <a href="{{ path('app_dashboard') }}" class="b-brand flex items-center gap-3">
+                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="44" height="30" class="img-fluid logo-lg">
+                <span class="sidebar-label text-xl font-semibold text-theme-headings">Sigil</span>
+            </a>
+            {# Desktop collapse toggle — lives in the sidebar (rail collapse keeps it
+               reachable); mobile uses the header hamburger (#mobile-collapse). #}
+            <button type="button" id="sidebar-hide" aria-label="Toggle sidebar" title="Toggle sidebar"
+                    class="max-lg:hidden inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg border border-theme-border bg-white/70 text-theme-secondarytextcolor hover:bg-theme-activebg hover:text-theme-headings cursor-pointer">
+                <i class="ti ti-layout-sidebar text-lg leading-none" aria-hidden="true"></i>
             </button>
         </div>
+        <div class="navbar-content h-[calc(100vh_-_74px)] py-2.5 overflow-y-auto flex flex-col">
+            <ul class="pc-navbar grow">
+                {% for item in sidebar_menu() %}
+                    {% set enabled = item.route is not null %}
+                    {% set active = enabled and app.current_route == item.route %}
+                    {% set badge = item.badgeKey ? badges[item.badgeKey]|default(0) : 0 %}
+                    <li class="pc-item {{ active ? 'active' }}">
+                        <a href="{{ enabled ? path(item.route) : '#' }}"
+                           class="pc-link {{ not enabled ? 'opacity-50 cursor-default' }}"
+                           {% if active %}aria-current="page"{% endif %}
+                           {% if not enabled %}title="Coming soon" aria-disabled="true"{% endif %}>
+                            <span class="pc-micon">
+                                <svg class="pc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ item.icon|raw }}</svg>
+                            </span>
+                            <span class="pc-mtext">{{ item.label }}</span>
+                            {% if badge > 0 %}
+                                <span class="pc-badge">{{ badge }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+
+            {# Upload — opens the upload modal in place, from whatever page you're on #}
+            <div class="px-[15px] pt-4 pb-2 border-t border-theme-border/70">
+                <button type="button" data-action="documents-upload#open"
+                        class="btn btn-primary w-full inline-flex items-center justify-center gap-2">
+                    <i class="ti ti-upload text-base leading-none" aria-hidden="true"></i>
+                    <span class="sidebar-label">Upload document</span>
+                </button>
+            </div>
+        </div>
     </div>
-</aside>
+</nav>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Certificate\Controller;
 
 use App\AuditLog\AuditLoggerInterface;
+use App\AuditLog\Enum\AuditSeverity;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Exception\CertificateLockedException;
 use App\Certificate\Exception\InvalidPinException;
@@ -17,6 +18,8 @@ use App\Certificate\Service\PinGate;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Clock\ClockInterface;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Google\GoogleAuthenticatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -231,15 +234,117 @@ class CertificateController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/hold', name: 'app_certificate_hold', methods: ['POST'])]
+    public function hold(
+        string $id,
+        Request $request,
+        AuditLoggerInterface $auditLogger,
+        EntityManagerInterface $em,
+        ClockInterface $clock,
+        #[Autowire(service: 'limiter.pin_verification')]
+        RateLimiterFactory $pinVerificationLimiter,
+    ): Response {
+        $certificate = $this->ownedCertificate($id);
+
+        if (!$this->isCsrfTokenValid('hold-certificate-'.$id, (string) $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Invalid security token - please try again.');
+
+            return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        // allowOnHold: false → an already-held (or locked/revoked/expired)
+        // certificate is rejected by the gate itself.
+        if ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: false)) {
+            return $failure;
+        }
+
+        $until = $this->utcNow($clock)->modify(sprintf('+%d hours', Certificate::HOLD_HOURS));
+        $certificate->hold($until);
+        $em->flush();
+
+        $auditLogger->log(
+            action: 'certificate.held',
+            actor: $this->currentUser(),
+            payload: ['heldUntil' => $until->format(\DateTimeInterface::ATOM)],
+            subjectType: 'Certificate',
+            subjectId: $certificate->getId()->toRfc4122(),
+        );
+
+        $this->addFlash('success', sprintf(
+            'Certificate placed on hold until %s UTC. It resumes automatically, or earlier with your PIN.',
+            $until->format('d M Y, H:i'),
+        ));
+
+        return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+    }
+
+    #[Route('/{id}/resume', name: 'app_certificate_resume', methods: ['POST'])]
+    public function resume(
+        string $id,
+        Request $request,
+        AuditLoggerInterface $auditLogger,
+        EntityManagerInterface $em,
+        ClockInterface $clock,
+        #[Autowire(service: 'limiter.pin_verification')]
+        RateLimiterFactory $pinVerificationLimiter,
+    ): Response {
+        $certificate = $this->ownedCertificate($id);
+
+        if (!$this->isCsrfTokenValid('resume-certificate-'.$id, (string) $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Invalid security token - please try again.');
+
+            return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        if (!$certificate->isOnHold($this->utcNow($clock))) {
+            return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        if ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: true)) {
+            return $failure;
+        }
+
+        $certificate->releaseHold();
+        $em->flush();
+
+        // Warning like certificate.unlocked: signing capability was re-enabled.
+        $auditLogger->log(
+            action: 'certificate.hold_released',
+            actor: $this->currentUser(),
+            subjectType: 'Certificate',
+            subjectId: $certificate->getId()->toRfc4122(),
+            severity: AuditSeverity::Warning,
+        );
+
+        $this->addFlash('success', 'Certificate resumed - signing with it is enabled again.');
+
+        return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+    }
+
     #[Route('/{id}/revoke', name: 'app_certificate_revoke', methods: ['POST'])]
-    public function revoke(string $id, Request $request, CertificateIssuer $issuer): Response
-    {
+    public function revoke(
+        string $id,
+        Request $request,
+        CertificateIssuer $issuer,
+        ClockInterface $clock,
+        #[Autowire(service: 'limiter.pin_verification')]
+        RateLimiterFactory $pinVerificationLimiter,
+    ): Response {
         $certificate = $this->ownedCertificate($id);
 
         if (!$this->isCsrfTokenValid('revoke-certificate-'.$id, (string) $request->request->get('_token'))) {
             $this->addFlash('danger', 'Invalid security token - please try again.');
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        // An active (or held) certificate is only revocable with its PIN.
+        // Locked and expired ones stay revocable without it: the locked state
+        // exists precisely because the PIN is lost or desynced, and re-issuing
+        // starts with revoking.
+        if ($certificate->isWithinValidity($this->utcNow($clock))
+            && ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: true))) {
+            return $failure;
         }
 
         try {
@@ -250,6 +355,41 @@ class CertificateController extends AbstractController
         }
 
         return $this->redirectToRoute('app_certificates');
+    }
+
+    /**
+     * Rate-limits and verifies the PIN posted as "_pin". Returns a redirect
+     * back to the certificate on failure, null when the PIN checked out.
+     * A wrong PIN counts toward the ADR-008 lockout like everywhere else.
+     */
+    private function verifyPostedPin(
+        Certificate $certificate,
+        Request $request,
+        RateLimiterFactory $pinVerificationLimiter,
+        bool $allowOnHold,
+    ): ?Response {
+        $id = $certificate->getId()->toRfc4122();
+
+        if (!$pinVerificationLimiter->create($this->currentUser()->getUserIdentifier())->consume()->isAccepted()) {
+            $this->addFlash('danger', 'Too many PIN attempts - please try again later.');
+
+            return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        try {
+            $this->pinGate->verify($certificate, (string) $request->request->get('_pin'), $allowOnHold);
+        } catch (InvalidPinException|CertificateLockedException $e) {
+            $this->addFlash('danger', $e->getMessage());
+
+            return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
+        }
+
+        return null;
+    }
+
+    private function utcNow(ClockInterface $clock): \DateTimeImmutable
+    {
+        return \DateTimeImmutable::createFromInterface($clock->now())->setTimezone(new \DateTimeZone('UTC'));
     }
 
     private function ownedCertificate(string $id): Certificate
