@@ -13,7 +13,7 @@
 
 - TOTP (RFC 6238) — compatible with Google Authenticator, Authy, 1Password, Bitwarden, and any standards-compliant app
 - The bundle integrates directly into Symfony's security firewall — no custom authenticator to maintain
-- QR codes rendered with `endroid/qr-code` v6 using `SvgWriter` (PHP container does not have GD; SVG needs no image extension)
+- QR codes rendered with `endroid/qr-code` v6 using `SvgWriter` (GD is built into the Docker image, but `SvgWriter` needs no image extension and stays portable to non-Docker runs)
 
 **Setup flow:** TOTP is **not** enforced at registration. After first login the dashboard shows a warning banner. The user opts in at `/2fa/setup`, scans the QR code, and enters a code to confirm. `User::totpEnabled` flips to `true` only after successful verification.
 
