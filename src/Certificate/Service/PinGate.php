@@ -36,17 +36,21 @@ class PinGate
      * Verifies the PIN or throws. On success the counter is reset and the
      * caller may open the PKCS#11 session with the (still in-memory) PIN.
      *
+     * $allowOnHold lets the actions that END a hold (resume, revoke) verify
+     * the PIN of a held certificate; everything else treats a hold as unusable.
+     *
      * @throws CertificateLockedException when the certificate is locked/unusable
      * @throws InvalidPinException        on a wrong PIN (message includes attempts remaining)
      */
-    public function verify(Certificate $certificate, #[\SensitiveParameter] string $pin): void
+    public function verify(Certificate $certificate, #[\SensitiveParameter] string $pin, bool $allowOnHold = false): void
     {
         $now = $this->now();
 
-        if (!$certificate->isUsable($now)) {
+        $usable = $allowOnHold ? $certificate->isWithinValidity($now) : $certificate->isUsable($now);
+        if (!$usable) {
             throw new CertificateLockedException($certificate->isLocked()
                 ? 'This certificate is locked. Unlock it with your password and a fresh authenticator code.'
-                : 'This certificate is not usable (revoked or expired).');
+                : 'This certificate is not usable (on hold, revoked or expired).');
         }
 
         if (password_verify($pin, $certificate->getPinHash())) {

@@ -1,20 +1,25 @@
-{# Shared bits for the Certificate pages - Flowbite badges.
-   Status colors: active=green, locked=red, revoked=gray, expired=yellow. #}
+{# Shared bits for the Certificate pages. Status labels and colors live on the
+   CertificateDisplayStatus enum (label/badgeClass/dotClass/accentClass) -
+   templates never hardcode a status string or its color. #}
 
 {% macro badge(status, big = false) %}
     {% set size = big ? 'text-sm px-3 py-1' : 'text-xs px-2.5 py-0.5' %}
-    {% if status == 'active' %}
-        <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap bg-green-100 text-green-800 {{ size }}"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Active</span>
-    {% elseif status == 'locked' %}
-        <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap bg-red-100 text-red-800 {{ size }}"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Locked</span>
-    {% elseif status == 'revoked' %}
-        <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap bg-gray-100 text-gray-800 {{ size }}"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Revoked</span>
-    {% else %}
-        <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap bg-yellow-100 text-yellow-800 {{ size }}"><span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>Expired</span>
-    {% endif %}
+    <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap {{ status.badgeClass }} {{ size }}"><span class="w-1.5 h-1.5 rounded-full {{ status.dotClass }}"></span>{{ status.label }}</span>
 {% endmacro %}
 
-{% macro accent_class(status) %}{{ status == 'active' ? 'bg-green-500' : (status == 'locked' ? 'bg-red-500' : (status == 'expired' ? 'bg-yellow-400' : 'bg-gray-400')) }}{% endmacro %}
+{# One place that says which Able Pro button variant each certificate action
+   wears - severity language: primary=main, info=routine, warning=caution
+   (pause/recover), success=go, danger=destroy. #}
+{% macro action_class(action) %}
+    {{- {
+        download: 'btn-primary',
+        change_pin: 'btn-outline-info',
+        unlock: 'btn-outline-warning',
+        hold: 'btn-outline-warning',
+        resume: 'btn-outline-success',
+        revoke: 'btn-danger',
+    }[action] -}}
+{% endmacro %}
 
 {# First 16 hex chars of the serial, uppercased, grouped in fours: 5F12 9E3F C4F2 5132 #}
 {% macro serial_short(serial) %}
@@ -23,7 +28,7 @@
 {% endmacro %}
 
 {% macro back_link(href, label) %}
-    <a href="{{ href }}" class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 mb-4">
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>{{ label }}
+    <a href="{{ href }}" class="inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings mb-4">
+        <i class="ti ti-arrow-left text-sm leading-none" aria-hidden="true"></i>{{ label }}
     </a>
 {% endmacro %}

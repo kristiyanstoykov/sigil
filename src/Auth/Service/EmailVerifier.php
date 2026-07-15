@@ -25,7 +25,10 @@ final class EmailVerifier
         private readonly EntityManagerInterface $entityManager,
     ) {}
 
-    public function sendEmailConfirmation(string $verifyEmailRouteName, User $user, TemplatedEmail $email): void
+    /**
+     * @return bool false when the mail provider rejected the send (logged, not thrown)
+     */
+    public function sendEmailConfirmation(string $verifyEmailRouteName, User $user, TemplatedEmail $email): bool
     {
         $signature = $this->verifyEmailHelper->generateSignature(
             $verifyEmailRouteName,
@@ -40,7 +43,7 @@ final class EmailVerifier
         $context['expiresAtMessageData'] = $signature->getExpirationMessageData();
         $email->context($context);
 
-        $this->mailer->send($email);
+        return $this->mailer->trySend($email);
     }
 
     /**

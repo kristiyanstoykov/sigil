@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Certificate\Entity;
 
+use App\Certificate\Enum\CertificateDisplayStatus;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\Trait\HasTimestamps;
@@ -28,6 +29,7 @@ class Certificate
     public const int MAX_PER_USER = 3;
     public const int MAX_PIN_ATTEMPTS = 5;
     public const int PIN_WINDOW_SECONDS = 3600;
+    public const int HOLD_HOURS = 72;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
@@ -77,6 +79,16 @@ class Certificate
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $lockedAt = null;
+
+    /**
+     * Owner-initiated temporary suspension (the CRL "certificateHold" idea):
+     * while heldUntil is in the future the certificate cannot sign. Status
+     * stays Active in the DB, so the hold lifts by itself once the moment
+     * passes - no scheduler needed. Placing AND releasing a hold are
+     * PIN-gated in the controller.
+     */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $heldUntil = null;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $revokedAt = null;
@@ -185,9 +197,56 @@ class Certificate
 
     public function isUsable(\DateTimeImmutable $now): bool
     {
+        return $this->isWithinValidity($now) && !$this->isOnHold($now);
+    }
+
+    /** Active and inside the validity window - ignores a hold (used to verify the PIN that lifts one). */
+    public function isWithinValidity(\DateTimeImmutable $now): bool
+    {
         return CertificateStatus::Active === $this->status
             && $now >= $this->notBefore
             && $now <= $this->notAfter;
+    }
+
+    public function isOnHold(\DateTimeInterface $now): bool
+    {
+        return null !== $this->heldUntil && $now < $this->heldUntil;
+    }
+
+    public function getHeldUntil(): ?\DateTimeImmutable
+    {
+        return $this->heldUntil;
+    }
+
+    public function hold(\DateTimeImmutable $until): void
+    {
+        $this->heldUntil = $until;
+    }
+
+    public function releaseHold(): void
+    {
+        $this->heldUntil = null;
+    }
+
+    /**
+     * What the UI shows. Adds the virtual OnHold state (the DB status stays
+     * Active while held) and computes Expired from the dates, since nothing
+     * transitions the stored status at the expiry moment.
+     */
+    public function getDisplayStatus(?\DateTimeImmutable $now = null): CertificateDisplayStatus
+    {
+        $now ??= new \DateTimeImmutable();
+
+        if (CertificateStatus::Active === $this->status) {
+            if ($now > $this->notAfter) {
+                return CertificateDisplayStatus::Expired;
+            }
+            if ($this->isOnHold($now)) {
+                return CertificateDisplayStatus::OnHold;
+            }
+        }
+
+        return CertificateDisplayStatus::fromStatus($this->status);
     }
 
     public function lock(\DateTimeImmutable $at): void

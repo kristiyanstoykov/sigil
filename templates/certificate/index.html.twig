@@ -4,22 +4,21 @@
 {% block title %}Certificates - Sigil{% endblock %}
 
 {% block content %}
-    {% set visible = certificates|filter(c => c.status.value != 'revoked') %}
+    {% set visible = certificates|filter(c => not c.displayStatus.revoked) %}
     {% set at_limit = visible|length >= max_certificates %}
     <div class="max-w-5xl mx-auto">
 
         {# header row #}
-        <div class="flex items-end justify-between gap-4 mb-6">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">Your certificates</h1>
-                <p class="mt-1 text-sm text-gray-500">Your signing identities. Each one is a private key protected by its own PIN.</p>
+        <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 mb-6">
+            <div class="min-w-0">
+                <h1 class="text-2xl font-bold text-theme-headings">Your certificates</h1>
+                <p class="mt-1 text-sm text-theme-secondarytextcolor">Your signing identities. Each one is a private key protected by its own PIN.</p>
             </div>
-            <div class="flex items-center gap-3 shrink-0">
-                <span class="text-sm font-medium text-gray-500 whitespace-nowrap">{{ visible|length }} of {{ max_certificates }}</span>
+            <div class="flex items-center gap-3 shrink-0 max-sm:w-full max-sm:justify-between">
+                <span class="text-sm font-medium text-theme-secondarytextcolor whitespace-nowrap">{{ visible|length }} of {{ max_certificates }}</span>
                 {% if not at_limit %}
-                    <a href="{{ path('app_certificate_new') }}"
-                       class="inline-flex items-center gap-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5 whitespace-nowrap">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    <a href="{{ path('app_certificate_new') }}" class="btn btn-primary inline-flex items-center gap-2 whitespace-nowrap">
+                        <i class="ti ti-plus text-base leading-none" aria-hidden="true"></i>
                         New certificate
                     </a>
                 {% endif %}
@@ -28,52 +27,51 @@
 
         {# at-limit note #}
         {% if at_limit %}
-            <div class="flex items-center gap-3 p-4 mb-5 text-blue-800 border border-blue-200 rounded-lg bg-blue-50" role="alert">
-                <svg class="shrink-0 w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            <div class="alert alert-info flex items-center gap-3 !mb-5" role="alert">
+                <i class="ti ti-info-circle shrink-0 text-base leading-none" aria-hidden="true"></i>
                 <span class="text-sm">You've reached the limit of <strong>{{ max_certificates }} certificates</strong>. Revoke one to issue a new identity.</span>
             </div>
         {% endif %}
 
         {# empty state #}
         {% if certificates is empty %}
-            <div class="bg-white border border-gray-200 rounded-lg shadow-sm px-8 py-12 text-center">
-                <div class="inline-flex w-14 h-14 items-center justify-center rounded-lg bg-primary-100 text-primary-700 mb-4">
-                    <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+            <div class="card !mb-0 px-8 py-12 text-center">
+                <div class="inline-flex w-14 h-14 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500 mb-4 mx-auto">
+                    <i class="ti ti-shield-check text-3xl leading-none" aria-hidden="true"></i>
                 </div>
-                <h2 class="text-xl font-bold text-gray-900">No certificates yet</h2>
-                <p class="mx-auto mt-2 mb-5 text-sm text-gray-500 max-w-md">A certificate is your cryptographic signing identity. Create one to start signing documents - it takes about a minute.</p>
-                <a href="{{ path('app_certificate_new') }}"
-                   class="inline-flex items-center gap-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                <h2 class="text-xl font-bold text-theme-headings">No certificates yet</h2>
+                <p class="mx-auto mt-2 mb-5 text-sm text-theme-secondarytextcolor max-w-md">A certificate is your cryptographic signing identity. Create one to start signing documents - it takes about a minute.</p>
+                <a href="{{ path('app_certificate_new') }}" class="btn btn-primary inline-flex items-center gap-2 mx-auto">
+                    <i class="ti ti-plus text-base leading-none" aria-hidden="true"></i>
                     Create your first certificate
                 </a>
             </div>
         {% else %}
-            {# certificate cards #}
+            {# certificate cards — ID-card tiles; glass rises on hover per the brief #}
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {% for cert in certificates %}
-                    {% set status = cert.status.value %}
+                    {% set status = cert.displayStatus %}
                     <a href="{{ path('app_certificate_show', {id: cert.id}) }}"
-                       class="block bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:bg-gray-50">
-                        <div class="h-1 {{ helpers.accent_class(status) }}"></div>
+                       class="card !mb-0 block overflow-hidden transition hover:bg-white/70 hover:backdrop-blur-xl hover:shadow-md hover:border-white/70">
+                        <div class="h-1 {{ status.accentClass }}"></div>
                         <div class="p-4">
                             <div class="flex items-start justify-between gap-3 mb-4">
                                 <div class="flex-1 min-w-0">
-                                    <div class="text-xs font-medium uppercase tracking-wide text-gray-400">Signing certificate</div>
-                                    <div class="mt-1.5 text-lg font-bold text-gray-900 truncate">{{ cert.user.firstName }} {{ cert.user.lastName }}</div>
-                                    <div class="mt-0.5 text-sm text-gray-500 truncate">{{ cert.subjectDn }}</div>
+                                    <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Signing certificate</div>
+                                    <div class="mt-1.5 text-lg font-bold text-theme-headings truncate">{{ cert.user.firstName }} {{ cert.user.lastName }}</div>
+                                    <div class="mt-0.5 text-sm text-theme-secondarytextcolor truncate">{{ cert.subjectDn }}</div>
                                 </div>
                                 {{ helpers.badge(status) }}
                             </div>
 
-                            <div class="font-mono text-sm font-medium tracking-wider text-gray-700">{{ helpers.serial_short(cert.serialNumber) }}</div>
+                            <div class="font-mono text-sm font-medium tracking-wider text-theme-bodycolor">{{ helpers.serial_short(cert.serialNumber) }}</div>
 
                             <div class="flex items-end justify-between gap-3 mt-4">
                                 <div class="min-w-0">
-                                    <div class="text-xs font-medium uppercase tracking-wide text-gray-400">Valid until</div>
-                                    <div class="mt-0.5 text-sm font-semibold text-gray-900 whitespace-nowrap">{{ cert.notAfter|date('d M Y') }}</div>
+                                    <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Valid until</div>
+                                    <div class="mt-0.5 text-sm font-semibold text-theme-headings whitespace-nowrap">{{ cert.notAfter|date('d M Y') }}</div>
                                 </div>
-                                <div class="text-xs text-gray-400 whitespace-nowrap">ECDSA P-384 · SHA-384</div>
+                                <div class="text-xs text-theme-secondarytextcolor whitespace-nowrap">ECDSA P-384 · SHA-384</div>
                             </div>
                         </div>
                     </a>

@@ -77,5 +77,12 @@ export function removeCsrfToken (formElement) {
     }
 }
 
-/* stimulusFetch: 'lazy' */
+/*
+ * EAGER on purpose (the Symfony recipe ships this lazy). Lazy-loading binds the
+ * document-level submit listeners only once a data-controller="csrf-protection"
+ * element is seen; after a full page reload on a page without one (e.g. the
+ * dashboard), the hand-rolled logout form would submit WITHOUT the double-submit
+ * cookie - and SameOriginCsrfTokenManager rejects the downgrade ("double-submit
+ * info was used in a previous request but is now missing"), breaking logout.
+ */
 export default 'csrf-protection-controller';

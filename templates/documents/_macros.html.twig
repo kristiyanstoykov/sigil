@@ -13,16 +13,14 @@
 {% macro status_badge(kind) %}
     {% set signed = kind.value == 'signed' %}
     <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold
-                 {{ signed ? 'border-green-200 bg-green-100 text-green-800' : 'border-gray-200 bg-gray-100 text-gray-700' }}">
+                 {{ signed ? 'border-success-500/20 bg-success-500/10 text-success-600' : 'border-theme-border bg-theme-activebg text-theme-bodycolor' }}">
         {{ signed ? 'Signed' : 'Original' }}
     </span>
 {% endmacro %}
 
 {% macro pdf_icon(size) %}
-    <span class="inline-flex items-center justify-center rounded-lg bg-red-50 text-red-600 {{ size == 'lg' ? 'w-11 h-11' : 'w-9 h-9' }}">
-        <svg class="{{ size == 'lg' ? 'w-5 h-5' : 'w-[17px] h-[17px]' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>
-        </svg>
+    <span class="inline-flex items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 {{ size == 'lg' ? 'w-11 h-11' : 'w-9 h-9' }}">
+        <i class="ti ti-file-text {{ size == 'lg' ? 'text-xl' : 'text-base' }} leading-none" aria-hidden="true"></i>
     </span>
 {% endmacro %}
 
@@ -34,24 +32,24 @@
 {% macro row_menu(document, suffix) %}
     <div data-controller="menu" class="inline-block">
         <button type="button" data-action="menu#toggle" data-menu-target="button"
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">
+                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-theme-border bg-white text-theme-secondarytextcolor hover:bg-theme-activebg">
             <span class="sr-only">More actions</span>
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+            <i class="ti ti-dots-vertical text-base leading-none" aria-hidden="true"></i>
         </button>
-        <div data-menu-target="menu" class="hidden w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl">
+        <div data-menu-target="menu" class="hidden w-44 rounded-lg border border-theme-border bg-white p-1.5 shadow-xl">
             <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
-               class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg>
+               class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
+                <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                 View
             </a>
-            <div class="my-1 border-t border-gray-100"></div>
+            <div class="my-1 border-t border-theme-border/60"></div>
             {% for soon in [
-                {label: 'Sign',   icon: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/>'},
-                {label: 'Share',  icon: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>'},
-                {label: 'Delete', icon: '<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/>'}
+                {label: 'Sign',   icon: 'ti-signature'},
+                {label: 'Share',  icon: 'ti-share'},
+                {label: 'Delete', icon: 'ti-trash'}
             ] %}
-                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-400 cursor-not-allowed" title="Coming soon">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ soon.icon|raw }}</svg>
+                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="Coming soon">
+                    <i class="ti {{ soon.icon }} text-base leading-none" aria-hidden="true"></i>
                     {{ soon.label }}
                     <span class="ml-auto text-[10px] font-bold uppercase tracking-wide">Soon</span>
                 </span>

@@ -1,0 +1,39 @@
+{#
+    Generic error page (500 and any status without a specific template).
+    Symfony picks templates in this directory by convention: error<code>.html.twig,
+    falling back to this file. Rendered in prod mode; dev shows the debug page.
+    Preview in dev: /_error/500, /_error/404, … (config/routes/framework.yaml).
+    Must not assume an authenticated user - extends the bare base shell.
+#}
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ status_code|default(500) }} - Sigil{% endblock %}
+
+{% block body_class %}sigil-aurora{% endblock %}
+
+{% block body %}
+<section>
+    <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto min-h-screen">
+        <div class="w-full max-w-md">
+            <div class="flex flex-col items-center mb-6">
+                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" width="72" height="50">
+            </div>
+
+            <div class="glass-card p-8 text-center">
+                <div class="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 mb-4">
+                    <i class="ti ti-alert-triangle text-2xl leading-none" aria-hidden="true"></i>
+                </div>
+                <p class="text-sm font-semibold uppercase tracking-wider text-theme-secondarytextcolor mb-1">Error {{ status_code|default(500) }}</p>
+                <h1 class="text-xl font-bold text-theme-headings mb-2">{% block error_heading %}Something went wrong{% endblock %}</h1>
+                <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-6">
+                    {% block error_text %}An unexpected error occurred on our side. Nothing you did caused this - please try again in a moment.{% endblock %}
+                </p>
+                <a href="{{ path('app_dashboard') }}" class="btn btn-primary inline-flex items-center gap-2">
+                    <i class="ti ti-home text-base leading-none" aria-hidden="true"></i>
+                    Back to Sigil
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

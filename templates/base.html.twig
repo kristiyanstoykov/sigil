@@ -7,28 +7,38 @@
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('images/favicon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/favicon-512.png') }}">
+    {# Able Pro theme (vendored, precompiled) + Tabler icon font. Must come
+       before the importmap: app.css (linked by the importmap via app.js) is
+       the utilities build that wins on conflicts. #}
+    <link rel="stylesheet" href="{{ asset('able-pro/css/style.css') }}">
+    <link rel="stylesheet" href="{{ asset('able-pro/fonts/tabler-icons.css') }}">
     {% block stylesheets %}{% endblock %}
     {% block javascripts %}
         {% block importmap %}{{ importmap('app') }}{% endblock %}
     {% endblock %}
 </head>
-<body class="min-h-screen bg-gray-50">
+<body class="font-sans text-theme-bodycolor {% block body_class %}bg-theme-bodybg{% endblock %}">
 
-{# Top-center toast stack: one fixed container so multiple flashes don't overlap #}
-<div class="fixed top-20 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none">
+{# Top-center toast stack: one fixed container so multiple flashes don't overlap.
+   Able Pro alert component + a frosted-glass finish (glass on toasts per the
+   design brief). Dismiss is handled by the delegated [data-pc-dismiss="alert"]
+   listener in assets/able_pro.js. #}
+<div class="fixed top-20 inset-x-0 z-[1050] flex flex-col items-center gap-2 px-4 pointer-events-none">
     {% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
         {% for message in messages %}
-            {% set flash_id = 'flash-' ~ type ~ '-' ~ loop.index %}
-            <div id="{{ flash_id }}" role="alert" class="flex w-full max-w-md items-start gap-3 p-4 text-sm rounded-lg border shadow-sm pointer-events-auto
-                       {{ type == 'success' ? 'text-green-800 bg-green-50 border-green-200'
-                       : type == 'danger' ? 'text-red-800 bg-red-50 border-red-200'
-                       : type == 'warning' ? 'text-yellow-800 bg-yellow-50 border-yellow-200'
-                       : 'text-blue-800 bg-blue-50 border-blue-200' }}">
+            {# No .alert-dismissible: it reserves right padding for an absolutely
+               positioned close button - plain flex keeps icon/text/X on one line. #}
+            <div role="alert" class="alert alert-{{ type }} w-full max-w-md !mb-0 flex items-center gap-3 text-sm shadow-lg backdrop-blur-md pointer-events-auto">
+                <i aria-hidden="true" class="ti shrink-0 text-base leading-none
+                    {{ type == 'success' ? 'ti-circle-check'
+                     : type == 'danger' ? 'ti-alert-circle'
+                     : type == 'warning' ? 'ti-alert-triangle'
+                     : 'ti-info-circle' }}"></i>
                 <span class="flex-1 text-left">{{ message }}</span>
-                <button type="button" data-dismiss-target="#{{ flash_id }}" aria-label="Close"
-                        class="-my-1 -me-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-black/5 focus:outline-none focus:ring-2 focus:ring-black/10">
+                <button type="button" data-pc-dismiss="alert" aria-label="Close"
+                        class="-me-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-black/5 cursor-pointer">
                     <span class="sr-only">Dismiss</span>
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1 1 12 12M13 1 1 13"/></svg>
+                    <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
                 </button>
             </div>
         {% endfor %}

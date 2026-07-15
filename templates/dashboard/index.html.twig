@@ -2,23 +2,23 @@
 
 {% block title %}Dashboard - Sigil{% endblock %}
 
-{# status label → Flowbite badge classes #}
+{# status label → Able Pro badge classes #}
 {% set chip_classes = {
-    'Signed':      'bg-green-100 text-green-800',
-    'Pending':     'bg-yellow-100 text-yellow-800',
-    'In progress': 'bg-blue-100 text-blue-800',
-    'Awaiting':    'bg-gray-100 text-gray-800',
-    'Draft':       'bg-gray-100 text-gray-800',
+    'Signed':      'bg-success-500/10 text-success-600',
+    'Pending':     'bg-warning-500/10 text-warning-600',
+    'In progress': 'bg-info-500/10 text-info-600',
+    'Awaiting':    'bg-secondary-500/10 text-secondary-600',
+    'Draft':       'bg-secondary-500/10 text-secondary-600',
 } %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto">
 
     <div class="mb-5">
-        <h1 class="text-2xl font-bold text-gray-900">
+        <h1 class="text-2xl font-bold text-theme-headings">
             {{ 'now'|date('H') < 12 ? 'Good morning' : ('now'|date('H') < 18 ? 'Good afternoon' : 'Good evening') }}, {{ app.user.firstName }}
         </h1>
-        <p class="mt-1 text-sm text-gray-500">{{ 'now'|date('l, j F') }} · here's what needs you today.</p>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">{{ 'now'|date('l, j F') }} · here's what needs you today.</p>
     </div>
 
     {% set onboarding = certificates is empty and stats.documents == 0 %}
@@ -27,8 +27,8 @@
 
         {# ── ① Attention strip ─────────────────────────────────────────── #}
         {% if stats.awaiting_me > 0 %}
-            <div class="flex items-center gap-3 p-4 mb-5 text-blue-800 border border-blue-200 rounded-lg bg-blue-50" role="alert">
-                <svg class="shrink-0 w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 13V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/></svg>
+            <div class="alert alert-info flex items-center gap-3 !mb-5" role="alert">
+                <i class="ti ti-signature shrink-0 text-lg leading-none" aria-hidden="true"></i>
                 <span class="flex-1 text-sm font-medium">
                     <strong>{{ stats.awaiting_me }} document{{ stats.awaiting_me > 1 ? 's' }}</strong>
                     {{ stats.awaiting_me > 1 ? 'are' : 'is' }} waiting for your signature.
@@ -38,8 +38,8 @@
         {% endif %}
 
         {% if stats.awaiting_delivery|default(0) > 0 %}
-            <div class="flex items-center gap-3 p-4 mb-5 text-green-800 border border-green-200 rounded-lg bg-green-50" role="alert">
-                <svg class="shrink-0 w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9 5-9-5"/><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/></svg>
+            <div class="alert alert-success flex items-center gap-3 !mb-5" role="alert">
+                <i class="ti ti-package shrink-0 text-lg leading-none" aria-hidden="true"></i>
                 <span class="flex-1 text-sm font-medium">
                     <strong>{{ stats.awaiting_delivery }} document{{ stats.awaiting_delivery > 1 ? 's' }}</strong>
                     {{ stats.awaiting_delivery > 1 ? 'have' : 'has' }} been delivered to you.
@@ -52,18 +52,18 @@
         <div class="grid lg:grid-cols-[1.9fr_1fr] gap-4 mb-6">
 
             {# LEFT: needs your action (Inbox / Sent tabs) #}
-            <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex flex-col" data-controller="tabs">
+            <div class="card !mb-0 overflow-hidden flex flex-col" data-controller="tabs">
                 <div class="flex items-center justify-between px-4 pt-4 pb-2">
-                    <h3 class="text-base font-semibold text-gray-900">Needs your action</h3>
-                    <div class="text-sm font-medium text-center text-gray-500">
+                    <h3 class="text-base font-semibold text-theme-headings">Needs your action</h3>
+                    <div class="text-sm font-medium text-center text-theme-secondarytextcolor">
                         <ul class="flex flex-wrap -mb-px border-b-0">
                             <li class="me-2">
                                 <button type="button" data-tabs-target="tab" data-action="tabs#show" data-tabs-name-param="inbox"
-                                        class="inline-block px-3 py-1.5 rounded-lg text-primary-700 bg-primary-100 cursor-pointer">Inbox</button>
+                                        class="inline-block px-3 py-1.5 rounded-lg text-primary-500 bg-primary-500/10 cursor-pointer">Inbox</button>
                             </li>
                             <li>
                                 <button type="button" data-tabs-target="tab" data-action="tabs#show" data-tabs-name-param="sent"
-                                        class="inline-block px-3 py-1.5 rounded-lg hover:text-gray-900 hover:bg-gray-100 cursor-pointer">Sent</button>
+                                        class="inline-block px-3 py-1.5 rounded-lg hover:text-theme-headings hover:bg-theme-activebg cursor-pointer">Sent</button>
                             </li>
                         </ul>
                     </div>
@@ -75,109 +75,94 @@
                                           |merge(inbox_requests|filter(r => r.type|default('sign') != 'deliver')) %}
                     {% for req in inbox_sorted %}
                         {% set delivery = req.type|default('sign') == 'deliver' %}
-                        <div class="flex items-center gap-3 px-4 py-3 border-t border-gray-100">
-                            {% if delivery %}
-                                <span class="inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-700">
-                                    <svg class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9 5-9-5"/><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/></svg>
-                                </span>
-                            {% else %}
-                                <span class="inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-700">
-                                    <svg class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
-                                </span>
-                            {% endif %}
+                        <div class="flex items-center gap-3 px-4 py-3 border-t border-theme-border/60">
+                            <span class="inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg {{ delivery ? 'bg-success-500/10 text-success-600' : 'bg-danger-500/10 text-danger-600' }}">
+                                <i class="ti {{ delivery ? 'ti-package' : 'ti-file-text' }} text-lg leading-none" aria-hidden="true"></i>
+                            </span>
                             <div class="flex-1 min-w-0">
-                                <div class="text-sm font-semibold text-gray-900 truncate">{{ req.document }}</div>
-                                <div class="text-sm text-gray-500">from {{ req.from }} · {{ req.due }}</div>
+                                <div class="text-sm font-semibold text-theme-headings truncate">{{ req.document }}</div>
+                                <div class="text-sm text-theme-secondarytextcolor">from {{ req.from }} · {{ req.due }}</div>
                             </div>
                             {% if delivery %}
-                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">Delivery</span>
-                                <button type="button" class="py-2 px-3 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700 cursor-pointer">View</button>
+                                <span class="badge rounded-full bg-success-500/10 text-success-600">Delivery</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary">View</button>
                             {% else %}
-                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                                <button type="button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-3 py-2 cursor-pointer">Review &amp; sign</button>
+                                <span class="badge rounded-full bg-warning-500/10 text-warning-600">Pending</span>
+                                <button type="button" class="btn btn-sm btn-primary">Review &amp; sign</button>
                             {% endif %}
                         </div>
                     {% else %}
-                        <p class="px-4 py-6 border-t border-gray-100 text-sm text-gray-500">Nothing waiting on you. 🎉</p>
+                        <p class="px-4 py-6 border-t border-theme-border/60 text-sm text-theme-secondarytextcolor">Nothing waiting on you. 🎉</p>
                     {% endfor %}
-                    <a href="#" class="block mt-auto px-4 py-3 border-t border-gray-100 text-sm font-medium text-primary-700 hover:underline">View all signing requests →</a>
+                    <a href="#" class="block mt-auto px-4 py-3 border-t border-theme-border/60 text-sm font-medium text-primary-500 hover:underline">View all signing requests →</a>
                 </div>
 
                 <div data-tabs-target="panel" data-tab-name="sent" class="flex-1 flex-col [&:not([hidden])]:flex" hidden>
                     {% for req in sent_requests %}
-                        <div class="flex items-center gap-3 px-4 py-3 border-t border-gray-100">
-                            <span class="inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+                        <div class="flex items-center gap-3 px-4 py-3 border-t border-theme-border/60">
+                            <span class="inline-flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-info-500/10 text-info-600">
+                                <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
                             </span>
                             <div class="flex-1 min-w-0">
-                                <div class="text-sm font-semibold text-gray-900 truncate">{{ req.document }}</div>
-                                <div class="text-sm text-gray-500">to {{ req.to }} · {{ req.meta }}</div>
+                                <div class="text-sm font-semibold text-theme-headings truncate">{{ req.document }}</div>
+                                <div class="text-sm text-theme-secondarytextcolor">to {{ req.to }} · {{ req.meta }}</div>
                             </div>
-                            <span class="text-xs font-medium px-2.5 py-0.5 rounded-full {{ chip_classes[req.status] }}">{{ req.status }}</span>
-                            <button type="button" class="py-2 px-3 text-sm font-medium text-gray-900 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700 cursor-pointer">
+                            <span class="badge rounded-full {{ chip_classes[req.status] }}">{{ req.status }}</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">
                                 {{ req.status == 'Awaiting' ? 'Remind' : 'Track' }}
                             </button>
                         </div>
                     {% else %}
-                        <p class="px-4 py-6 border-t border-gray-100 text-sm text-gray-500">You haven't sent any signing requests yet.</p>
+                        <p class="px-4 py-6 border-t border-theme-border/60 text-sm text-theme-secondarytextcolor">You haven't sent any signing requests yet.</p>
                     {% endfor %}
-                    <a href="#" class="block mt-auto px-4 py-3 border-t border-gray-100 text-sm font-medium text-primary-700 hover:underline">View everything you've sent →</a>
+                    <a href="#" class="block mt-auto px-4 py-3 border-t border-theme-border/60 text-sm font-medium text-primary-500 hover:underline">View everything you've sent →</a>
                 </div>
             </div>
 
             {# RIGHT: certificates slider + activity #}
             <div class="flex flex-col gap-4">
 
-                <div class="bg-white border border-gray-200 rounded-lg shadow-sm px-4 pt-4 pb-3" data-controller="slider">
+                <div class="card !mb-0 px-4 pt-4 pb-3" data-controller="slider">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-base font-semibold text-gray-900">Your certificates</h3>
+                        <h3 class="text-base font-semibold text-theme-headings">Your certificates</h3>
                         <div class="flex gap-1.5 {{ certificates|length < 2 ? 'hidden' }}">
                             <button type="button" data-action="slider#prev" title="Previous"
-                                    class="inline-flex items-center justify-center w-7 h-7 border border-gray-200 bg-white rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer">
-                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+                                    class="inline-flex items-center justify-center w-7 h-7 border border-theme-border bg-white rounded-lg text-theme-secondarytextcolor hover:bg-theme-activebg cursor-pointer">
+                                <i class="ti ti-chevron-left text-sm leading-none" aria-hidden="true"></i>
                             </button>
                             <button type="button" data-action="slider#next" title="Next"
-                                    class="inline-flex items-center justify-center w-7 h-7 border border-gray-200 bg-white rounded-lg text-gray-500 hover:bg-gray-100 cursor-pointer">
-                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                                    class="inline-flex items-center justify-center w-7 h-7 border border-theme-border bg-white rounded-lg text-theme-secondarytextcolor hover:bg-theme-activebg cursor-pointer">
+                                <i class="ti ti-chevron-right text-sm leading-none" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
 
                     {% if certificates is empty %}
-                        <div class="border border-dashed border-gray-300 rounded-lg px-5 py-7 text-center">
-                            <p class="text-sm font-semibold text-gray-900 mb-1">No certificates yet</p>
-                            <p class="text-sm text-gray-500 mb-3">You need one to sign or send documents.</p>
-                            <a href="{{ path('app_certificate_new') }}"
-                               class="inline-block text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2">Create your certificate</a>
+                        <div class="border border-dashed border-theme-inputborder rounded-lg px-5 py-7 text-center">
+                            <p class="text-sm font-semibold text-theme-headings mb-1">No certificates yet</p>
+                            <p class="text-sm text-theme-secondarytextcolor mb-3">You need one to sign or send documents.</p>
+                            <a href="{{ path('app_certificate_new') }}" class="btn btn-primary btn-sm">Create your certificate</a>
                         </div>
                     {% endif %}
 
                     <div class="overflow-hidden">
                         <div class="flex transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]" data-slider-target="track">
                             {% for cert in certificates %}
-                                {% set expiring = cert.status == 'expiring' %}
+                                {% set expiring = cert.status.expiring %}
                                 <div class="shrink-0 w-full box-border">
-                                    <div class="border border-gray-200 rounded-lg overflow-hidden">
-                                        <div class="h-1 {{ expiring ? 'bg-yellow-400' : (cert.status == 'locked' ? 'bg-red-500' : (cert.status == 'expired' ? 'bg-gray-400' : 'bg-green-500')) }}"></div>
+                                    <div class="border border-theme-border rounded-lg overflow-hidden">
+                                        <div class="h-1 {{ cert.status.accentClass }}"></div>
                                         <div class="p-4">
                                         <div class="flex items-center justify-between">
-                                            <span class="text-sm font-semibold text-gray-900">{{ cert.name }}</span>
-                                            {% if expiring %}
-                                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800">Expires in {{ cert.expires_in }}</span>
-                                            {% elseif cert.status == 'locked' %}
-                                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-red-100 text-red-800">Locked</span>
-                                            {% elseif cert.status == 'expired' %}
-                                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-800">Expired</span>
-                                            {% else %}
-                                                <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">Active</span>
-                                            {% endif %}
+                                            <span class="text-sm font-semibold text-theme-headings">{{ cert.name }}</span>
+                                            <span class="badge rounded-full {{ cert.status.badgeClass }}">{{ expiring ? 'Expires in ' ~ cert.expires_in : cert.status.label }}</span>
                                         </div>
                                         <div class="mt-3 flex flex-col gap-2 text-sm">
-                                            <div class="flex justify-between"><span class="text-gray-500">Algorithm</span><span class="font-medium text-gray-900">{{ cert.algorithm }}</span></div>
-                                            <div class="flex justify-between"><span class="text-gray-500">Valid until</span><span class="font-medium {{ expiring ? 'text-yellow-700' : 'text-gray-900' }}">{{ cert.valid_until }}</span></div>
+                                            <div class="flex justify-between"><span class="text-theme-secondarytextcolor">Algorithm</span><span class="font-medium text-theme-headings">{{ cert.algorithm }}</span></div>
+                                            <div class="flex justify-between"><span class="text-theme-secondarytextcolor">Valid until</span><span class="font-medium {{ expiring ? 'text-warning-600' : 'text-theme-headings' }}">{{ cert.valid_until }}</span></div>
                                         </div>
                                         {% if expiring %}
-                                            <button type="button" class="w-full mt-3 text-white bg-yellow-500 hover:bg-yellow-600 font-medium rounded-lg text-sm px-3 py-2 cursor-pointer">Renew certificate</button>
+                                            <button type="button" class="btn btn-warning btn-sm w-full mt-3">Renew certificate</button>
                                         {% endif %}
                                         </div>
                                     </div>
@@ -190,39 +175,39 @@
                         {% for cert in certificates %}
                             <button type="button" data-slider-target="dot" data-action="slider#set" data-slider-index-param="{{ loop.index0 }}"
                                     title="Certificate {{ loop.index }}"
-                                    class="h-1.5 p-0 border-none rounded-full cursor-pointer transition-all duration-200 {{ loop.first ? 'w-5 bg-primary-700' : 'w-1.5 bg-gray-300' }}"></button>
+                                    class="h-1.5 p-0 border-none rounded-full cursor-pointer transition-all duration-200 {{ loop.first ? 'w-5 bg-primary-500' : 'w-1.5 bg-theme-border' }}"></button>
                         {% endfor %}
                     </div>
 
-                    <a href="{{ path('app_certificates') }}" class="block mt-2 pt-2.5 -mx-4 px-4 border-t border-gray-100 text-sm font-medium text-primary-700 hover:underline">View all certificates →</a>
+                    <a href="{{ path('app_certificates') }}" class="block mt-2 pt-2.5 -mx-4 px-4 border-t border-theme-border/60 text-sm font-medium text-primary-500 hover:underline">View all certificates →</a>
                 </div>
 
                 {# Activity feed #}
-                <div class="bg-white border border-gray-200 rounded-lg shadow-sm px-4 py-4">
+                <div class="card !mb-0 px-4 py-4">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-base font-semibold text-gray-900">Activity</h3>
-                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400">
-                            <span class="inline-flex text-primary-700">{% include 'components/s_loader.html.twig' with {size: 17} only %}</span>LIVE
+                        <h3 class="text-base font-semibold text-theme-headings">Activity</h3>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-theme-secondarytextcolor">
+                            <span class="inline-flex text-primary-500">{% include 'components/s_loader.html.twig' with {size: 17} only %}</span>LIVE
                         </span>
                     </div>
                     <div class="flex flex-col gap-3">
                         {% set activity_icons = {
-                            signed:   {classes: 'bg-green-100 text-green-700', path: '<path d="M20 6 9 17l-5-5"/>'},
-                            uploaded: {classes: 'bg-blue-100 text-blue-700', path: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>'},
-                            shared:   {classes: 'bg-gray-100 text-gray-600', path: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M16 6l-4-4-4 4M12 2v14"/>'},
+                            signed:   {classes: 'bg-success-500/10 text-success-600', icon: 'ti-check'},
+                            uploaded: {classes: 'bg-info-500/10 text-info-600', icon: 'ti-upload'},
+                            shared:   {classes: 'bg-secondary-500/10 text-secondary-600', icon: 'ti-share'},
                         } %}
                         {% for event in activity %}
                             <div class="flex gap-3">
                                 <span class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center {{ activity_icons[event.type].classes }}">
-                                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">{{ activity_icons[event.type].path|raw }}</svg>
+                                    <i class="ti {{ activity_icons[event.type].icon }} text-sm leading-none" aria-hidden="true"></i>
                                 </span>
                                 <div>
-                                    <div class="text-sm font-medium text-gray-900">{{ event.text|raw }}</div>
-                                    <div class="text-xs text-gray-400">{{ event.when }}</div>
+                                    <div class="text-sm font-medium text-theme-headings">{{ event.text|raw }}</div>
+                                    <div class="text-xs text-theme-secondarytextcolor">{{ event.when }}</div>
                                 </div>
                             </div>
                         {% else %}
-                            <p class="text-sm text-gray-500">No activity yet.</p>
+                            <p class="text-sm text-theme-secondarytextcolor">No activity yet.</p>
                         {% endfor %}
                     </div>
                 </div>
@@ -231,66 +216,54 @@
 
         {# ── ③ Recent documents ────────────────────────────────────────── #}
         <div class="flex items-center justify-between mb-3">
-            <h3 class="text-base font-semibold text-gray-900">Recent documents</h3>
-            <a href="#" class="text-sm font-medium text-primary-700 hover:underline">All documents →</a>
+            <h3 class="text-base font-semibold text-theme-headings">Recent documents</h3>
+            <a href="{{ path('app_documents') }}" class="text-sm font-medium text-primary-500 hover:underline">All documents →</a>
         </div>
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {% set avatar_colors = ['bg-primary-500', 'bg-green-500', 'bg-primary-700'] %}
+            {% set avatar_colors = ['bg-primary-400', 'bg-success-500', 'bg-primary-500'] %}
             {% for doc in recent_documents %}
-                <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm cursor-pointer hover:bg-gray-50">
+                {# glass on hover — the brief allows glass on hovered document cards #}
+                <div class="card !mb-0 p-4 cursor-pointer transition hover:bg-white/70 hover:backdrop-blur-xl hover:shadow-md hover:border-white/70">
                     <div class="flex items-center justify-between">
-                        <span class="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
-                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+                        <span class="inline-flex w-9 h-9 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+                            <i class="ti ti-file-text text-base leading-none" aria-hidden="true"></i>
                         </span>
-                        <span class="text-xs font-medium px-2.5 py-0.5 rounded-full {{ chip_classes[doc.status] }}">{{ doc.status }}</span>
+                        <span class="badge rounded-full {{ chip_classes[doc.status] }}">{{ doc.status }}</span>
                     </div>
-                    <div class="text-sm font-semibold text-gray-900 mt-3 truncate">{{ doc.name }}</div>
-                    <div class="text-xs text-gray-400 mt-0.5">{{ doc.version }} · updated {{ doc.updated }}</div>
+                    <div class="text-sm font-semibold text-theme-headings mt-3 truncate">{{ doc.name }}</div>
+                    <div class="text-xs text-theme-secondarytextcolor mt-0.5">{{ doc.version }} · updated {{ doc.updated }}</div>
                     <div class="flex items-center mt-3">
                         {% for person in doc.people %}
                             <span class="w-6 h-6 rounded-full text-[10px] font-semibold flex items-center justify-center border-2 border-white {{ loop.index0 > 0 ? '-ms-2' }}
-                                         {{ person starts with '+' ? 'bg-gray-200 text-gray-600' : avatar_colors[loop.index0 % 3] ~ ' text-white' }}">{{ person }}</span>
+                                         {{ person starts with '+' ? 'bg-theme-activebg text-theme-secondarytextcolor' : avatar_colors[loop.index0 % 3] ~ ' text-white' }}">{{ person }}</span>
                         {% endfor %}
                     </div>
                 </div>
             {% endfor %}
         </div>
 
-        {# ── ④ Document activity chart ─────────────────────────────────── #}
+        {# ── ④ Document activity chart (ApexCharts, colors via theme tokens) ── #}
         {% set series = [
-            {key: 'signed',   label: 'Signed',   color: '#2563EB'},
-            {key: 'sent',     label: 'Sent',     color: '#D97706'},
-            {key: 'received', label: 'Received', color: '#059669'},
+            {key: 'signed',   label: 'Signed',   token: '--color-info-500',    chip: 'bg-info-500'},
+            {key: 'sent',     label: 'Sent',     token: '--color-warning-500', chip: 'bg-warning-500'},
+            {key: 'received', label: 'Received', token: '--color-success-500', chip: 'bg-success-500'},
         ] %}
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mt-6">
-            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h3 class="text-base font-semibold text-gray-900">Documents · last 6 months</h3>
+        <div class="card !mb-0 p-4 mt-6">
+            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <h3 class="text-base font-semibold text-theme-headings">Documents · last 6 months</h3>
                 <div class="flex items-center gap-4">
                     {% for s in series %}
-                        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                            <span class="w-2.5 h-2.5 rounded-sm" style="background: {{ s.color }}"></span>{{ s.label }}
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-theme-secondarytextcolor">
+                            <span class="w-2.5 h-2.5 rounded-sm {{ s.chip }}"></span>{{ s.label }}
                         </span>
                     {% endfor %}
                 </div>
             </div>
             {% set chart_data = {
                 labels: monthly|map(m => m.label),
-                series: series|map(s => {label: s.label, color: s.color, values: monthly|map(m => m[s.key])}),
+                series: series|map(s => {label: s.label, token: s.token, values: monthly|map(m => m[s.key])}),
             } %}
-            <div data-controller="chart" data-chart-data-value="{{ chart_data|json_encode|e('html_attr') }}">
-                <div class="relative h-40 border-b border-gray-200 cursor-crosshair"
-                     data-action="mousemove->chart#move mouseleave->chart#hide">
-                    <div data-chart-target="plot" class="absolute inset-0"></div>
-                    <div data-chart-target="crosshair" class="hidden absolute top-0 bottom-0 w-px bg-gray-300 pointer-events-none"></div>
-                    <div data-chart-target="tooltip"
-                         class="hidden absolute z-10 min-w-32 p-2.5 text-xs bg-white border border-gray-200 rounded-lg shadow-lg pointer-events-none"></div>
-                </div>
-                <div class="flex mt-2">
-                    {% for month in monthly %}
-                        <div class="flex-1 text-center text-xs text-gray-400">{{ month.label }}</div>
-                    {% endfor %}
-                </div>
-            </div>
+            <div data-controller="chart" data-chart-data-value="{{ chart_data|json_encode|e('html_attr') }}"></div>
             {# screen-reader table equivalent of the chart #}
             <table class="sr-only">
                 <caption>Documents signed, sent and received per month, last 6 months</caption>
@@ -306,17 +279,17 @@
     {% else %}
 
         {# ── Onboarding empty state ────────────────────────────────────── #}
-        <div class="flex items-center gap-3 p-4 mb-5 text-primary-800 border border-primary-200 rounded-lg bg-primary-50" role="alert">
-            <svg class="shrink-0 w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg>
+        <div class="alert alert-primary flex items-center gap-3 !mb-5" role="alert">
+            <i class="ti ti-shield-check shrink-0 text-lg leading-none" aria-hidden="true"></i>
             <span class="flex-1 text-sm font-medium">Welcome to Sigil. Finish setup to start signing - it takes about two minutes.</span>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
-            <div class="inline-flex w-14 h-14 items-center justify-center rounded-lg bg-primary-700 text-white mb-4">
-                <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        <div class="card !mb-0 p-8 text-center">
+            <div class="inline-flex w-14 h-14 items-center justify-center rounded-lg bg-primary-500 text-white mb-4 mx-auto">
+                <i class="ti ti-shield-check text-3xl leading-none" aria-hidden="true"></i>
             </div>
-            <h2 class="text-xl font-bold text-gray-900">Let's get you ready to sign</h2>
-            <p class="mt-1.5 mb-6 mx-auto text-sm text-gray-500 max-w-md">Three quick steps and you'll be able to sign and send documents securely.</p>
+            <h2 class="text-xl font-bold text-theme-headings">Let's get you ready to sign</h2>
+            <p class="mt-1.5 mb-6 mx-auto text-sm text-theme-secondarytextcolor max-w-md">Three quick steps and you'll be able to sign and send documents securely.</p>
 
             <div class="grid md:grid-cols-3 gap-4 text-left max-w-3xl mx-auto">
                 {% for step in [
@@ -324,15 +297,14 @@
                     {n: 2, title: 'Upload a document', text: "Bring in your first PDF - it's encrypted and versioned.", cta: 'Upload', active: false},
                     {n: 3, title: 'Sign or send', text: 'Sign it yourself, or route it to someone for signature.', cta: 'Send', active: false},
                 ] %}
-                    <div class="rounded-lg border p-5 {{ step.active ? 'border-primary-600 bg-primary-50' : 'border-gray-200 opacity-60' }}">
-                        <span class="w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center {{ step.active ? 'bg-primary-700 text-white' : 'bg-gray-100 text-gray-400' }}">{{ step.n }}</span>
-                        <div class="text-base font-semibold text-gray-900 mt-3">{{ step.title }}</div>
-                        <div class="text-sm text-gray-500 mt-1">{{ step.text }}</div>
+                    <div class="rounded-lg border p-5 {{ step.active ? 'border-primary-500 bg-primary-500/5' : 'border-theme-border opacity-60' }}">
+                        <span class="w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center {{ step.active ? 'bg-primary-500 text-white' : 'bg-theme-activebg text-theme-secondarytextcolor' }}">{{ step.n }}</span>
+                        <div class="text-base font-semibold text-theme-headings mt-3">{{ step.title }}</div>
+                        <div class="text-sm text-theme-secondarytextcolor mt-1">{{ step.text }}</div>
                         {% if step.active %}
-                            <a href="{{ path('app_certificate_new') }}"
-                               class="inline-block w-full mt-4 text-center text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5">{{ step.cta }}</a>
+                            <a href="{{ path('app_certificate_new') }}" class="btn btn-primary w-full mt-4 text-center">{{ step.cta }}</a>
                         {% else %}
-                            <button type="button" disabled class="w-full mt-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm font-medium text-gray-400">{{ step.cta }}</button>
+                            <button type="button" disabled class="btn btn-outline-secondary w-full mt-4 opacity-60">{{ step.cta }}</button>
                         {% endif %}
                     </div>
                 {% endfor %}

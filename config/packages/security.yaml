@@ -44,6 +44,7 @@ security:
         - { path: ^/2fa$, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/2fa_check, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/assets, roles: PUBLIC_ACCESS }
+        - { path: ^/_error, roles: PUBLIC_ACCESS }    # dev-only error-page previews (config/routes/framework.yaml); route doesn't exist in prod
         - { path: ^/, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

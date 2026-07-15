@@ -64,7 +64,15 @@ class AuthController extends AbstractController
             $em->persist($user);
             $em->flush();
 
-            $this->sendConfirmationEmail($emailVerifier, $user);
+            // A mail-provider failure must not 500 an already-created account:
+            // steer the user to the resend page, where they can retry once the
+            // provider recovers (failure details are in the log).
+            if (!$this->sendConfirmationEmail($emailVerifier, $user)) {
+                $request->getSession()->set(UnverifiedLoginSubscriber::SESSION_EMAIL_KEY, $user->getEmail());
+                $this->addFlash('warning', 'Your account was created, but we could not send the confirmation email right now. Please try resending it in a few minutes.');
+
+                return $this->redirectToRoute('app_verify_resend');
+            }
 
             $this->addFlash('success', 'Account created. Check your email for a confirmation link before logging in.');
 
@@ -149,6 +157,9 @@ class AuthController extends AbstractController
 
                 $user = $userRepository->findOneBy(['email' => $email]);
                 if ($user !== null && !$user->isVerified()) {
+                    // Send result deliberately ignored: reporting a provider failure
+                    // only when the account exists would leak which emails are
+                    // registered. The failure is logged; the flash stays identical.
                     $this->sendConfirmationEmail($emailVerifier, $user);
                 }
             }
@@ -164,9 +175,9 @@ class AuthController extends AbstractController
         ]);
     }
 
-    private function sendConfirmationEmail(EmailVerifier $emailVerifier, User $user): void
+    private function sendConfirmationEmail(EmailVerifier $emailVerifier, User $user): bool
     {
-        $emailVerifier->sendEmailConfirmation(
+        return $emailVerifier->sendEmailConfirmation(
             'app_verify_email',
             $user,
             (new TemplatedEmail())

@@ -1,11 +1,11 @@
 {# App-wide form theme (registered in config/packages/twig.yaml).
    Only overrides error rendering - widgets/labels are styled per-template
-   with Flowbite classes. #}
+   with Able Pro classes (form-control, form-label, btn …). #}
 {% block form_errors %}
     {% if errors|length > 0 %}
         <div role="alert">
             {% for error in errors %}
-                <p class="mt-2 text-sm text-red-600">{{ error.message }}</p>
+                <p class="mt-2 text-sm text-danger-500">{{ error.message }}</p>
             {% endfor %}
         </div>
     {% endif %}

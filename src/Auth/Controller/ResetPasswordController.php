@@ -152,7 +152,10 @@ class ResetPasswordController extends AbstractController
                 ->htmlTemplate('auth/reset_password/email.html.twig')
                 ->context(['resetToken' => $resetToken]);
 
-            $mailer->send($email);
+            // trySend: a provider failure is logged but must neither 500 this flow
+            // nor change the response - the check-email page renders identically
+            // whether or not an account exists (enumeration safety).
+            $mailer->trySend($email);
 
             $this->setTokenObjectInSession($resetToken);
         }
