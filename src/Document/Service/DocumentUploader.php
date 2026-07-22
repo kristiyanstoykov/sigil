@@ -4,31 +4,23 @@ declare(strict_types=1);
 
 namespace App\Document\Service;
 
-use App\AuditLog\AuditLoggerInterface;
-use App\Core\Crypto\EncryptionServiceInterface;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
-use App\Document\Entity\DocumentKeyGrant;
-use App\Document\Entity\DocumentVersion;
 use App\Document\Enum\DocumentVersionKind;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Uploads a document: validate → per-version DEK → encrypt bytes → store
- * ciphertext → persist Document + original DocumentVersion + owner DocumentKeyGrant
- * → audit. Sync, transactional (ADR-004/006). Buffers the whole file in memory,
- * which the 10 MB limit keeps bounded.
+ * Uploads a document: validate → persist the Document → delegate to
+ * {@see DocumentVersionWriter} for the original version (DEK + encrypt + store +
+ * grant + audit). Sync, transactional (ADR-004/006). Buffers the whole file in
+ * memory, which the 10 MB limit keeps bounded.
  */
 final class DocumentUploader
 {
     public function __construct(
-        private readonly EncryptionServiceInterface $encryption,
-        private readonly ContentHasher $contentHasher,
-        private readonly KeyManagementService $keys,
-        private readonly DocumentStorageInterface $storage,
-        private readonly AuditLoggerInterface $auditLogger,
+        private readonly DocumentVersionWriter $versionWriter,
         private readonly EntityManagerInterface $em,
         #[Autowire('%app.max_document_size_bytes%')]
         private readonly int $maxSizeBytes,
@@ -46,41 +38,15 @@ final class DocumentUploader
         $this->assertValidPdf($bytes);
 
         $document = new Document($owner, self::sanitizeTitle($originalFilename));
-        $version = new DocumentVersion(
-            document: $document,
-            versionNumber: 1,
-            kind: DocumentVersionKind::Original,
-            storageKey: '',
-            mimeType: 'application/pdf',
-            sizeBytes: \strlen($bytes),
-            contentHash: $this->contentHasher->hash($bytes),
-        );
+        $this->em->persist($document);
 
-        $dek = $this->encryption->generateKey();
-        try {
-            $envelope = $this->encryption->encrypt($bytes, $dek, $version->dekAad());
-            $version->setStorageKey($this->storage->store($envelope));
-
-            $grant = new DocumentKeyGrant(
-                $version,
-                $owner,
-                $this->keys->wrapDek($owner, $dek, $version->dekAad()),
-            );
-
-            $this->em->persist($document);
-            $this->em->persist($version);
-            $this->em->persist($grant);
-            $this->em->flush();
-        } finally {
-            sodium_memzero($dek);
-        }
-
-        $this->auditLogger->log(
-            action: 'document.uploaded',
-            actor: $owner,
-            payload: ['title' => $document->getTitle(), 'sizeBytes' => \strlen($bytes)],
-            subjectType: 'Document',
-            subjectId: $document->getId()->toRfc4122(),
+        $this->versionWriter->write(
+            $document,
+            $owner,
+            $bytes,
+            DocumentVersionKind::Original,
+            'document.uploaded',
+            ['title' => $document->getTitle()],
         );
 
         return $document;

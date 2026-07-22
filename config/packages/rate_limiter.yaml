@@ -9,8 +9,8 @@ framework:
             limit: 3
             interval: '1 hour'
 
-        # Any endpoint that verifies a certificate PIN (change-PIN now,
-        # signing later). Keyed per user in the controller. This is the
+        # Any endpoint that verifies a certificate PIN (change-PIN and
+        # document signing). Keyed per user in the controller. This is the
         # DoS/brute-force shield in FRONT of the ADR-008 Argon2id gate —
         # the gate's own 5-failures/hour lockout is the second layer.
         pin_verification:

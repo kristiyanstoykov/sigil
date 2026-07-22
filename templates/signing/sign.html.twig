@@ -1,0 +1,112 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}Sign {{ document.title }} · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set latest = document.latestVersion %}
+{% set E_CERTIFICATE = constant('App\\Signing\\Form\\SignDocumentForm::E_CERTIFICATE') %}
+{% set E_PIN = constant('App\\Signing\\Form\\SignDocumentForm::E_PIN') %}
+
+<div class="docs-rise mx-auto max-w-2xl">
+
+    <a href="{{ path('app_document_show', {id: document.id}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
+        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
+        {{ document.title }}
+    </a>
+
+    <div class="mb-5 flex items-center gap-3">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+            <i class="ti ti-signature text-xl leading-none" aria-hidden="true"></i>
+        </span>
+        <div>
+            <h1 class="text-xl font-extrabold tracking-tight text-theme-headings">Sign document</h1>
+            <p class="text-sm text-theme-secondarytextcolor">A qualified electronic signature (PAdES) will be added as a new version.</p>
+        </div>
+    </div>
+
+    {# ── what you are about to sign ─────────────────────────────────────── #}
+    <div class="card !mb-0 !bg-white/90 p-5">
+        <div class="flex items-start gap-4">
+            {{ docs.pdf_icon('lg') }}
+            <div class="min-w-0 flex-1">
+                <h2 class="truncate text-base font-bold text-theme-headings">{{ document.title }}</h2>
+                {% if latest %}
+                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-theme-secondarytextcolor">
+                        {{ docs.status_badge(latest.kind) }}
+                        <span>v{{ latest.versionNumber }} · {{ docs.filesize(latest.sizeBytes) }} · {{ latest.createdAt|date('d M Y') }}</span>
+                    </div>
+                    <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span class="text-[11px] font-medium uppercase tracking-wide text-theme-secondarytextcolor">Signing the bytes with fingerprint</span>
+                        <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor whitespace-nowrap">{{ latest.contentHash|slice(0, 10) }}…{{ latest.contentHash|slice(-6) }}</code>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── signature preview: what the visible stamp will say ─────────────── #}
+    <div class="mt-3 rounded-lg border border-dashed border-primary-500/30 bg-primary-500/[0.03] px-4 py-3">
+        <div class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary-500">
+            <i class="ti ti-shield-check text-sm leading-none" aria-hidden="true"></i>
+            Your seal
+        </div>
+        <p class="mt-1 text-sm font-bold uppercase tracking-wide text-theme-headings">{{ app.user.fullName|upper }}</p>
+        <p class="text-xs text-theme-secondarytextcolor">Qualified electronic signature · Compliant with eIDAS</p>
+    </div>
+
+    {# ── sign form / empty state ────────────────────────────────────────── #}
+    {% if hasUsableCertificate %}
+        <div class="card mt-5 !mb-0 p-6 relative overflow-hidden" data-controller="signing-form">
+            {{ form_start(form, {action: path('app_document_sign', {id: document.id}), attr: {novalidate: 'novalidate', 'data-action': 'submit->signing-form#start'}}) }}
+            {% set label_class = 'form-label text-sm font-medium' %}
+
+            <div class="mb-4">
+                {{ form_label(form[E_CERTIFICATE], null, {label_attr: {class: label_class}}) }}
+                {{ form_widget(form[E_CERTIFICATE], {attr: {class: 'form-control'}}) }}
+                {{ form_errors(form[E_CERTIFICATE]) }}
+            </div>
+
+            <div class="mb-2">
+                {{ form_label(form[E_PIN], null, {label_attr: {class: label_class}}) }}
+                {{ form_widget(form[E_PIN], {attr: {class: 'form-control font-mono tracking-[0.3em]', placeholder: '••••••', autofocus: 'autofocus'}}) }}
+                {{ form_errors(form[E_PIN]) }}
+            </div>
+
+            <p class="mb-5 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
+                <i class="ti ti-shield-lock mt-px text-sm leading-none text-theme-secondarytextcolor" aria-hidden="true"></i>
+                <span>Your PIN opens the secure token to sign and is never stored. 5 wrong attempts within an hour lock the certificate.</span>
+            </p>
+
+            <button type="submit" class="btn btn-primary w-full inline-flex items-center justify-center gap-2" data-no-loader>
+                <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
+                Sign document
+            </button>
+            {{ form_end(form) }}
+
+            {# Signing overlay (S-loader). Shown by signing_form_controller on submit. #}
+            <div data-signing-form-target="overlay"
+                 class="hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/85 backdrop-blur-sm text-center">
+                {{ include('components/s_loader.html.twig', {size: 64, class: 'text-primary-500'}) }}
+                <div>
+                    <p class="text-sm font-bold text-theme-headings">Signing your document…</p>
+                    <p class="text-xs text-theme-secondarytextcolor">Applying the qualified signature and timestamp. This can take a moment.</p>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="card mt-5 !mb-0 p-6 text-center">
+            <span class="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-warning-500/10 text-warning-600">
+                <i class="ti ti-shield-off text-xl leading-none" aria-hidden="true"></i>
+            </span>
+            <h2 class="text-base font-bold text-theme-headings">No usable certificate</h2>
+            <p class="mx-auto mt-1 max-w-sm text-sm text-theme-secondarytextcolor">You need an active signing certificate before you can sign. Issue one, then come back to this document.</p>
+            <a href="{{ path('app_certificate_new') }}" class="btn btn-primary mt-4 inline-flex items-center gap-2">
+                <i class="ti ti-certificate text-base leading-none" aria-hidden="true"></i>
+                Issue a certificate
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

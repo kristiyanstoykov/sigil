@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: sigil-app:latest
     ports:
       - "8000:8000"
     volumes:
@@ -34,6 +35,20 @@ services:
       db:
         condition: service_healthy
       minio:
+        condition: service_started
+
+  # Local RFC-3161 timestamp responder (dev). Gives fast, offline PAdES-B-T
+  # timestamps so signing does not wait on a public TSA. Reuses the app image
+  # (has openssl + python3); the app talks to it at http://tsa:8318 when
+  # SIGIL_TSA_ACTIVE_BACKEND=local_uts. See docker/tsa/.
+  tsa:
+    image: sigil-app:latest
+    entrypoint: ["/tsa-src/entrypoint.sh"]
+    volumes:
+      - ./docker/tsa:/tsa-src:ro
+      - tsa_data:/tsa
+    depends_on:
+      app:
         condition: service_started
 
   minio:
@@ -68,3 +83,4 @@ volumes:
   db_data:
   softhsm_tokens:
   minio_data:
+  tsa_data:

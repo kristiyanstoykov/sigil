@@ -33,7 +33,7 @@
 
             <div class="flex items-center gap-2">
                 <a href="{{ path('app_document_download', {id: document.id}) }}" data-turbo="false"
-                   class="btn btn-primary inline-flex items-center gap-2">
+                   class="btn btn-outline-secondary inline-flex items-center gap-2">
                     <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
                     Download
                 </a>
@@ -42,11 +42,11 @@
                     <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                     View
                 </a>
-                <span class="btn btn-outline-secondary inline-flex items-center gap-2 !text-theme-secondarytextcolor/70 cursor-not-allowed" title="Coming soon">
+                <a href="{{ path('app_document_sign', {id: document.id}) }}"
+                   class="btn btn-primary inline-flex items-center gap-2">
                     <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
                     Sign
-                    <span class="text-[10px] font-bold uppercase tracking-wide">Soon</span>
-                </span>
+                </a>
             </div>
         </div>
     </div>

@@ -25,3 +25,10 @@
 /public/assets/
 /assets/vendor/
 ###< symfony/asset-mapper ###
+
+# Instanced Sofia Sans faces for the signature stamp (derived, regenerated on demand)
+/assets/fonts/Sofia_Sans/.instanced/
+
+# Python bytecode (bin/ driver scripts)
+__pycache__/
+*.py[cod]
