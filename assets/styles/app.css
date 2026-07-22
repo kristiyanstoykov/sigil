@@ -199,6 +199,33 @@
 }
 
 /*
+ * Frosted shell — the authenticated header + sidebar read as glass over the
+ * .sigil-aurora backdrop (matches the auth pages). Vendor ships a lightly-
+ * frosted header with no outline and a fully opaque sidebar; these deepen the
+ * blur, translucent the sidebar so the aurora shows through, and add a crisp
+ * white edge + soft brand-tinted shadow so both float above the page.
+ * Unlayered so they beat the vendor component layer without !important.
+ */
+.pc-header {
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 6px 20px -18px color-mix(in srgb, var(--primary-500) 18%, transparent);
+}
+.pc-sidebar {
+    background-color: rgba(255, 255, 255, 0.8);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    border-right: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 12px 0 34px -28px color-mix(in srgb, var(--primary-500) 16%, transparent);
+}
+/* The wrapper inherits the sidebar bg by default; keep it transparent so the
+   single translucent layer + backdrop blur do the frosting (no double tint). */
+.pc-sidebar .navbar-wrapper {
+    background-color: transparent;
+}
+
+/*
  * Design brief: buttons are 8px radius — Able Pro ships 20px pills. Unlayered
  * rule so it wins over the vendor component layer without per-template !important.
  */
