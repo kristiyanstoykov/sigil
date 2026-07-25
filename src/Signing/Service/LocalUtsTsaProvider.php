@@ -24,7 +24,7 @@ final class LocalUtsTsaProvider implements TsaProviderInterface
         return 'local_uts';
     }
 
-    public function url(): ?string
+    public function url(): string
     {
         return $this->endpoint;
     }

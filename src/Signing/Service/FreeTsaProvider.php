@@ -24,7 +24,7 @@ final class FreeTsaProvider implements TsaProviderInterface
         return 'freetsa';
     }
 
-    public function url(): ?string
+    public function url(): string
     {
         return $this->endpoint;
     }

@@ -105,6 +105,7 @@ final class SigningControllerTest extends AuthWebTestCase
     public function testWrongPinIsRejectedAtTheGate(): void
     {
         [$documentId, $certificateId] = $this->seed('sign-badpin', withCertificate: true);
+        self::assertNotNull($certificateId); // seeded withCertificate: true
 
         $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
         // The upload modal form is present on every page - target the sign form.
