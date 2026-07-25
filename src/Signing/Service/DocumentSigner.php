@@ -51,6 +51,12 @@ final class DocumentSigner
             throw new DomainException('You can only sign your own document with your own certificate.');
         }
 
+        // Sign-once. The controller blocks this earlier; this is the layer that
+        // makes it true for every caller, including future non-web ones.
+        if ($document->isSigned()) {
+            throw new DomainException('This document has already been signed.');
+        }
+
         $latest = $document->getLatestVersion();
         if (null === $latest) {
             throw new DomainException('This document has no content to sign.');

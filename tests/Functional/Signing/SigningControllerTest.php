@@ -6,8 +6,10 @@ namespace App\Tests\Functional\Signing;
 
 use App\Certificate\Entity\Certificate;
 use App\Core\Entity\User;
+use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentRepository;
 use App\Document\Service\DocumentUploader;
+use App\Document\Service\DocumentVersionWriter;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -75,6 +77,76 @@ final class SigningControllerTest extends AuthWebTestCase
         $this->loginFully($email);
 
         return [$documentId, $certificateId];
+    }
+
+    /**
+     * Seeds a user whose document already carries a Signed version, minted
+     * through the real writer so the state is indistinguishable from a genuine
+     * signature (no token needed - the bytes are never validated here).
+     *
+     * @return string the document id
+     */
+    private function seedSignedDocument(string $prefix): string
+    {
+        $email = $this->uniqueEmail($prefix);
+        $user = $this->createUser($email, verified: true, totpEnabled: true);
+        $document = static::getContainer()->get(DocumentUploader::class)->upload($user, self::MINIMAL_PDF, 'Agreement.pdf');
+        $this->makeCertificate($user);
+
+        static::getContainer()->get(DocumentVersionWriter::class)->write(
+            $document,
+            $user,
+            '%PDF-ALREADY-SIGNED',
+            DocumentVersionKind::Signed,
+            'document.signed',
+        );
+
+        $documentId = $document->getId()->toRfc4122();
+        $this->loginFully($email);
+
+        return $documentId;
+    }
+
+    public function testSignPageRedirectsWhenTheDocumentIsAlreadySigned(): void
+    {
+        $documentId = $this->seedSignedDocument('sign-once-get');
+
+        $this->client->request('GET', '/documents/'.$documentId.'/sign');
+
+        self::assertResponseRedirects('/documents/'.$documentId);
+        $crawler = $this->client->followRedirect();
+        self::assertStringContainsString('already been signed', $crawler->html());
+    }
+
+    /**
+     * The guard runs before the form is handled, so a replayed POST is refused
+     * on the same terms as a GET - it never reaches the signer.
+     */
+    public function testPostToASignedDocumentIsRefusedWithoutReachingTheSigner(): void
+    {
+        $documentId = $this->seedSignedDocument('sign-once-post');
+
+        $this->client->request('POST', '/documents/'.$documentId.'/sign');
+
+        self::assertResponseRedirects('/documents/'.$documentId);
+
+        $document = static::getContainer()->get(DocumentRepository::class)->find($documentId);
+        self::assertNotNull($document);
+        self::assertCount(2, $document->getVersions()); // original + the one signature
+    }
+
+    public function testShowPageBlocksTheSignButtonOnceSigned(): void
+    {
+        $documentId = $this->seedSignedDocument('sign-once-button');
+
+        $crawler = $this->client->request('GET', '/documents/'.$documentId);
+
+        self::assertResponseIsSuccessful();
+        // The action stays on the page, but as a disabled button - not a link.
+        self::assertSame(0, $crawler->filter('a[href$="/sign"]')->count());
+        $button = $crawler->filter('button[disabled]');
+        self::assertGreaterThan(0, $button->count());
+        self::assertStringContainsString('Signed', $button->text());
     }
 
     public function testSignPageShowsEmptyStateWithoutAUsableCertificate(): void

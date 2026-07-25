@@ -7,6 +7,7 @@ namespace App\Document\Entity;
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
 use App\Core\Entity\User;
+use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -76,6 +77,25 @@ class Document
     public function getLatestVersion(): ?DocumentVersion
     {
         return $this->versions->last() ?: null;
+    }
+
+    /**
+     * Whether this document already carries a Sigil signature.
+     *
+     * Deliberately scoped to versions *we* minted: a PDF that arrived already
+     * signed elsewhere (Borica, Evrotrust, ...) is still signable here, and
+     * multi-party counter-signing - a separate future feature - will add its
+     * own notion of "who still has to sign" without touching this one.
+     */
+    public function isSigned(): bool
+    {
+        foreach ($this->versions as $version) {
+            if (DocumentVersionKind::Signed === $version->getKind()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Next 1-based version number for a new version of this document. */

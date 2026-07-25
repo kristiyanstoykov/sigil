@@ -42,11 +42,21 @@
                     <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                     View
                 </a>
-                <a href="{{ path('app_document_sign', {id: document.id}) }}"
-                   class="btn btn-primary inline-flex items-center gap-2">
-                    <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
-                    Sign
-                </a>
+                {% if document.isSigned %}
+                    {# Blocked, not removed: the action stays visible so its
+                       unavailability reads as "already done", not "missing". #}
+                    <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
+                            disabled aria-disabled="true" title="This document has already been signed.">
+                        <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
+                        Signed
+                    </button>
+                {% else %}
+                    <a href="{{ path('app_document_sign', {id: document.id}) }}"
+                       class="btn btn-primary inline-flex items-center gap-2">
+                        <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
+                        Sign
+                    </a>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -88,7 +98,7 @@
                 {% endfor %}
             </ul>
         </div>
-        <p class="mt-3 text-xs text-theme-secondarytextcolor">Every version is kept - the original and each future signed copy - for a complete, tamper-evident record.</p>
+        <p class="mt-3 text-xs text-theme-secondarytextcolor">Every version is kept. The original and each future signed copy for a complete, tamper-evident record.</p>
     </div>
 </div>
 {% endblock %}

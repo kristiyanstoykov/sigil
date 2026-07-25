@@ -147,6 +147,39 @@ class DocumentSignerTest extends AuthWebTestCase
         self::assertCount(1, $document->getVersions());
     }
 
+    public function testASignedDocumentCannotBeSignedAgain(): void
+    {
+        $user = $this->createUser($this->uniqueEmail('signonce'));
+        $document = static::getContainer()->get(DocumentUploader::class)->upload($user, self::MINIMAL_PDF, 'Contract.pdf');
+        $certificate = $this->makeCertificate($user);
+
+        $fake = new class implements PadesSignerInterface {
+            public int $calls = 0;
+
+            public function sign(PadesSignRequest $request, #[\SensitiveParameter] string $pin): string
+            {
+                ++$this->calls;
+
+                return '%PDF-SIGNED-BYTES';
+            }
+        };
+
+        $signer = $this->signerWith($fake);
+        $signer->sign($document, $certificate, $user, self::PIN);
+
+        try {
+            $signer->sign($document, $certificate, $user, self::PIN);
+            self::fail('Expected the second signature to be refused.');
+        } catch (\App\Core\Exception\DomainException $e) {
+            self::assertStringContainsString('already been signed', $e->getMessage());
+        }
+
+        // The guard sits above the token and above the version writer: exactly
+        // one signature was produced and no third version exists.
+        self::assertSame(1, $fake->calls);
+        self::assertCount(2, $document->getVersions());
+    }
+
     public function testWrongPinIsRejectedBeforeSigning(): void
     {
         $user = $this->createUser($this->uniqueEmail('badpin'));

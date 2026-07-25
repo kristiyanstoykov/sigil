@@ -43,6 +43,15 @@ class SigningController extends AbstractController
         RateLimiterFactory $pinVerificationLimiter,
     ): Response {
         $document = $this->ownedDocument($id);
+
+        // Sign-once (both verbs): a GET lands here from a stale tab or a
+        // bookmark, a POST from a replayed form. Neither may reach the signer.
+        if ($document->isSigned()) {
+            $this->addFlash('info', 'This document has already been signed.');
+
+            return $this->redirectToRoute('app_document_show', ['id' => $id]);
+        }
+
         $user = $this->currentUser();
         $usable = $this->usableCertificates($user);
 
