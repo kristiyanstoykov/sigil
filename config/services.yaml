@@ -38,6 +38,11 @@ services:
     # Crypto: the only symmetric-crypto entry point (ADR-004/006)
     App\Core\Crypto\EncryptionServiceInterface: '@App\Core\Crypto\EnvelopeEncryptionService'
 
+    # Root-key wrapper (ADR-010): the one seam where the root key is used.
+    # Default = PKCS#11 token (root key never enters app memory); the test env
+    # overrides this with the env-key wrapper below (no token needed for tests).
+    App\Core\Crypto\RootKeyWrapperInterface: '@App\Core\Crypto\Pkcs11RootKeyWrapper'
+
     # Document storage (ADR-009): the app depends on the routing facade, which
     # dispatches to the backend stamped into each storage key.
     App\Document\Service\DocumentStorageInterface: '@App\Document\Service\RoutingDocumentStorage'
@@ -73,6 +78,13 @@ when@test:
         _defaults:
             autowire: true
             autoconfigure: true
+
+        # Tests have no PKCS#11 root token: wrap the KEK with the env root key
+        # (the pre-ADR-010 behaviour), so the crypto path is exercised end to end
+        # without provisioning a token in CI.
+        App\Core\Crypto\RootKeyWrapperInterface:
+            alias: App\Core\Crypto\EnvRootKeyWrapper
+            public: true
 
         App\AuditLog\Service\DoctrineAuditLogger:
             public: true

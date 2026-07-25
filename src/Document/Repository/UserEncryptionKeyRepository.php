@@ -46,4 +46,21 @@ final class UserEncryptionKeyRepository extends ServiceEntityRepository
             ],
         );
     }
+
+    /**
+     * Replace a row's wrapped KEK in place. Used only by the ADR-010 root-key
+     * migration to re-wrap the same KEK under the token; the KEK itself is
+     * unchanged, so every DEK grant stays valid. The entity is otherwise
+     * immutable, so this goes straight to SQL by id.
+     */
+    public function updateWrappedKek(UserEncryptionKey $key, string $wrappedKek): void
+    {
+        $this->getEntityManager()->getConnection()->executeStatement(
+            'UPDATE user_encryption_key SET wrapped_kek = :kek WHERE id = :id',
+            [
+                'kek' => $wrappedKek,
+                'id' => $key->getId()->toRfc4122(),
+            ],
+        );
+    }
 }

@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace App\Document\Service;
 
 use App\Core\Crypto\EncryptionServiceInterface;
-use App\Core\Crypto\RootKeyProvider;
+use App\Core\Crypto\RootKeyWrapperInterface;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Repository\UserEncryptionKeyRepository;
 
 /**
  * Operates the middle layer of the envelope (ADR-004): resolves a user's KEK
- * (unwrapping it from the root key, or minting one on first use) and uses it to
- * wrap/unwrap per-file DEKs.
+ * (unwrapping it via the root-key wrapper, or minting one on first use) and
+ * uses it to wrap/unwrap per-file DEKs.
+ *
+ * The root layer is reached only through {@see RootKeyWrapperInterface} - the
+ * one seam where the root key is used (ADR-010) - so this service is unaware of
+ * whether the root key lives in env memory or inside a PKCS#11 token.
  *
  * Raw keys returned here exist only transiently in memory. The KEK is wiped
  * with sodium_memzero() as soon as an operation finishes; DEKs returned to
@@ -23,7 +27,7 @@ final class KeyManagementService
 {
     public function __construct(
         private readonly EncryptionServiceInterface $encryption,
-        private readonly RootKeyProvider $rootKeys,
+        private readonly RootKeyWrapperInterface $rootWrapper,
         private readonly UserEncryptionKeyRepository $keys,
     ) {
     }
@@ -41,7 +45,7 @@ final class KeyManagementService
         if (null === $record) {
             $kek = $this->encryption->generateKey();
             $wrapped = base64_encode(
-                $this->encryption->encrypt($kek, $this->rootKeys->rootKey(), $this->kekAad($user)),
+                $this->rootWrapper->wrapKek($kek, $this->kekAad($user)),
             );
             sodium_memzero($kek);
 
@@ -52,9 +56,8 @@ final class KeyManagementService
                 ?? throw new DomainException('User encryption key could not be created.');
         }
 
-        return $this->encryption->decrypt(
+        return $this->rootWrapper->unwrapKek(
             self::decode($record->getWrappedKek()),
-            $this->rootKeys->rootKey(),
             $this->kekAad($user),
         );
     }
