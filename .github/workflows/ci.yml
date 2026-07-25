@@ -9,85 +9,71 @@ jobs:
     ci:
         runs-on: ubuntu-latest
 
-        services:
-            postgres:
-                image: postgres:16-alpine
-                env:
-                    POSTGRES_USER: sigil
-                    POSTGRES_PASSWORD: sigil
-                    POSTGRES_DB: sigil
-                ports: ['5432:5432']
-                options: >-
-                    --health-cmd "pg_isready -U sigil"
-                    --health-interval 5s
-                    --health-timeout 5s
-                    --health-retries 10
-
-        env:
-            APP_ENV: test
-            DATABASE_URL: "postgresql://sigil:sigil@127.0.0.1:5432/sigil?serverVersion=16&charset=utf8"
-            PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
-            SOFTHSM2_CONF: /home/runner/softhsm2.conf
-
         steps:
             - uses: actions/checkout@v5
 
-            # Key custody stack (ADR-005): SoftHSM2 token store, pkcs11-tool
-            # (opensc) for keygen, and the python-pkcs11/asn1crypto libs the
-            # bin/issue_cert.py driver imports. Tokens live in a runner-owned
-            # dir so no group membership games are needed.
-            - name: Install PKCS#11 stack
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y --no-install-recommends softhsm2 opensc python3-pkcs11 python3-asn1crypto
-                  mkdir -p /home/runner/softhsm-tokens
-                  printf 'directories.tokendir = /home/runner/softhsm-tokens\nobjectstore.backend = file\n' > /home/runner/softhsm2.conf
-
-            - uses: shivammathur/setup-php@v2
-              with:
-                  php-version: '8.4'
-                  extensions: intl, pdo_pgsql, sodium, gd, zip
-                  coverage: none
-
             # .env is git-ignored (real values live outside the repo); CI boots
-            # it from the committed .env.example. .env.test is committed (it
-            # carries KERNEL_CLASS, which the WebTestCase kernel boot requires).
-            # SIGIL_ROOT_KEY is deliberately blank in the template (no real key
-            # in git), so generate an ephemeral one per run for the crypto tests.
+            # it from the committed .env.example, which is mounted into the app
+            # container. SIGIL_ROOT_KEY is deliberately blank in the template (no
+            # real key in git), so generate an ephemeral one per run for the
+            # crypto tests (the test env wraps KEKs with this, not the token).
             - name: Provide env file
               run: |
                   cp .env.example .env
-                  echo "SIGIL_ROOT_KEY=$(php -r 'echo base64_encode(random_bytes(32));')" >> .env
+                  echo "SIGIL_ROOT_KEY=$(openssl rand -base64 32)" >> .env
 
-            - name: Install dependencies
-              run: composer install --no-interaction --no-progress --prefer-dist
+            # Build and run everything inside the same image dev uses (Dockerfile:
+            # PHP + SoftHSM2 + opensc + pyHanko/fontTools + composer). This keeps
+            # CI in lockstep with the image by construction - no re-installing the
+            # stack on the runner, so a Dockerfile/CI drift can't silently break
+            # signing again.
+            #
+            # Built via Buildx with a GitHub Actions layer cache: the expensive
+            # layers (apk, the pyHanko pip install) are restored across runs and
+            # only rebuild when the Dockerfile changes. `load: true` puts the
+            # sigil-app:latest tag into the daemon so `docker compose run` (below)
+            # reuses it instead of rebuilding.
+            - name: Set up Buildx
+              uses: docker/setup-buildx-action@v3
 
-            - name: Audit dependencies
-              run: composer audit
+            - name: Build app image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  load: true
+                  tags: sigil-app:latest
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
 
-            # PHPStan's Symfony extension reads the compiled dev container XML
-            # (containerXmlPath in phpstan.dist.neon), so build it first.
-            - name: Warm up dev container for PHPStan
-              run: php bin/console -e dev cache:warmup
+            # Only the database is needed: the test env uses the local storage
+            # backend (not MinIO) and TSA backend "none" (not the tsa service).
+            - name: Start database
+              run: docker compose up -d --wait db
 
-            - name: PHPStan
-              run: composer phpstan
-
-            # The functional tests render real pages; without the compiled
-            # Tailwind CSS, AssetMapper tries to resolve @import "tailwindcss"
-            # as a file asset and every page 500s.
-            - name: Build Tailwind CSS
-              run: php bin/console tailwind:build --minify
-
-            - name: Prepare test database
+            # One container, one shell: the app entrypoint (composer install +
+            # php -S) is overridden so CI drives each step itself. SoftHSM tokens
+            # and var/ come from the app service's volumes, exactly like local.
+            - name: Checks and tests
               run: |
-                  php bin/console -e test doctrine:database:create --if-not-exists -n
-                  php bin/console -e test doctrine:migrations:migrate -n
+                  docker compose run --rm --no-deps -T --entrypoint sh app -c '
+                    set -e
+                    git config --global --add safe.directory /app
+                    composer install --no-interaction --no-progress --prefer-dist
+                    composer audit
+                    # PHPStan reads the compiled dev container XML (phpstan.dist.neon).
+                    php bin/console -e dev cache:warmup
+                    composer phpstan
+                    # Functional tests render real pages; without compiled Tailwind,
+                    # AssetMapper 500s on @import "tailwindcss".
+                    php bin/console tailwind:build --minify
+                    php bin/console -e test doctrine:database:create --if-not-exists -n
+                    php bin/console -e test doctrine:migrations:migrate -n
+                    # Certificate/signing tests need an initialized CA (in-token key
+                    # + var/ca/ca.crt).
+                    php bin/console -e test sigil:ca:init
+                    php bin/phpunit
+                  '
 
-            # The certificate issuance tests exercise the real chain and
-            # need an initialized CA (in-token key + var/ca/ca.crt).
-            - name: Initialize test CA
-              run: php bin/console -e test sigil:ca:init
-
-            - name: PHPUnit
-              run: php bin/phpunit
+            - name: Tear down
+              if: always()
+              run: docker compose down -v
