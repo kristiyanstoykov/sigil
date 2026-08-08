@@ -29,4 +29,11 @@ return [
     'apexcharts' => [
         'path' => './assets/able-pro/js/apexcharts.min.js',
     ],
+    // Able Pro's own datatable (UMD — registers window.simpleDatatables). The
+    // theme's Tailwind demos use this, not the jQuery DataTables left over in
+    // its plugins folder; assets/able-pro/css/style.css already styles its
+    // .datatable-* markup.
+    'simple-datatables' => [
+        'path' => './assets/able-pro/js/simple-datatables.js',
+    ],
 ];

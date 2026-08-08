@@ -1,0 +1,134 @@
+/*
+ * Documents list datatable — Sigil's adjustments to Able Pro's simple-datatables.
+ *
+ * Everything here exists for one of two reasons; nothing is restyling for its
+ * own sake. The library and its Able Pro theming supply the rest.
+ *
+ *   1. We moved the rows-per-page control into the bottom bar (see the
+ *      `template` override in assets/controllers/documents_table_controller.js).
+ *      Able Pro lays that bar out with floats - `div:first-child` left,
+ *      `nav:last-child` right - which only works for two children. A third one
+ *      matches neither rule and lands out of flow, so the bar becomes flex.
+ *   2. Able Pro has no responsive table without jQuery (its only options are
+ *      `overflow-x: auto` or the DataTables Responsive extension), so below md
+ *      the rows restyle themselves as cards.
+ *
+ * Rules are unlayered so they beat the vendor's, whose datatable styles live
+ * in @layer utilities.
+ */
+
+/* ── bottom bar: info · rows · pager ─────────────────────────────────────── */
+
+.docs-table .datatable-bottom {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 4);
+}
+.docs-table .datatable-info {
+    font-size: 0.8125rem;
+    color: var(--color-theme-secondarytextcolor);
+}
+/* Pushes the pager to the far end, leaving info + rows together on the left. */
+.docs-table .datatable-bottom .datatable-pagination {
+    margin-inline-start: auto;
+}
+
+/* The rows control is sized for a top bar of its own upstream (a fixed 230px
+   label around a full-height form-select). Beside the pager it should read as
+   a small secondary control instead. */
+.docs-table .datatable-dropdown label {
+    width: auto;
+    gap: calc(var(--spacing) * 1.5);
+    font-size: 0.8125rem;
+    color: var(--color-theme-secondarytextcolor);
+}
+.docs-table .datatable-dropdown .datatable-selector {
+    /* Wide enough for "10"/"25"/"50" plus clearance for the chevron Able Pro
+       paints at calc(100% - 16px); shrink-to-fit alone crowds them together. */
+    width: 4.25rem;
+    min-height: 0;
+    padding: calc(var(--spacing) * 1) calc(var(--spacing) * 7) calc(var(--spacing) * 1) calc(var(--spacing) * 2.5);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+}
+
+/* ── below md: the SAME rows, restyled as cards ──────────────────────────── */
+
+/*
+ * Collapsing the table keeps one copy of the markup driven by one datatable -
+ * search, sort and paging still apply on mobile - with no second card
+ * rendering to keep in sync, and no sideways scrolling. Every cell carries
+ * data-label in the template; it becomes the field label here.
+ */
+@media (width < 48rem) {
+    /* Able Pro stacks the datatable's controls on small screens but leaves
+       them at their desktop widths, which reads as stray boxes. Fill the row. */
+    .docs-table .datatable-top {
+        gap: calc(var(--spacing) * 2);
+    }
+    .docs-table .datatable-top .datatable-search,
+    .docs-table .datatable-top .datatable-input {
+        width: 100%;
+    }
+    /* Info on its own line, then rows + pager sharing the next. */
+    .docs-table .datatable-bottom {
+        flex-wrap: wrap;
+        gap: calc(var(--spacing) * 2);
+    }
+    .docs-table .datatable-info {
+        flex-basis: 100%;
+    }
+
+    .docs-table .datatable-table thead {
+        /* Sorting moves to the datatable's own controls; a column header row
+           means nothing once the rows are cards. */
+        display: none;
+    }
+    .docs-table .datatable-table,
+    .docs-table .datatable-table tbody,
+    .docs-table .datatable-table tr,
+    .docs-table .datatable-table td {
+        display: block;
+        width: auto;
+    }
+    .docs-table .datatable-table tr {
+        margin: 0 0 1rem;
+        border: 1px solid var(--color-theme-border);
+        border-radius: var(--radius-lg);
+        background-color: var(--color-theme-cardbg);
+        overflow: hidden;
+    }
+    .docs-table .datatable-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: calc(var(--spacing) * 3);
+        padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 4);
+        border: 0;
+        text-align: left;
+    }
+    .docs-table .datatable-table td + td {
+        border-top: 1px solid color-mix(in oklab, var(--color-theme-border) 60%, transparent);
+    }
+    .docs-table .datatable-table td::before {
+        content: attr(data-label);
+        flex: none;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-theme-secondarytextcolor);
+    }
+    /* The title cell reads as the card's heading, so it keeps neither a label
+       nor a second column. */
+    .docs-table .datatable-table td[data-label="Document"] {
+        display: block;
+        background-color: color-mix(in oklab, var(--color-theme-bodybg) 50%, transparent);
+    }
+    .docs-table .datatable-table td[data-label="Document"]::before {
+        content: none;
+    }
+    .docs-table .datatable-table td[data-label="Actions"] > div {
+        justify-content: flex-end;
+    }
+}

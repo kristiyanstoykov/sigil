@@ -20,7 +20,7 @@
         </button>
     </div>
 
-    {# ── tabs + (reserved) search ───────────────────────────────────────── #}
+    {# ── tabs ───────────────────────────────────────────────────────────── #}
     <div class="mb-5 flex items-center justify-between gap-4 border-b border-theme-border">
         <div class="flex gap-6">
             <span class="border-b-2 border-primary-500 pb-3 text-sm font-semibold text-primary-500">My documents</span>
@@ -28,10 +28,6 @@
                 Shared with me
                 <span class="rounded border border-theme-border bg-theme-activebg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-theme-secondarytextcolor">Soon</span>
             </span>
-        </div>
-        <div class="mb-2 hidden items-center gap-2 rounded-lg border border-theme-border bg-white/70 px-3 py-1.5 text-theme-secondarytextcolor/70 sm:flex" title="Search - coming soon">
-            <i class="ti ti-search text-base leading-none" aria-hidden="true"></i>
-            <span class="text-sm">Search documents…</span>
         </div>
     </div>
 
@@ -53,33 +49,44 @@
             </button>
         </div>
     {% else %}
-        {# ── desktop table ──────────────────────────────────────────────── #}
-        <div class="card !mb-0 hidden overflow-hidden !bg-white/90 md:block">
-            <div class="overflow-x-auto">
-                <table class="w-full min-w-[706px] text-left" data-controller="doc-sort">
+        {#
+            Able Pro's own datatable (simple-datatables) supplies the search box,
+            the rows-per-page selector, sorting and paging - see
+            assets/controllers/documents_table_controller.js. The markup here is
+            just the data: one table, rendered in full, so the list still works
+            without JavaScript.
+
+            Below md the same rows restyle themselves as cards (docs-table rules
+            in app.css) - hence data-label on every cell, which becomes the row's
+            field label there. No second copy of the markup, and no sideways
+            scrolling.
+        #}
+        {# The controller sits on this wrapper, not on the <table>: initialising
+           the datatable moves the table into a wrapper of its own, and a
+           Stimulus controller mounted on a moved element reconnects - which
+           would initialise it again, forever. #}
+        <div class="card !mb-0 overflow-hidden !bg-white/90 docs-table"
+             data-controller="documents-table"
+             data-documents-table-per-page-value="10"
+             data-documents-table-size-column-value="2"
+             data-documents-table-date-column-value="3"
+             data-documents-table-actions-column-value="4">
+            <div class="table-responsive">
+                <table class="table w-full text-left" data-documents-table-target="table">
                     <thead class="border-b border-theme-border bg-theme-bodybg/70 text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">
                         <tr>
-                            {% for col in [{key: 'name', label: 'Document'}, {key: 'size', label: 'Size'}, {key: 'date', label: 'Uploaded'}] %}
-                                {% if col.key == 'size' %}<th class="px-5 py-3 font-bold">Status</th>{% endif %}
-                                <th class="px-5 py-3 font-bold">
-                                    <button type="button" data-action="doc-sort#sort" data-doc-sort-key-param="{{ col.key }}"
-                                            class="inline-flex items-center gap-1 font-bold uppercase tracking-wider text-theme-secondarytextcolor hover:text-theme-headings">
-                                        {{ col.label }}
-                                        <span class="text-theme-secondarytextcolor/70" data-doc-sort-target="arrow" data-arrow-key="{{ col.key }}"></span>
-                                    </button>
-                                </th>
-                            {% endfor %}
+                            <th class="px-5 py-3 font-bold">Document</th>
+                            <th class="px-5 py-3 font-bold">Status</th>
+                            <th class="px-5 py-3 font-bold">Size</th>
+                            <th class="px-5 py-3 font-bold">Uploaded</th>
                             <th class="px-5 py-3 text-right font-bold">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-theme-border/60" data-doc-sort-target="body">
+                    <tbody class="divide-y divide-theme-border/60">
                         {% for document in documents %}
                             {% set v = document.latestVersion %}
-                            <tr class="hover:bg-theme-activebg/60" data-sortable-row
-                                data-sort-name="{{ document.title|lower }}"
-                                data-sort-size="{{ v.sizeBytes }}"
-                                data-sort-date="{{ v.createdAt|date('U') }}">
-                                <td class="px-5 py-3.5">
+                            <tr class="hover:bg-theme-activebg/60">
+                                <td class="px-5 py-3.5" data-label="Document">
                                     <a href="{{ path('app_document_show', {id: document.id}) }}" class="flex items-center gap-3">
                                         {{ docs.pdf_icon('sm') }}
                                         <span class="min-w-0">
@@ -91,10 +98,12 @@
                                         </span>
                                     </a>
                                 </td>
-                                <td class="px-5 py-3.5">{{ docs.status_badge(v.kind) }}</td>
-                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor">{{ docs.filesize(v.sizeBytes) }}</td>
-                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor">{{ v.createdAt|date('d M Y') }}</td>
-                                <td class="px-5 py-3.5">
+                                <td class="px-5 py-3.5" data-label="Status">{{ docs.status_badge(v.kind) }}</td>
+                                {# Raw bytes: the datatable sorts on the cell's value and
+                                   renders the human-readable size for display. #}
+                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Size">{{ v.sizeBytes }}</td>
+                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Uploaded">{{ v.createdAt|date('d M Y') }}</td>
+                                <td class="px-5 py-3.5" data-label="Actions">
                                     <div class="flex items-center justify-end gap-2">
                                         <a href="{{ path('app_document_download', {id: document.id}) }}" data-turbo="false"
                                            class="btn btn-sm btn-primary inline-flex items-center gap-1.5">
@@ -109,41 +118,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-
-        {# ── mobile cards ───────────────────────────────────────────────── #}
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:hidden">
-            {% for document in documents %}
-                {% set v = document.latestVersion %}
-                <div class="card !mb-0 overflow-hidden !bg-white/90">
-                    <a href="{{ path('app_document_show', {id: document.id}) }}" class="block p-4">
-                        <div class="flex items-start justify-between gap-2.5">
-                            {{ docs.pdf_icon('lg') }}
-                            {{ docs.status_badge(v.kind) }}
-                        </div>
-                        <div class="mt-3.5 line-clamp-2 text-sm font-bold text-theme-headings">{{ document.title }}</div>
-                        <div class="mt-2 flex items-center gap-2.5 text-xs text-theme-secondarytextcolor">
-                            <span class="inline-flex items-center gap-1">
-                                <i class="ti ti-lock text-xs leading-none" aria-hidden="true"></i>
-                                Encrypted
-                            </span>
-                            <span>·</span>
-                            <span>{{ docs.filesize(v.sizeBytes) }}</span>
-                        </div>
-                    </a>
-                    <div class="flex items-center justify-between gap-2 border-t border-theme-border/60 bg-theme-bodybg/50 px-4 py-3">
-                        <span class="text-xs text-theme-secondarytextcolor">{{ v.createdAt|date('d M Y') }}</span>
-                        <div class="flex items-center gap-2">
-                            <a href="{{ path('app_document_download', {id: document.id}) }}" data-turbo="false"
-                               class="btn btn-sm btn-primary inline-flex items-center gap-1.5">
-                                <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
-                                Download
-                            </a>
-                            <div class="relative">{{ docs.row_menu(document, 'm') }}</div>
-                        </div>
-                    </div>
-                </div>
-            {% endfor %}
         </div>
     {% endif %}
 </div>

@@ -1,0 +1,24 @@
+/*
+ * Authenticated app shell — corrections to Able Pro's layout components.
+ *
+ * Scope: things that apply to every page inside layout/app.html.twig. Anything
+ * belonging to a single screen goes in components/ instead.
+ *
+ * Rules are unlayered so they beat the vendor's component styles.
+ */
+
+/*
+ * Bottom breathing room on every page. Able Pro's .pc-content sets
+ * padding-inline and padding-top but no padding-bottom, so the last card (or a
+ * table's pager) ends flush against the viewport edge. The <40rem override is
+ * required, not redundant: the vendor's mobile rule is a `padding` shorthand
+ * that would otherwise reset this.
+ */
+.pc-container .pc-content {
+    padding-bottom: calc(var(--spacing) * 10);
+}
+@media (width < 40rem) {
+    .pc-container .pc-content {
+        padding-bottom: calc(var(--spacing) * 6);
+    }
+}

@@ -10,6 +10,12 @@
     {# Able Pro theme (vendored, precompiled) + Tabler icon font. Must come
        before the importmap: app.css (linked by the importmap via app.js) is
        the utilities build that wins on conflicts. #}
+    {# simple-datatables' own base stylesheet - layout only (the pager list,
+       the top/bottom bars). Able Pro ships it as a separate plugin file and
+       loads it FIRST, then re-colours it from style.css; that file's datatable
+       rules live in @layer utilities and use !important exactly so they beat
+       this unlayered one. Keep this order. #}
+    <link rel="stylesheet" href="{{ asset('able-pro/css/plugins/simple-datatables.css') }}">
     <link rel="stylesheet" href="{{ asset('able-pro/css/style.css') }}">
     <link rel="stylesheet" href="{{ asset('able-pro/fonts/tabler-icons.css') }}">
     {% block stylesheets %}{% endblock %}

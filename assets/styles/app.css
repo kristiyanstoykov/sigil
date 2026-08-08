@@ -16,6 +16,16 @@
    regenerating url() utilities whose images we don't ship. */
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 
+/* Sigil's own CSS, split by scope so this file stays the brand foundation
+   (tokens, fonts, brand recipes) rather than a dumping ground. Tailwind
+   inlines these at build time, so the output is still one file:
+     layout.css   — the authenticated shell, applies to every page
+     components/  — one file per screen or widget
+   Everything in them is unlayered, so it beats the vendored Able Pro CSS
+   whose component styles live in @layer utilities. */
+@import "./layout.css";
+@import "./components/documents-table.css";
+
 @source "../../templates";
 @source "../../src";
 @source "../controllers";
@@ -306,6 +316,7 @@
 .alert-danger { background-color: color-mix(in oklab, var(--color-danger-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-danger-500) 20%, transparent); }
 .alert-warning { background-color: color-mix(in oklab, var(--color-warning-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-warning-500) 20%, transparent); }
 .alert-info { background-color: color-mix(in oklab, var(--color-info-500) 10%, transparent); border-color: color-mix(in oklab, var(--color-info-500) 20%, transparent); }
+
 
 /*
  * Collapsed sidebar = icon rail (per the dashboard mockup), replacing Able
