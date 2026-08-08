@@ -225,8 +225,36 @@ def stamp_width(signer_name: str, scale: float = DEFAULT_SCALE) -> float:
     return (2 * PAD + content) * scale
 
 
+# Where the visible ink sits inside the drawn box, at scale 1: the frame is
+# stroked a little inside the box and the header/footer text overhangs the
+# frame lines. Measured by rasterising a signed page. The appearance must keep
+# being drawn into the full box (trimming the box clips the frame), so callers
+# that need to butt two stamps together subtract these insets themselves - see
+# ink_dimensions() and place_stamp() in sign_pdf.py.
+INK_LEFT, INK_RIGHT, INK_BOTTOM, INK_TOP = 2.3, 2.7, 5.4, 3.5
+
+
 def dimensions(signer_name: str, scale: float = DEFAULT_SCALE) -> tuple[float, float]:
+    """Full drawn size, padding included - the box the appearance needs."""
     return stamp_width(signer_name, scale), BASE_H * scale
+
+
+def ink_dimensions(signer_name: str, scale: float = DEFAULT_SCALE) -> tuple[float, float]:
+    """Visible size: the drawn box less its transparent padding."""
+    w, h = dimensions(signer_name, scale)
+    return w - (INK_LEFT + INK_RIGHT) * scale, h - (INK_BOTTOM + INK_TOP) * scale
+
+
+def fit_scale(signer_name: str, target_w: float, max_scale: float = DEFAULT_SCALE) -> float:
+    """Largest scale up to max_scale whose visible frame fits within target_w.
+
+    Every dimension here is linear in scale, so the fit is exact: the frame
+    can be no narrower than its own header ("Sigil" + "Signum Veritatis") and
+    footer, which is why a long signer name is what forces the scale down."""
+    natural, _ = ink_dimensions(signer_name, 1.0)
+    if natural <= 0:
+        return max_scale
+    return min(max_scale, target_w / natural)
 
 
 def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE) -> bytes:

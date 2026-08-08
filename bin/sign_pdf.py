@@ -46,9 +46,21 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields, signers
 from pyhanko.sign.pkcs11 import PKCS11Signer, open_pkcs11_session
 from pyhanko.sign.timestamps import HTTPTimeStamper
+from pyhanko.pdf_utils import layout
 from pyhanko.stamp import StaticStampStyle
 
-from sigil_stamp import DEFAULT_SCALE, SigilStampContent, dimensions
+from sigil_stamp import (
+    BASE_H,
+    DEFAULT_SCALE,
+    INK_BOTTOM,
+    INK_LEFT,
+    INK_RIGHT,
+    INK_TOP,
+    SigilStampContent,
+    dimensions,
+    fit_scale,
+    ink_dimensions,
+)
 
 # The MVP suite is ECDSA P-384 + SHA-384 (ADR-006). SoftHSM exposes ECDSA as the
 # raw CKM_ECDSA mechanism, so we name the digest+curve pairing explicitly rather
@@ -56,8 +68,18 @@ from sigil_stamp import DEFAULT_SCALE, SigilStampContent, dimensions
 MD_ALGORITHM = "sha384"
 ECDSA_SIG_MECHANISM = algos.SignedDigestAlgorithm({"algorithm": "sha384_ecdsa"})
 
-STAMP_ORIGIN = (36, 36)  # lower-left placement of the stamp on the page
+STAMP_ORIGIN = (36, 36)  # fallback placement when the grid has no free cell
 STAMP_TS_FORMAT = "%d.%m.%Y %H:%M:%S Z"  # display only; the crypto TS is the TSA token
+
+# Stamp placement (see place_stamp). Stamps are packed from the bottom-left of
+# the usable page box, left -> right, then up one row. dimensions() reports the
+# ink box, so this is the visible gap between two stamps, not box padding plus
+# a gap.
+GRID_GUTTER = 4.0
+GRID_MARGIN = 36.0   # default page inset; content_box may tighten it per edge
+# Field-name prefix minted by DocumentSigner - marks a stamp as ours, whose
+# box padding we know and can discount when packing against it.
+SIGIL_FIELD_PREFIX = "SigilSignature"
 
 
 def fail(message: str) -> None:
@@ -88,6 +110,144 @@ def resolve_page(writer: IncrementalPdfFileWriter, page: int) -> int:
     return min(page, count - 1)
 
 
+def page_rect(writer: IncrementalPdfFileWriter, page: int) -> tuple:
+    """The page's /MediaBox, normalised to (x1, y1, x2, y2) with x1<x2, y1<y2."""
+    page_obj, _ = writer.find_page_for_modification(page)
+    x1, y1, x2, y2 = (float(v) for v in page_obj.get_object()["/MediaBox"].get_object())
+    return min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+
+
+def occupied_rects(writer: IncrementalPdfFileWriter, page: int) -> list:
+    """Visible boxes already taken on a page.
+
+    Existing signature widgets and any other annotation. Every level here can
+    be an indirect reference, hence the .get_object() calls. Our own stamps
+    are reported as their ink, not their padded box - otherwise each one would
+    reserve several points of empty space around itself and the next stamp
+    could never sit close to it. Vendor stamps are near enough flush with
+    their box to use as-is."""
+    page_obj, _ = writer.find_page_for_modification(page)
+    annots = page_obj.get_object().get("/Annots")
+    if annots is None:
+        return []
+    boxes = []
+    for annot in annots.get_object():
+        annot = annot.get_object()
+        rect = annot.get("/Rect")
+        if rect is None:
+            continue
+        x1, y1, x2, y2 = (float(v) for v in rect.get_object())
+        box = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        if str(annot.get("/T") or "").startswith(SIGIL_FIELD_PREFIX):
+            box = ink_box(box)
+        # A zero-area rect is an invisible signature - it occupies nothing.
+        if box[2] > box[0] and box[3] > box[1]:
+            boxes.append(box)
+    return boxes
+
+
+def ink_box(box: tuple) -> tuple:
+    """Strip the transparent padding from one of our own stamp boxes.
+
+    The box height is BASE_H * scale by construction, which is what lets us
+    recover the scale a past signature was drawn at."""
+    scale = (box[3] - box[1]) / BASE_H
+    return (
+        box[0] + INK_LEFT * scale,
+        box[1] + INK_BOTTOM * scale,
+        box[2] - INK_RIGHT * scale,
+        box[3] - INK_TOP * scale,
+    )
+
+
+def overlaps(a: tuple, b: tuple) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def content_box(page: tuple, taken: list) -> tuple:
+    """The usable region of the page: our default margin, tightened per edge to
+    whatever inset a signature already on the page uses.
+
+    A vendor that hugs an edge closer than we would (Evrotrust sits 15pt from
+    the left on A5, 9pt from the bottom on A4) is telling us how much of the
+    page is really usable, so we follow it onto its own baseline. Insets are
+    read per edge and only ever gain room, never lose it - a stamp sitting
+    mid-page must not drag our left margin out to the middle of the page."""
+    px1, py1, px2, py2 = page
+
+    def inset(values) -> float:
+        return max(0.0, min([GRID_MARGIN, *values]))
+
+    return (
+        px1 + inset([t[0] - px1 for t in taken]),
+        py1 + inset([t[1] - py1 for t in taken]),
+        px2 - inset([px2 - t[2] for t in taken]),
+        py2 - inset([py2 - t[3] for t in taken]),
+    )
+
+
+def padded_box(ink: tuple, scale: float) -> tuple:
+    """Inverse of ink_box: the box the appearance has to be drawn into.
+
+    Trimming the box instead would clip the frame's own stroke, so the padding
+    stays and placement compensates for it."""
+    return (
+        ink[0] - INK_LEFT * scale,
+        ink[1] - INK_BOTTOM * scale,
+        ink[2] + INK_RIGHT * scale,
+        ink[3] + INK_TOP * scale,
+    )
+
+
+def row_origins(bottom: float, top: float, h: float, taken: list):
+    """Baselines to try, upward from the anchor.
+
+    Rows are not a fixed pitch: the next baseline is a gutter above whatever
+    box ends lowest above the current one, so a stamp sits directly on top of
+    the content below it instead of on a grid line. Falls back to a plain
+    stamp-height step once nothing is left to hug (an otherwise empty page)."""
+    ledges = sorted({t[3] + GRID_GUTTER for t in taken if t[3] > bottom})
+    y = bottom
+    while y + h <= top:
+        yield y
+        above = [c for c in ledges if c > y]
+        y = above[0] if above else y + h + GRID_GUTTER
+
+
+def place_stamp(writer: IncrementalPdfFileWriter, page: int, signer_name: str) -> tuple:
+    """First free slot, packed left -> right from the bottom-left, then up a row.
+
+    Returns (box, scale). Always starts at the bottom-left of the usable box,
+    whatever is already on the page: signatures off to the right do not move
+    our origin, they are just cells to step over. The stamp keeps one size for
+    the whole page - sized to the row width, capped at DEFAULT_SCALE - so
+    co-signatures stay visually consistent instead of shrinking into whatever
+    gap they land in. Note this avoids annotations only, not body text, which
+    would need content-stream parsing."""
+    taken = occupied_rects(writer, page)
+    left, bottom, right, top = content_box(page_rect(writer, page), taken)
+
+    scale = fit_scale(signer_name, right - left)
+    # Everything below is in ink coordinates - what the reader actually sees -
+    # and only the returned box is padded back out to what the appearance needs
+    # to draw into. Spacing therefore means visible spacing.
+    w, h = ink_dimensions(signer_name, scale)
+
+    for y in row_origins(bottom, top, h, taken):
+        x = left
+        while x + w <= right:
+            ink = (x, y, x + w, y + h)
+            hits = [t for t in taken if overlaps(ink, t)]
+            if not hits:
+                return padded_box(ink, scale), scale
+            # Skip past everything blocking this slot rather than creeping.
+            x = max(t[2] for t in hits) + GRID_GUTTER
+    # Page full: overlap at the fixed origin rather than fail to sign.
+    ox, oy = STAMP_ORIGIN
+    w, h = dimensions(signer_name, DEFAULT_SCALE)
+    return (ox, oy, ox + w, oy + h), DEFAULT_SCALE
+
+
 def main() -> None:
     req = json.load(sys.stdin)
     signer_req = req["signer"]
@@ -97,12 +257,14 @@ def main() -> None:
     writer = IncrementalPdfFileWriter(io.BytesIO(pdf_bytes))
 
     field_name = req.get("field_name") or "Signature1"
-    # The stamp width adapts to the signer name, so size the box from it unless
-    # the caller pins an explicit box.
-    stamp_w, stamp_h = dimensions(appearance.get("signer_name", ""), DEFAULT_SCALE)
-    ox, oy = STAMP_ORIGIN
-    box = tuple(req.get("box") or (ox, oy, ox + stamp_w, oy + stamp_h))
     page = resolve_page(writer, int(req.get("page", -1)))
+    signer_name = appearance.get("signer_name", "")
+    # An explicit box from the caller wins; otherwise take the first grid cell
+    # that clears the signatures already on the page.
+    if req.get("box"):
+        box, stamp_scale = tuple(req["box"]), DEFAULT_SCALE
+    else:
+        box, stamp_scale = place_stamp(writer, page, signer_name)
 
     # A visible signature field on the chosen page.
     fields.append_signature_field(
@@ -147,15 +309,32 @@ def main() -> None:
 
         stamp_ts = datetime.datetime.now(datetime.timezone.utc).strftime(STAMP_TS_FORMAT)
         stamp = SigilStampContent(
-            signer_name=appearance.get("signer_name", ""),
+            signer_name=signer_name,
             timestamp=stamp_ts,
-            scale=DEFAULT_SCALE,
+            # The same scale the box was sized with, or the appearance would be
+            # stretched to fit a box it was not drawn for.
+            scale=stamp_scale,
         )
         pdf_signer = signers.PdfSigner(
             signature_meta,
             signer=pkcs11_signer,
             timestamper=timestamper,
-            stamp_style=StaticStampStyle(background=stamp, border_width=0),
+            stamp_style=StaticStampStyle(
+                background=stamp,
+                border_width=0,
+                # pyHanko's default background layout centres the appearance
+                # inside a 5pt margin and SHRINK_TO_FITs it - which rendered
+                # our stamp at ~81% of the box and left padding proportional
+                # to the box width, so wide names drifted right. We size the
+                # box from the appearance ourselves, so draw it 1:1 at the
+                # box origin instead.
+                background_layout=layout.SimpleBoxLayoutRule(
+                    x_align=layout.AxisAlignment.ALIGN_MIN,
+                    y_align=layout.AxisAlignment.ALIGN_MIN,
+                    margins=layout.Margins.uniform(0),
+                    inner_content_scaling=layout.InnerScaling.NO_SCALING,
+                ),
+            ),
         )
 
         out = io.BytesIO()
