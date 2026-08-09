@@ -97,7 +97,7 @@ export default class extends Controller {
         // Turbo caches a snapshot of the page BEFORE tearing the body down, so
         // disconnect() alone is too late: the snapshot would keep the wrapper
         // the library injected, and restoring it would initialise a second
-        // datatable around the first. Same reason assets/able_pro.js cleans up
+        // datatable around the first. Same reason assets/behaviors/able_pro.js cleans up
         // on this event.
         this.beforeCache = () => this.teardown();
         document.addEventListener('turbo:before-cache', this.beforeCache);

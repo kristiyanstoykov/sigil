@@ -59,6 +59,15 @@ function slideDown(el, duration = 0) {
     }, duration);
 }
 
+/* Collapse an .alert away and remove it. Exported so the flash toasts fade out
+   on their timer exactly the way the close button dismisses them. */
+export function dismissAlert(alert) {
+    if (!alert || alert.dataset.dismissing) return;
+    alert.dataset.dismissing = 'true';
+    slideUp(alert, 200);
+    window.setTimeout(() => alert.remove(), 200);
+}
+
 function targetOf(trigger) {
     const selector = trigger.getAttribute('data-pc-target') || trigger.getAttribute('href');
     return selector && selector !== '#' ? document.querySelector(selector) : null;
@@ -153,11 +162,7 @@ function bindOnce() {
         }
 
         if (trigger.getAttribute('data-pc-dismiss') === 'alert') {
-            const alert = trigger.closest('.alert');
-            if (alert) {
-                slideUp(alert, 200);
-                window.setTimeout(() => alert.remove(), 200);
-            }
+            dismissAlert(trigger.closest('.alert'));
             return;
         }
 

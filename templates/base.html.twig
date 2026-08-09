@@ -28,8 +28,10 @@
 {# Top-center toast stack: one fixed container so multiple flashes don't overlap.
    Able Pro alert component + a frosted-glass finish (glass on toasts per the
    design brief). Dismiss is handled by the delegated [data-pc-dismiss="alert"]
-   listener in assets/able_pro.js. #}
-<div class="fixed top-20 inset-x-0 z-[1050] flex flex-col items-center gap-2 px-4 pointer-events-none">
+   listener in assets/behaviors/able_pro.js; data-flash-stack additionally marks
+   these as transient, so assets/behaviors/flash.js times them out - inline
+   alerts elsewhere in the app carry no such marker and stay put. #}
+<div data-flash-stack class="fixed top-20 inset-x-0 z-[1050] flex flex-col items-center gap-2 px-4 pointer-events-none">
     {% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
         {% for message in messages %}
             {# No .alert-dismissible: it reserves right padding for an absolutely

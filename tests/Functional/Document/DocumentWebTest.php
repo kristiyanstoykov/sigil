@@ -30,6 +30,7 @@ final class DocumentWebTest extends AuthWebTestCase
         $this->client->followRedirect();
     }
 
+    /** Uploads a PDF and returns the new document's detail URL. */
     private function uploadPdf(string $name): string
     {
         $crawler = $this->client->request('GET', '/documents');
@@ -41,15 +42,16 @@ final class DocumentWebTest extends AuthWebTestCase
         $file = new UploadedFile($tmp, $name, 'application/pdf', null, true);
 
         $this->client->request('POST', '/documents/upload', ['_token' => $token], ['document' => $file]);
+
+        // A successful upload continues to the sign page, not back to where the
+        // modal was opened from: storing a document is a step, not the goal.
         self::assertResponseRedirects();
-        $crawler = $this->client->followRedirect(); // back to the origin (the list)
+        $signUrl = (string) $this->client->getResponse()->headers->get('Location');
+        self::assertMatchesRegularExpression('#^/documents/[0-9a-f-]+/sign$#', $signUrl);
+        $this->client->followRedirect();
+        self::assertResponseIsSuccessful();
 
-        // The document's title links to its detail page (/documents/{id}).
-        $show = $crawler->filter('a[href^="/documents/"]')->reduce(
-            static fn ($node) => 1 === preg_match('#^/documents/[0-9a-f-]+$#', (string) $node->attr('href')),
-        );
-
-        return $show->first()->attr('href');
+        return substr($signUrl, 0, -\strlen('/sign'));
     }
 
     public function testEmptyStateThenUploadAndDownload(): void
@@ -67,12 +69,21 @@ final class DocumentWebTest extends AuthWebTestCase
         $showUrl = $this->uploadPdf('Contract.pdf');
         $this->client->request('GET', $showUrl);
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('Contract.pdf', (string) $this->client->getResponse()->getContent());
-        self::assertStringContainsString('Integrity fingerprint', (string) $this->client->getResponse()->getContent());
+        $show = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Contract.pdf', $show);
+        self::assertStringContainsString('Integrity fingerprint', $show);
 
-        // List now shows the document.
+        // An unsigned document reads as unfinished, and both ways out are shown:
+        // sign yourself (live) and request a signature (the ADR-007 seam).
+        self::assertStringContainsString('still a draft', $show);
+        self::assertStringContainsString('Request a signature', $show);
+        self::assertStringContainsString($showUrl.'/sign', $show);
+
+        // List now shows the document, badged Draft.
         $this->client->request('GET', '/documents');
-        self::assertStringContainsString('Contract.pdf', (string) $this->client->getResponse()->getContent());
+        $list = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Contract.pdf', $list);
+        self::assertStringContainsString('Draft', $list);
 
         // Download streams the decrypted PDF.
         $this->client->request('GET', $showUrl.'/download');

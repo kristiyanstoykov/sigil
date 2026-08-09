@@ -98,7 +98,9 @@
                                         </span>
                                     </a>
                                 </td>
-                                <td class="px-5 py-3.5" data-label="Status">{{ docs.status_badge(v.kind) }}</td>
+                                {# The document's state, not the latest version's kind:
+                                   an unsigned document is a Draft, i.e. unfinished. #}
+                                <td class="px-5 py-3.5" data-label="Status">{{ docs.doc_status_badge(document.displayStatus) }}</td>
                                 {# Raw bytes: the datatable sorts on the cell's value and
                                    renders the human-readable size for display. #}
                                 <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Size">{{ v.sizeBytes }}</td>

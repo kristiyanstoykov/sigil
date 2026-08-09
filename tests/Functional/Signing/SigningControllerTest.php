@@ -147,6 +147,8 @@ final class SigningControllerTest extends AuthWebTestCase
         $button = $crawler->filter('button[disabled]');
         self::assertGreaterThan(0, $button->count());
         self::assertStringContainsString('Signed', $button->text());
+        // And it is no longer a draft, so the "finish this" callout is gone.
+        self::assertStringNotContainsString('still a draft', (string) $this->client->getResponse()->getContent());
     }
 
     public function testSignPageShowsEmptyStateWithoutAUsableCertificate(): void

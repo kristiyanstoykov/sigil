@@ -38,8 +38,10 @@ class DocumentController extends AbstractController
     #[Route('/upload', name: 'app_document_upload', methods: ['POST'])]
     public function upload(Request $request, DocumentUploader $uploader): Response
     {
-        // The upload modal is available on every page; return the user to
-        // whatever page they opened it from, not to a documents view.
+        // Where a *failed* upload goes: the modal is available on every page, so
+        // an error returns the user to whatever page they opened it from rather
+        // than dumping them in a documents view they did not ask for. A
+        // successful upload ignores this and continues to the sign page.
         $back = $this->redirect($this->returnTarget($request));
 
         // A body larger than PHP's post_max_size is discarded before we run:
@@ -79,16 +81,20 @@ class DocumentController extends AbstractController
             if (false === $bytes) {
                 throw new DomainException('The uploaded file could not be read.');
             }
-            $uploader->upload($this->currentUser(), $bytes, (string) $file->getClientOriginalName());
+            $document = $uploader->upload($this->currentUser(), $bytes, (string) $file->getClientOriginalName());
         } catch (DomainException $e) {
             $this->addFlash('danger', $e->getMessage());
 
             return $back;
         }
 
-        $this->addFlash('success', 'Document uploaded and encrypted.');
+        $this->addFlash('success', 'Document uploaded and encrypted. Sign it now, or come back to it later.');
 
-        return $back;
+        // Storing a document is not the point of storing it: an upload is only
+        // ever a step towards a signature. Carry straight on to the sign page -
+        // which itself handles the "no usable certificate" case - instead of
+        // leaving the document sitting as a draft nobody was prompted to finish.
+        return $this->redirectToRoute('app_document_sign', ['id' => $document->getId()->toRfc4122()]);
     }
 
     /**

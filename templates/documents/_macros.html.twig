@@ -10,11 +10,27 @@
 {%- endif -%}
 {% endmacro %}
 
+{#
+    A single version's kind - Original or Signed. Describes bytes, not the
+    document's lifecycle; for that use doc_status_badge below.
+#}
 {% macro status_badge(kind) %}
     {% set signed = kind.value == 'signed' %}
     <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold
                  {{ signed ? 'border-success-500/20 bg-success-500/10 text-success-600' : 'border-theme-border bg-theme-activebg text-theme-bodycolor' }}">
         {{ signed ? 'Signed' : 'Original' }}
+    </span>
+{% endmacro %}
+
+{#
+    The document's own state (DocumentDisplayStatus): Draft until it carries a
+    Sigil signature. Label and colors come from the enum - see
+    src/Document/Enum/DocumentDisplayStatus.php.
+#}
+{% macro doc_status_badge(status) %}
+    <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold {{ status.badgeClass }}">
+        <span class="h-1.5 w-1.5 rounded-full {{ status.dotClass }}" aria-hidden="true"></span>
+        {{ status.label }}
     </span>
 {% endmacro %}
 
@@ -36,15 +52,31 @@
             <span class="sr-only">More actions</span>
             <i class="ti ti-dots-vertical text-base leading-none" aria-hidden="true"></i>
         </button>
-        <div data-menu-target="menu" class="hidden w-44 rounded-lg border border-theme-border bg-white p-1.5 shadow-xl">
+        <div data-menu-target="menu" class="hidden w-60 rounded-lg border border-theme-border bg-white p-1.5 shadow-xl">
             <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
                class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
                 <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                 View
             </a>
             <div class="my-1 border-t border-theme-border/60"></div>
+            {# The two ways a document gets signed. "Sign yourself" is live;
+               "Request a signature" is the SigningRequest workflow (ADR-007) and
+               is deliberately shown as Soon so the second path is visible in the
+               UI before it exists. #}
+            {% if document.displayStatus.signed %}
+                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-success-600/70 cursor-not-allowed" title="This document has already been signed.">
+                    <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
+                    Signed
+                </span>
+            {% else %}
+                <a href="{{ path('app_document_sign', {id: document.id}) }}"
+                   class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
+                    <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
+                    Sign yourself
+                </a>
+            {% endif %}
             {% for soon in [
-                {label: 'Sign',   icon: 'ti-signature'},
+                {label: 'Request a signature', icon: 'ti-send'},
                 {label: 'Share',  icon: 'ti-share'},
                 {label: 'Delete', icon: 'ti-trash'}
             ] %}

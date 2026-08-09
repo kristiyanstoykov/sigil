@@ -7,6 +7,7 @@ namespace App\Document\Entity;
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
 use App\Core\Entity\User;
+use App\Document\Enum\DocumentDisplayStatus;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -96,6 +97,15 @@ class Document
         }
 
         return false;
+    }
+
+    /**
+     * The document's lifecycle state for the UI. Derived, never stored - the
+     * versions already hold the truth.
+     */
+    public function getDisplayStatus(): DocumentDisplayStatus
+    {
+        return $this->isSigned() ? DocumentDisplayStatus::Signed : DocumentDisplayStatus::Draft;
     }
 
     /** Next 1-based version number for a new version of this document. */

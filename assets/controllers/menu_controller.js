@@ -67,7 +67,7 @@ export default class extends Controller {
 
     place() {
         const rect = this.button.getBoundingClientRect();
-        const width = this.menu.offsetWidth || 176;
+        const width = this.menu.offsetWidth || 240; // fallback = the menu's w-60
         const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
         this.menu.style.position = 'fixed';
         this.menu.style.zIndex = '70'; // above the fixed navbar (z-50)
