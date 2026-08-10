@@ -124,6 +124,39 @@ final class CertificateHoldTest extends AuthWebTestCase
         self::assertSame(CertificateStatus::Revoked, $this->reloadCertificate($certUrl)->getStatus());
     }
 
+    /**
+     * A locked certificate is revocable WITHOUT a PIN: locked means the PIN is
+     * lost or desynced (ADR-008), and re-issuing starts by revoking - demanding
+     * the PIN would strand the user.
+     *
+     * The rendered modal and the controller have to agree on that, or the form
+     * posts no PIN into a handler that insists on one.
+     */
+    public function testLockedCertificateIsRevocableWithoutAPin(): void
+    {
+        $certUrl = $this->issueCertificate($this->uniqueEmail('revokelocked'));
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $certificate = $this->certificateFromUrl($certUrl);
+        $certificate->lock(new \DateTimeImmutable());
+        $em->flush();
+
+        $crawler = $this->client->request('GET', $certUrl);
+        self::assertSame(
+            CertificateDisplayStatus::Locked,
+            $this->reloadCertificate($certUrl)->getDisplayStatus(new \DateTimeImmutable()),
+        );
+
+        // The modal offers no PIN field...
+        self::assertSame(0, $crawler->filter('form[action$="/revoke"] input[type="password"]')->count());
+
+        // ...and submitting it as rendered revokes the certificate.
+        $this->client->submit($crawler->filter('form[action$="/revoke"]')->form());
+        self::assertResponseRedirects();
+
+        self::assertSame(CertificateStatus::Revoked, $this->reloadCertificate($certUrl)->getStatus());
+    }
+
     // -- helpers -------------------------------------------------------------
 
     /** Full login + wizard issue; returns the certificate detail URL. */
@@ -155,7 +188,8 @@ final class CertificateHoldTest extends AuthWebTestCase
     private function submitModalForm(string $certUrl, string $action, string $pin): void
     {
         $crawler = $this->client->request('GET', $certUrl);
-        $form = $crawler->filter(sprintf('form[action$="/%s"]', $action))->form(['_pin' => $pin]);
+        $form = $crawler->filter(sprintf('form[action$="/%s"]', $action))
+            ->form(['certificate_action_form[pin]' => $pin]);
         $this->client->submit($form);
         self::assertResponseRedirects();
     }

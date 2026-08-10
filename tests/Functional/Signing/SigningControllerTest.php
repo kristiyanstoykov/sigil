@@ -26,17 +26,6 @@ final class SigningControllerTest extends AuthWebTestCase
         ."3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
         ."trailer\n<< /Root 1 0 R /Size 4 >>\nstartxref\n0\n%%EOF";
 
-    private function loginFully(string $email): void
-    {
-        $this->submitLogin($email, self::PASSWORD);
-        $crawler = $this->client->request('GET', '/2fa');
-        $form = $crawler->filter('form[action$="2fa_check"]')->form([
-            '_auth_code' => $this->totpCode(self::TOTP_SECRET),
-        ]);
-        $this->client->submit($form);
-        $this->client->followRedirect();
-    }
-
     private function makeCertificate(User $user): Certificate
     {
         $em = static::getContainer()->get(EntityManagerInterface::class);

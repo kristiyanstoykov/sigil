@@ -43,9 +43,12 @@
 {#
     Row overflow menu. Rendered via the `menu` Stimulus controller, which moves
     the menu into <body> with fixed positioning on open so the table's overflow
-    never clips it. `suffix` is unused now (kept for call-site compatibility).
+    never clips it.
+
+    `owned` is false on the "Shared with me" tab: a recipient may read the
+    document, nothing more - signing, sharing on and deleting are the owner's.
 #}
-{% macro row_menu(document, suffix) %}
+{% macro row_menu(document, owned = true) %}
     <div data-controller="menu" class="inline-block">
         <button type="button" data-action="menu#toggle" data-menu-target="button"
                 class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-theme-border bg-white text-theme-secondarytextcolor hover:bg-theme-activebg">
@@ -58,6 +61,9 @@
                 <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                 View
             </a>
+            {% if not owned %}
+                {# Shared with me: read-only. View above is the whole menu. #}
+            {% else %}
             <div class="my-1 border-t border-theme-border/60"></div>
             {# The two ways a document gets signed. "Sign yourself" is live;
                "Request a signature" is the SigningRequest workflow (ADR-007) and
@@ -75,9 +81,15 @@
                     Sign yourself
                 </a>
             {% endif %}
+            {# Sharing lives on the document page, next to the list of who already
+               has access - a menu is the wrong place to manage a set. #}
+            <a href="{{ path('app_document_show', {id: document.id}) }}#sharing"
+               class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
+                <i class="ti ti-share text-base leading-none" aria-hidden="true"></i>
+                Share
+            </a>
             {% for soon in [
                 {label: 'Request a signature', icon: 'ti-send'},
-                {label: 'Share',  icon: 'ti-share'},
                 {label: 'Delete', icon: 'ti-trash'}
             ] %}
                 <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="Coming soon">
@@ -86,6 +98,7 @@
                     <span class="ml-auto text-[10px] font-bold uppercase tracking-wide">Soon</span>
                 </span>
             {% endfor %}
+            {% endif %}
         </div>
     </div>
 {% endmacro %}

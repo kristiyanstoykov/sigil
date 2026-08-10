@@ -8,21 +8,21 @@
         Your account isn't verified yet. Enter your email address and we'll send you a new confirmation link.
     </p>
 
-    <form method="post" class="space-y-4">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token('resend_verification') }}">
-
+    {% set E_EMAIL = constant('App\\Auth\\Form\\ResendVerificationForm::E_EMAIL') %}
+    {{ form_start(form, {attr: {novalidate: 'novalidate', class: 'space-y-4'}}) }}
         <div>
-            <label for="email" class="form-label text-sm font-semibold">Email address</label>
-            <input type="email" id="email" name="email" value="{{ prefill_email }}"
-                   placeholder="you@company.com" autocomplete="email" required
-                   class="form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85">
+            <label for="{{ form[E_EMAIL].vars.id }}" class="form-label text-sm font-semibold">Email address</label>
+            {{ form_widget(form[E_EMAIL], {attr: {
+                class: 'form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85'
+            }}) }}
+            {{ form_errors(form[E_EMAIL]) }}
         </div>
 
         <button type="submit"
                 class="btn btn-primary w-full bg-linear-to-b from-primary-600 to-primary-500 shadow-lg shadow-primary-500/30 hover:-translate-y-px transition">
             Send confirmation link
         </button>
-    </form>
+    {{ form_end(form) }}
 {% endblock %}
 
 {% block footer %}

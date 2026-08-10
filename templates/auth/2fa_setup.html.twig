@@ -25,19 +25,19 @@
         </p>
     </details>
 
-    <form method="post" class="space-y-4">
-        <input type="hidden" name="_csrf_token" value="{{ csrf_token('2fa_setup') }}">
+    {% set E_CODE = constant('App\\Auth\\Form\\TwoFactorSetupForm::E_CODE') %}
+    {{ form_start(form, {attr: {novalidate: 'novalidate', class: 'space-y-4'}}) }}
         <div>
-            <label for="code" class="form-label text-sm font-semibold">Verification code</label>
-            <input type="text" id="code" name="_auth_code"
-                   inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-                   autocomplete="one-time-code" autofocus placeholder="000000"
-                   class="form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85 !p-3 text-center !text-xl tracking-[0.4em] font-mono">
+            <label for="{{ form[E_CODE].vars.id }}" class="form-label text-sm font-semibold">Verification code</label>
+            {{ form_widget(form[E_CODE], {attr: {
+                class: 'form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85 !p-3 text-center !text-xl tracking-[0.4em] font-mono'
+            }}) }}
+            {{ form_errors(form[E_CODE]) }}
         </div>
 
         <button type="submit"
                 class="btn btn-primary w-full bg-linear-to-b from-primary-600 to-primary-500 shadow-lg shadow-primary-500/30 hover:-translate-y-px transition">
             Enable two-factor authentication
         </button>
-    </form>
+    {{ form_end(form) }}
 {% endblock %}

@@ -19,7 +19,7 @@ final class ResendVerificationTest extends AuthWebTestCase
 
         $crawler = $this->client->followRedirect();
         self::assertResponseIsSuccessful();
-        self::assertSame($email, $crawler->filter('input[name="email"]')->attr('value'), 'Attempted email must be prefilled');
+        self::assertSame($email, $crawler->filter('input[name="resend_verification_form[email]"]')->attr('value'), 'Attempted email must be prefilled');
     }
 
     public function testResendSendsEmailOnlyForExistingUnverifiedAccountButResponseIsIdentical(): void
@@ -81,7 +81,7 @@ final class ResendVerificationTest extends AuthWebTestCase
     private function postResend(string $email): void
     {
         $crawler = $this->client->request('GET', '/verify/resend');
-        $form = $crawler->filter('form')->form(['email' => $email]);
+        $form = $crawler->filter('form')->form(['resend_verification_form[email]' => $email]);
         $this->client->submit($form);
     }
 }

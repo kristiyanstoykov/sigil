@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\Controller;
 
+use App\Auth\Form\TwoFactorSetupForm;
 use App\Core\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
@@ -12,6 +13,7 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\SvgWriter;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Google\GoogleAuthenticatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -42,14 +44,12 @@ class TwoFactorController extends AbstractController
             $this->em->flush();
         }
 
-        if ($request->isMethod('POST')) {
-            if (!$this->isCsrfTokenValid('2fa_setup', $request->request->getString('_csrf_token'))) {
-                $this->addFlash('danger', 'Your session expired. Please try again.');
+        $form = $this->createForm(TwoFactorSetupForm::class);
+        $form->handleRequest($request);
 
-                return $this->redirectToRoute('app_2fa_setup');
-            }
-
-            $code = $request->request->getString('_auth_code');
+        if ($form->isSubmitted() && $form->isValid()) {
+            /** @var string $code */
+            $code = $form->get(TwoFactorSetupForm::E_CODE)->getData();
 
             if ($this->googleAuthenticator->checkCode($user, $code)) {
                 $user->enableTotp();
@@ -60,19 +60,26 @@ class TwoFactorController extends AbstractController
                 return $this->redirectToRoute('app_dashboard');
             }
 
-            // Redirect (not re-render): Turbo discards non-redirect responses
-            // to form submissions, which would swallow the error message.
-            $this->addFlash('danger', 'Invalid code. Please try again.');
-
-            return $this->redirectToRoute('app_2fa_setup');
+            $form->get(TwoFactorSetupForm::E_CODE)->addError(
+                new FormError('Invalid code. Please try again.'),
+            );
         }
 
         $provisioningUri = $this->googleAuthenticator->getQRContent($user);
 
-        return $this->render('auth/2fa_setup.html.twig', [
+        $response = $this->render('auth/2fa_setup.html.twig', [
             'provisioning_uri' => $provisioningUri,
             'qr_code_data_uri' => $this->buildQrCodeDataUri($provisioningUri),
+            'form' => $form,
         ]);
+
+        // 422 on a rejected code: Turbo discards a 200 response to a form
+        // submission, which used to mean the error had to travel as a flash.
+        if ($form->isSubmitted()) {
+            $response->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $response;
     }
 
     // NOTE: self-service 2FA disable was intentionally removed - 2FA is mandatory

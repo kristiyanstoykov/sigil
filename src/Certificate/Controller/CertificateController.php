@@ -9,6 +9,7 @@ use App\AuditLog\Enum\AuditSeverity;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Exception\CertificateLockedException;
 use App\Certificate\Exception\InvalidPinException;
+use App\Certificate\Form\CertificateActionForm;
 use App\Certificate\Form\ChangePinForm;
 use App\Certificate\Form\NewCertificateForm;
 use App\Certificate\Form\UnlockCertificateForm;
@@ -23,6 +24,7 @@ use Psr\Clock\ClockInterface;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Google\GoogleAuthenticatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -103,9 +105,15 @@ class CertificateController extends AbstractController
     {
         $certificate = $this->ownedCertificate($id);
 
+        // One form per lifecycle action. Only the one whose button is rendered
+        // gets used, but building all three keeps the template free of
+        // conditionals it would otherwise duplicate.
         return $this->render('certificate/show.html.twig', [
             'certificate' => $certificate,
             'algorithm_label' => $algorithms->get($certificate->getAlgorithmId())->label(),
+            'holdForm' => $this->actionForm($id, 'hold')->createView(),
+            'resumeForm' => $this->actionForm($id, 'resume')->createView(),
+            'revokeForm' => $this->actionForm($id, 'revoke', $certificate->getDisplayStatus()->isPinGuarded())->createView(),
         ]);
     }
 
@@ -246,15 +254,18 @@ class CertificateController extends AbstractController
     ): Response {
         $certificate = $this->ownedCertificate($id);
 
-        if (!$this->isCsrfTokenValid('hold-certificate-'.$id, (string) $request->request->get('_token'))) {
-            $this->addFlash('danger', 'Invalid security token - please try again.');
+        $form = $this->actionForm($id, 'hold');
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $this->addFlash('danger', $this->firstErrorMessage($form));
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
         }
 
         // allowOnHold: false → an already-held (or locked/revoked/expired)
         // certificate is rejected by the gate itself.
-        if ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: false)) {
+        if ($failure = $this->verifyPostedPin($certificate, $this->submittedPin($form), $pinVerificationLimiter, allowOnHold: false)) {
             return $failure;
         }
 
@@ -290,8 +301,11 @@ class CertificateController extends AbstractController
     ): Response {
         $certificate = $this->ownedCertificate($id);
 
-        if (!$this->isCsrfTokenValid('resume-certificate-'.$id, (string) $request->request->get('_token'))) {
-            $this->addFlash('danger', 'Invalid security token - please try again.');
+        $form = $this->actionForm($id, 'resume');
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $this->addFlash('danger', $this->firstErrorMessage($form));
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
         }
@@ -300,7 +314,7 @@ class CertificateController extends AbstractController
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
         }
 
-        if ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: true)) {
+        if ($failure = $this->verifyPostedPin($certificate, $this->submittedPin($form), $pinVerificationLimiter, allowOnHold: true)) {
             return $failure;
         }
 
@@ -332,8 +346,13 @@ class CertificateController extends AbstractController
     ): Response {
         $certificate = $this->ownedCertificate($id);
 
-        if (!$this->isCsrfTokenValid('revoke-certificate-'.$id, (string) $request->request->get('_token'))) {
-            $this->addFlash('danger', 'Invalid security token - please try again.');
+        // with_pin mirrors what the modal rendered (CertificateDisplayStatus::
+        // isPinGuarded), so the submitted form matches the built one.
+        $form = $this->actionForm($id, 'revoke', $certificate->getDisplayStatus()->isPinGuarded());
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $this->addFlash('danger', $this->firstErrorMessage($form));
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
         }
@@ -342,8 +361,14 @@ class CertificateController extends AbstractController
         // Locked and expired ones stay revocable without it: the locked state
         // exists precisely because the PIN is lost or desynced, and re-issuing
         // starts with revoking.
+        //
+        // This must stay in step with the with_pin above, or the modal posts no
+        // PIN into a branch that demands one. It does: isWithinValidity() also
+        // requires status Active, so Locked/Revoked fail it exactly as
+        // isPinGuarded() excludes them (covered by
+        // CertificateHoldTest::testLockedCertificateIsRevocableWithoutAPin).
         if ($certificate->isWithinValidity($this->utcNow($clock))
-            && ($failure = $this->verifyPostedPin($certificate, $request, $pinVerificationLimiter, allowOnHold: true))) {
+            && ($failure = $this->verifyPostedPin($certificate, $this->submittedPin($form), $pinVerificationLimiter, allowOnHold: true))) {
             return $failure;
         }
 
@@ -358,13 +383,55 @@ class CertificateController extends AbstractController
     }
 
     /**
-     * Rate-limits and verifies the PIN posted as "_pin". Returns a redirect
-     * back to the certificate on failure, null when the PIN checked out.
-     * A wrong PIN counts toward the ADR-008 lockout like everywhere else.
+     * The confirm-modal form for a lifecycle action. The CSRF token id stays
+     * per-action AND per-certificate, as it was when this was hand-rolled, so a
+     * token minted for "hold" cannot be replayed against "revoke".
+     */
+    /** @return FormInterface<mixed> */
+    private function actionForm(string $id, string $action, bool $withPin = true): FormInterface
+    {
+        return $this->createForm(CertificateActionForm::class, null, [
+            'with_pin' => $withPin,
+            'csrf_token_id' => $action.'-certificate-'.$id,
+        ]);
+    }
+
+    /**
+     * These actions live in a modal and redirect back, so their errors travel as
+     * flashes: a field error would be rendered into a modal the redirect has
+     * already closed.
+     *
+     * @param FormInterface<mixed> $form
+     */
+    private function firstErrorMessage(FormInterface $form): string
+    {
+        foreach ($form->getErrors(true) as $error) {
+            return $error->getMessage();
+        }
+
+        return 'Invalid security token - please try again.';
+    }
+
+    /**
+     * The submitted PIN, or '' for an action rendered without the field.
+     *
+     * @param FormInterface<mixed> $form
+     */
+    private function submittedPin(FormInterface $form): string
+    {
+        return $form->has(CertificateActionForm::E_PIN)
+            ? (string) $form->get(CertificateActionForm::E_PIN)->getData()
+            : '';
+    }
+
+    /**
+     * Rate-limits and verifies the submitted PIN. Returns a redirect back to the
+     * certificate on failure, null when the PIN checked out. A wrong PIN counts
+     * toward the ADR-008 lockout like everywhere else.
      */
     private function verifyPostedPin(
         Certificate $certificate,
-        Request $request,
+        string $pin,
         RateLimiterFactory $pinVerificationLimiter,
         bool $allowOnHold,
     ): ?Response {
@@ -377,7 +444,7 @@ class CertificateController extends AbstractController
         }
 
         try {
-            $this->pinGate->verify($certificate, (string) $request->request->get('_pin'), $allowOnHold);
+            $this->pinGate->verify($certificate, $pin, $allowOnHold);
         } catch (InvalidPinException|CertificateLockedException $e) {
             $this->addFlash('danger', $e->getMessage());
 

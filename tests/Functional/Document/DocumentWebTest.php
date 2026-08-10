@@ -19,29 +19,23 @@ final class DocumentWebTest extends AuthWebTestCase
         ."3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
         ."trailer\n<< /Root 1 0 R /Size 4 >>\nstartxref\n0\n%%EOF";
 
-    private function loginFully(string $email): void
-    {
-        $this->submitLogin($email, self::PASSWORD);
-        $crawler = $this->client->request('GET', '/2fa');
-        $form = $crawler->filter('form[action$="2fa_check"]')->form([
-            '_auth_code' => $this->totpCode(self::TOTP_SECRET),
-        ]);
-        $this->client->submit($form);
-        $this->client->followRedirect();
-    }
-
     /** Uploads a PDF and returns the new document's detail URL. */
     private function uploadPdf(string $name): string
     {
         $crawler = $this->client->request('GET', '/documents');
         self::assertResponseIsSuccessful();
-        $token = $crawler->filter('form[action$="/documents/upload"] input[name="_token"]')->attr('value');
+        $token = $crawler->filter('form[action$="/documents/upload"] input[name="upload_document_form[_token]"]')->attr('value');
 
         $tmp = tempnam(sys_get_temp_dir(), 'sigil-pdf');
         file_put_contents($tmp, self::MINIMAL_PDF);
         $file = new UploadedFile($tmp, $name, 'application/pdf', null, true);
 
-        $this->client->request('POST', '/documents/upload', ['_token' => $token], ['document' => $file]);
+        $this->client->request(
+            'POST',
+            '/documents/upload',
+            ['upload_document_form' => ['_token' => $token]],
+            ['upload_document_form' => ['document' => $file]],
+        );
 
         // A successful upload continues to the sign page, not back to where the
         // modal was opened from: storing a document is a step, not the goal.
@@ -119,13 +113,18 @@ final class DocumentWebTest extends AuthWebTestCase
         $this->loginFully($email);
 
         $crawler = $this->client->request('GET', '/documents');
-        $token = $crawler->filter('form[action$="/documents/upload"] input[name="_token"]')->attr('value');
+        $token = $crawler->filter('form[action$="/documents/upload"] input[name="upload_document_form[_token]"]')->attr('value');
 
         $tmp = tempnam(sys_get_temp_dir(), 'sigil-bad');
         file_put_contents($tmp, 'not a pdf at all');
         $file = new UploadedFile($tmp, 'evil.pdf', 'application/pdf', null, true);
 
-        $this->client->request('POST', '/documents/upload', ['_token' => $token], ['document' => $file]);
+        $this->client->request(
+            'POST',
+            '/documents/upload',
+            ['upload_document_form' => ['_token' => $token]],
+            ['upload_document_form' => ['document' => $file]],
+        );
         $this->client->followRedirect();
         self::assertStringContainsString('Only PDF files are accepted', (string) $this->client->getResponse()->getContent());
     }
@@ -137,14 +136,19 @@ final class DocumentWebTest extends AuthWebTestCase
         $this->loginFully($email);
 
         $crawler = $this->client->request('GET', '/documents');
-        $token = $crawler->filter('form[action$="/documents/upload"] input[name="_token"]')->attr('value');
+        $token = $crawler->filter('form[action$="/documents/upload"] input[name="upload_document_form[_token]"]')->attr('value');
 
         // Simulate PHP flagging the upload as over its size limit (UPLOAD_ERR_INI_SIZE).
         $tmp = tempnam(sys_get_temp_dir(), 'sigil-big');
         file_put_contents($tmp, '%PDF-1.4');
         $file = new UploadedFile($tmp, 'huge.pdf', 'application/pdf', \UPLOAD_ERR_INI_SIZE, true);
 
-        $this->client->request('POST', '/documents/upload', ['_token' => $token], ['document' => $file]);
+        $this->client->request(
+            'POST',
+            '/documents/upload',
+            ['upload_document_form' => ['_token' => $token]],
+            ['upload_document_form' => ['document' => $file]],
+        );
         $this->client->followRedirect();
         self::assertStringContainsString('too large', (string) $this->client->getResponse()->getContent());
     }

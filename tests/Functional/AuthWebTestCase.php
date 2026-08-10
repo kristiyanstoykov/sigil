@@ -77,6 +77,18 @@ abstract class AuthWebTestCase extends WebTestCase
         $this->client->submit($form);
     }
 
+    /** Password + TOTP, so the client ends up FULLY authenticated. */
+    protected function loginFully(string $email): void
+    {
+        $this->submitLogin($email, self::PASSWORD);
+        $crawler = $this->client->request('GET', '/2fa');
+        $form = $crawler->filter('form[action$="2fa_check"]')->form([
+            '_auth_code' => $this->totpCode(self::TOTP_SECRET),
+        ]);
+        $this->client->submit($form);
+        $this->client->followRedirect();
+    }
+
     /**
      * Assert the user is mid-2FA: a successful password login redirects to the
      * default target first; requesting it must then bounce to the /2fa form.

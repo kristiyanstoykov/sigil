@@ -30,17 +30,6 @@ final class CertificateWebTest extends AuthWebTestCase
         parent::tearDown();
     }
 
-    private function loginFully(string $email): void
-    {
-        $this->submitLogin($email, self::PASSWORD);
-        $crawler = $this->client->request('GET', '/2fa');
-        $form = $crawler->filter('form[action$="2fa_check"]')->form([
-            '_auth_code' => $this->totpCode(self::TOTP_SECRET),
-        ]);
-        $this->client->submit($form);
-        $this->client->followRedirect();
-    }
-
     public function testWizardIssuesCertificateAndPagesRender(): void
     {
         $email = $this->uniqueEmail('certweb');

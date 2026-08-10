@@ -6,6 +6,7 @@ namespace App\Auth\Controller;
 
 use App\Auth\EventSubscriber\UnverifiedLoginSubscriber;
 use App\Auth\Form\RegistrationForm;
+use App\Auth\Form\ResendVerificationForm;
 use App\Auth\Service\EmailVerifier;
 use App\Core\Entity\User;
 use App\Core\Repository\UserRepository;
@@ -137,31 +138,31 @@ class AuthController extends AbstractController
     ): Response {
         $session = $request->getSession();
 
-        if ($request->isMethod('POST')) {
-            if (!$this->isCsrfTokenValid('resend_verification', $request->getPayload()->getString('_csrf_token'))) {
-                $this->addFlash('danger', 'Invalid form token. Please try again.');
+        $form = $this->createForm(ResendVerificationForm::class);
+        $form->get(ResendVerificationForm::E_EMAIL)->setData(
+            $session->get(UnverifiedLoginSubscriber::SESSION_EMAIL_KEY, ''),
+        );
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            /** @var string $email */
+            $email = $form->get(ResendVerificationForm::E_EMAIL)->getData();
+            $email = mb_strtolower(trim($email));
+
+            $limiter = $resendVerificationLimiter->create($email . '|' . $request->getClientIp());
+
+            if (!$limiter->consume()->isAccepted()) {
+                $this->addFlash('warning', 'Too many requests. Please wait before requesting another email.');
 
                 return $this->redirectToRoute('app_verify_resend');
             }
 
-            $email = mb_strtolower(trim($request->getPayload()->getString('email')));
-
-            if ($email !== '') {
-                $limiter = $resendVerificationLimiter->create($email . '|' . $request->getClientIp());
-
-                if (!$limiter->consume()->isAccepted()) {
-                    $this->addFlash('warning', 'Too many requests. Please wait before requesting another email.');
-
-                    return $this->redirectToRoute('app_verify_resend');
-                }
-
-                $user = $userRepository->findOneBy(['email' => $email]);
-                if ($user !== null && !$user->isVerified()) {
-                    // Send result deliberately ignored: reporting a provider failure
-                    // only when the account exists would leak which emails are
-                    // registered. The failure is logged; the flash stays identical.
-                    $this->sendConfirmationEmail($emailVerifier, $user);
-                }
+            $user = $userRepository->findOneBy(['email' => $email]);
+            if ($user !== null && !$user->isVerified()) {
+                // Send result deliberately ignored: reporting a provider failure
+                // only when the account exists would leak which emails are
+                // registered. The failure is logged; the flash stays identical.
+                $this->sendConfirmationEmail($emailVerifier, $user);
             }
 
             $session->remove(UnverifiedLoginSubscriber::SESSION_EMAIL_KEY);
@@ -170,9 +171,14 @@ class AuthController extends AbstractController
             return $this->redirectToRoute('app_verify_resend');
         }
 
-        return $this->render('auth/resend_verification.html.twig', [
-            'prefill_email' => $session->get(UnverifiedLoginSubscriber::SESSION_EMAIL_KEY, ''),
-        ]);
+        $response = $this->render('auth/resend_verification.html.twig', ['form' => $form]);
+
+        // 422 so Turbo swaps in the re-rendered form instead of dropping it.
+        if ($form->isSubmitted()) {
+            $response->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $response;
     }
 
     private function sendConfirmationEmail(EmailVerifier $emailVerifier, User $user): bool

@@ -20,16 +20,25 @@
             </button>
         </div>
 
-        <form method="post" action="{{ path('app_document_upload') }}" enctype="multipart/form-data"
-              data-action="submit->documents-upload#validate">
-            <input type="hidden" name="_token" value="{{ csrf_token('upload-document') }}">
-            <input type="hidden" name="_return" value="{{ app.request.requestUri|split('?')|first }}">
+        {# The modal ships with the layout, so the form comes from a Twig
+           function rather than from every controller that renders a page. #}
+        {% set uploadForm = document_upload_form() %}
+        {% set E_FILE = constant('App\\Document\\Form\\UploadDocumentForm::E_FILE') %}
+        {% set E_RETURN = constant('App\\Document\\Form\\UploadDocumentForm::E_RETURN') %}
+        {{ form_start(uploadForm, {
+            action: path('app_document_upload'),
+            attr: {novalidate: 'novalidate', 'data-action': 'submit->documents-upload#validate'}
+        }) }}
+            {{ form_widget(uploadForm[E_RETURN], {value: app.request.requestUri|split('?')|first}) }}
             <div class="p-5">
                 <label data-dropzone
                        data-action="dragover->documents-upload#dragover dragleave->documents-upload#dragleave drop->documents-upload#drop"
                        class="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-theme-inputborder bg-theme-bodybg/70 px-6 py-10 text-center transition-colors hover:bg-theme-activebg">
-                    <input type="file" name="document" accept="application/pdf,.pdf" required class="hidden"
-                           data-documents-upload-target="input" data-action="documents-upload#selected">
+                    {{ form_widget(uploadForm[E_FILE], {attr: {
+                        class: 'hidden',
+                        'data-documents-upload-target': 'input',
+                        'data-action': 'documents-upload#selected',
+                    }}) }}
 
                     <span data-documents-upload-target="prompt" class="flex flex-col items-center gap-2">
                         <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
@@ -58,6 +67,6 @@
                     Upload
                 </button>
             </div>
-        </form>
+        {{ form_end(uploadForm) }}
     </div>
 </dialog>

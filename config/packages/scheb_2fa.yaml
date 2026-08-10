@@ -2,7 +2,7 @@
 scheb_two_factor:
     google:
         enabled: true
-        issuer: "Sigil — Signum Veritatis"
+        issuer: "Sigil. Signum Veritatis"
         digits: 6
         # Seconds of tolerance each side of the current 30s slot (otphp checks the
         # code at now-leeway, now, now+leeway; must be < the 30s period). 1s was far

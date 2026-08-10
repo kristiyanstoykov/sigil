@@ -6,7 +6,7 @@
 
 {# PIN-confirmed action dialog (hold / resume / revoke). Lives inside its own
    data-controller="confirm" scope together with the button that opens it. #}
-{% macro action_modal(form_action, csrf_value, icon_wrap_class, icon_class, title, body, submit_label, submit_class, with_pin) %}
+{% macro action_modal(form_action, form, icon_wrap_class, icon_class, title, body, submit_label, submit_class, with_pin) %}
     <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
          data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
          class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
@@ -17,21 +17,21 @@
             </div>
             <h2 class="text-lg font-semibold text-theme-headings mb-2">{{ title }}</h2>
             <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">{{ body }}</p>
-            <form method="post" action="{{ form_action }}" class="space-y-4">
-                <input type="hidden" name="_token" value="{{ csrf_value }}">
+            {{ form_start(form, {action: form_action, attr: {novalidate: 'novalidate', class: 'space-y-4'}}) }}
                 {% if with_pin %}
+                    {% set E_PIN = constant('App\\Certificate\\Form\\CertificateActionForm::E_PIN') %}
                     <label class="block">
                         <span class="form-label !inline-block text-sm font-semibold">Certificate PIN</span>
-                        <input type="password" name="_pin" required pattern="\d{6,8}" maxlength="8"
-                               inputmode="numeric" autocomplete="off" placeholder="••••••"
-                               class="form-control !bg-white/60 text-center font-mono tracking-[0.3em]">
+                        {{ form_widget(form[E_PIN], {attr: {
+                            class: 'form-control !bg-white/60 text-center font-mono tracking-[0.3em]'
+                        }}) }}
                     </label>
                 {% endif %}
                 <div class="flex gap-2.5">
                     <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Cancel</button>
                     <button type="submit" class="btn {{ submit_class }} flex-1">{{ submit_label }}</button>
                 </div>
-            </form>
+            {{ form_end(form) }}
         </div>
     </div>
 {% endmacro %}
@@ -156,7 +156,7 @@
                                 </button>
                                 {{ ui.action_modal(
                                     path('app_certificate_hold', {id: certificate.id}),
-                                    csrf_token('hold-certificate-' ~ certificate.id),
+                                    holdForm,
                                     'bg-warning-500/10 text-warning-600', 'ti ti-player-pause',
                                     'Put this certificate on hold?',
                                     'Signing with this certificate will be disabled for the next ' ~ constant('App\\Certificate\\Entity\\Certificate::HOLD_HOURS') ~ ' hours. It resumes automatically after that - or earlier, with your PIN. Confirm with your PIN to place the hold.',
@@ -172,7 +172,7 @@
                                 </button>
                                 {{ ui.action_modal(
                                     path('app_certificate_resume', {id: certificate.id}),
-                                    csrf_token('resume-certificate-' ~ certificate.id),
+                                    resumeForm,
                                     'bg-success-500/10 text-success-600', 'ti ti-player-play',
                                     'Resume this certificate?',
                                     'The hold ends now and signing with this certificate is enabled again. Confirm with your PIN.',
@@ -191,7 +191,7 @@
                             </button>
                             {{ ui.action_modal(
                                 path('app_certificate_revoke', {id: certificate.id}),
-                                csrf_token('revoke-certificate-' ~ certificate.id),
+                                revokeForm,
                                 'bg-danger-500/10 text-danger-600', 'ti ti-alert-triangle',
                                 'Revoke this certificate?',
                                 'Revoking is permanent. This signing identity will immediately stop working and can\'t be reactivated - you\'d need to issue a new one.' ~ (status.pinGuarded ? ' Confirm with your PIN.' : ''),

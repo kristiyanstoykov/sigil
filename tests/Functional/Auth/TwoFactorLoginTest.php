@@ -86,12 +86,12 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         $crawler = $this->client->request('GET', '/2fa/setup');
         self::assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form')->form(['_auth_code' => '000000']);
-        $this->client->submit($form);
+        $form = $crawler->filter('form')->form(['two_factor_setup_form[code]' => '000000']);
+        $crawler = $this->client->submit($form);
 
-        // Must redirect (Turbo discards plain re-renders) and surface the error.
-        self::assertResponseRedirects('/2fa/setup');
-        $crawler = $this->client->followRedirect();
+        // The error renders under the field, and 422 keeps Turbo from dropping
+        // the response (a plain 200 re-render would be discarded).
+        self::assertResponseStatusCodeSame(422);
         self::assertStringContainsString('Invalid code', $crawler->filter('body')->text());
     }
 
