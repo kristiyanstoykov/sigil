@@ -46,8 +46,9 @@ class DashboardController extends AbstractController
         // TODO: replace the remaining arrays below with repository queries once
         // the Document / Signing modules exist. The shapes mirror the planned
         // entities so the template won't need to change.
+        // The signing-requests badge is live: the sidebar reads it straight from
+        // the Signing module, so nothing has to be passed from here.
         return $this->render('dashboard/index.html.twig', [
-            'sidebar_badges' => ['signing_requests' => 2],
             'stats' => [
                 'awaiting_me' => 2,
                 'awaiting_delivery' => 1,

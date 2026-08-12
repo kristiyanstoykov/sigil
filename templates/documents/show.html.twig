@@ -1,12 +1,13 @@
 {% extends 'layout/app.html.twig' %}
 {% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
 
 {% block title %}{{ document.title }} · Sigil{% endblock %}
 {% block main_class %}docs-gradient{% endblock %}
 
 {% block content %}
 {% set latest = document.latestVersion %}
-{% set status = document.displayStatus %}
+{% set status = document_status(document) %}
 <div class="docs-rise mx-auto max-w-4xl">
 
     <a href="{{ path('app_documents', isOwner ? {} : {tab: 'shared'}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
@@ -55,7 +56,16 @@
                    letting them sign is the SigningRequest workflow's job (ADR-007),
                    which will say who was actually asked to sign. #}
                 {% if isOwner %}
-                    {% if document.isSigned %}
+                    {% if status.pending %}
+                        {# The queue owns the document while a request is out: the
+                           owner signs only if they are on the list, from the sign
+                           page the panel below links to. #}
+                        <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
+                                disabled aria-disabled="true" title="A signature request is out on this document.">
+                            <i class="ti ti-clock text-base leading-none" aria-hidden="true"></i>
+                            Awaiting signatures
+                        </button>
+                    {% elseif document.isSigned %}
                         {# Blocked, not removed: the action stays visible so its
                            unavailability reads as "already done", not "missing". #}
                         <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
@@ -76,11 +86,58 @@
     </div>
 
     {#
+        ── the open signature request ──────────────────────────────────────
+        Who has signed, whose turn it is, and the owner's way out of it. Signers
+        get read access one turn at a time, so this list is also the access list.
+    #}
+    {% set signingRequest = pending_signing_request(document) %}
+    {% if signingRequest %}
+        <div class="mt-6">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signature request</h2>
+                {% if isOwner %}
+                    {% set cancelForm = signing_cancel_form(document) %}
+                    <div data-controller="confirm" class="contents">
+                        <button type="button" data-action="confirm#open"
+                                class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
+                            <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
+                            Withdraw request
+                        </button>
+
+                        <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+                             data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+                             class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+                            <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+                                <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 mb-4">
+                                    <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
+                                </div>
+                                <h2 class="text-lg font-semibold text-theme-headings mb-2">Withdraw this request?</h2>
+                                <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">
+                                    Nobody else will be asked to sign, and whoever holds the turn loses access to the
+                                    document. Signatures already collected are kept.
+                                </p>
+                                {{ form_start(cancelForm, {
+                                    action: path('app_signing_request_cancel', {id: document.id}),
+                                    attr: {class: 'flex gap-2.5'}
+                                }) }}
+                                    <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Keep it</button>
+                                    <button type="submit" class="btn btn-danger flex-1">Withdraw</button>
+                                {{ form_end(cancelForm) }}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            {{ signing.signer_queue(signingRequest) }}
+            {{ signing.deadline_note(signingRequest) }}
+        </div>
+    {% endif %}
+
+    {#
         ── draft callout ───────────────────────────────────────────────────
         A stored document is not a finished one. While it is a Draft, say so and
-        show both ways out: sign it yourself (live, the button above), or send it
-        to someone else - the SigningRequest workflow from ADR-007, not built
-        yet, so it is rendered as an explicit Soon rather than left invisible.
+        show both ways out: sign it yourself (the button above), or send it to
+        other people.
     #}
     {% if status.draft and isOwner %}
         <div class="mt-4 rounded-lg border border-warning-500/25 bg-warning-500/[0.06] p-4 sm:p-5">
@@ -94,12 +151,11 @@
                         <p class="mt-0.5 text-sm text-theme-secondarytextcolor">{{ status.hint }}</p>
                     </div>
                 </div>
-                <button type="button" class="btn btn-outline-secondary disabled inline-flex shrink-0 items-center gap-2 self-start sm:self-auto"
-                        disabled aria-disabled="true" title="Coming soon">
+                <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                   class="btn btn-outline-secondary inline-flex shrink-0 items-center gap-2 self-start sm:self-auto">
                     <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
                     Request a signature
-                    <span class="rounded border border-theme-border bg-theme-activebg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-theme-secondarytextcolor">Soon</span>
-                </button>
+                </a>
             </div>
         </div>
     {% endif %}
@@ -150,20 +206,27 @@
                                     <span class="block truncate text-sm font-semibold text-theme-headings">{{ person.fullName }}</span>
                                     <span class="block truncate text-xs text-theme-secondarytextcolor">{{ person.email }}</span>
                                 </span>
-                                <span class="hidden shrink-0 rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor sm:inline">Can view</span>
-                                {% set revokeForm = revokeForms[person.id] %}
-                                {{ form_start(revokeForm, {
-                                    action: path('app_document_share_revoke', {id: document.id}),
-                                    attr: {class: 'shrink-0'}
-                                }) }}
-                                    {# Every row renders the same form type, so the hidden
-                                       field needs a per-row id to stay unique. #}
-                                    {{ form_widget(revokeForm[constant('App\\Document\\Form\\RevokeShareForm::E_USER')], {id: 'revoke_user_' ~ person.id}) }}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
-                                        <i class="ti ti-user-minus text-sm leading-none" aria-hidden="true"></i>
-                                        Remove
-                                    </button>
-                                {{ form_end(revokeForm) }}
+                                {# A signer's access comes from the open request, not from a
+                                   share: revoking it here would break their turn, so the row
+                                   says where the access came from and offers no Remove. #}
+                                {% if is_pending_signer(document, person) %}
+                                    <span class="shrink-0 rounded-full border border-info-500/20 bg-info-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-info-600">Signing</span>
+                                {% else %}
+                                    <span class="hidden shrink-0 rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor sm:inline">Can view</span>
+                                    {% set revokeForm = revokeForms[person.id] %}
+                                    {{ form_start(revokeForm, {
+                                        action: path('app_document_share_revoke', {id: document.id}),
+                                        attr: {class: 'shrink-0'}
+                                    }) }}
+                                        {# Every row renders the same form type, so the hidden
+                                           field needs a per-row id to stay unique. #}
+                                        {{ form_widget(revokeForm[constant('App\\Document\\Form\\RevokeShareForm::E_USER')], {id: 'revoke_user_' ~ person.id}) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
+                                            <i class="ti ti-user-minus text-sm leading-none" aria-hidden="true"></i>
+                                            Remove
+                                        </button>
+                                    {{ form_end(revokeForm) }}
+                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>

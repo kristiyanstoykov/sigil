@@ -36,4 +36,9 @@ return [
     'simple-datatables' => [
         'path' => './assets/able-pro/js/simple-datatables.js',
     ],
+    // Able Pro's drag-and-drop library (UMD), used by the signer-order list. Its
+    // stylesheet is vendored alongside, as with every Able Pro plugin.
+    'dragula' => [
+        'path' => './assets/able-pro/js/dragula.js',
+    ],
 ];

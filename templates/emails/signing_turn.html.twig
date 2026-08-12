@@ -1,0 +1,18 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}It is your turn to sign{% endblock %}
+
+{% block body %}
+    <p>
+        {{ requester }} asked you to sign <strong>{{ title }}</strong>. You are signer
+        {{ position }} of {{ total }}, and the document is waiting on you.
+    </p>
+
+    <p>
+        The request expires on <strong>{{ deadline|date('j M Y, H:i') }}</strong>. You will need your
+        certificate PIN to sign.
+    </p>
+{% endblock %}
+
+{% block action_url %}{{ url }}{% endblock %}
+{% block action_label %}Sign the document{% endblock %}

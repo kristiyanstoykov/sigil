@@ -1,0 +1,40 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
+
+{% block title %}Waiting to sign {{ document.title }} · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set current = signingRequest.currentSigner %}
+<div class="docs-rise mx-auto max-w-2xl">
+
+    <a href="{{ path('app_documents') }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
+        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
+        Documents
+    </a>
+
+    <div class="card !mb-0 !bg-white/90 p-6 text-center">
+        <span class="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-info-500/10 text-info-600">
+            <i class="ti ti-clock text-xl leading-none" aria-hidden="true"></i>
+        </span>
+        <h1 class="text-base font-bold text-theme-headings">Not your turn yet</h1>
+        <p class="mx-auto mt-1 max-w-md text-sm text-theme-secondarytextcolor">
+            {% if current %}
+                <strong>{{ current.user.fullName }}</strong> is signing <strong>{{ document.title }}</strong> right now.
+                You will get an email the moment the queue reaches you.
+            {% else %}
+                This request is already complete.
+            {% endif %}
+        </p>
+        <p class="mt-2 text-xs text-theme-secondarytextcolor">
+            The document stays encrypted until it is your turn, so you cannot open it yet.
+        </p>
+    </div>
+
+    <div class="mt-6">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h2>
+        {{ signing.signer_queue(signingRequest) }}
+    </div>
+</div>
+{% endblock %}

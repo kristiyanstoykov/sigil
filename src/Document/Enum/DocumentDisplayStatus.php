@@ -10,10 +10,9 @@ namespace App\Document\Enum;
  * a Draft until it carries a Sigil signature: stored and encrypted is not the
  * finished state, it is the halfway one.
  *
- * The SigningRequest workflow (ADR-007) will add the states that sit between
- * the two - a request sent and pending, a deadline missed - as cases here, so
- * templates keep asking the document for its status instead of reconstructing
- * it from versions plus requests.
+ * Pending and Expired come from a SigningRequest, which the Document module
+ * cannot see; resolve those through App\Signing\Service\DocumentStatusResolver
+ * rather than Document::getDisplayStatus().
  *
  * Labels and Tailwind classes live here, same as CertificateDisplayStatus:
  * one vocabulary per status, and the class strings are picked up by the
@@ -25,14 +24,22 @@ enum DocumentDisplayStatus: string
     /** Uploaded and encrypted, but nobody has signed it yet. */
     case Draft = 'draft';
 
+    /** A signature request is out and the signers have not all signed yet. */
+    case Pending = 'pending';
+
     /** Carries at least one signature Sigil minted. */
     case Signed = 'signed';
+
+    /** A request's deadline passed with signatures still missing. */
+    case Expired = 'expired';
 
     public function label(): string
     {
         return match ($this) {
             self::Draft => 'Draft',
+            self::Pending => 'Awaiting signatures',
             self::Signed => 'Signed',
+            self::Expired => 'Expired',
         };
     }
 
@@ -41,7 +48,9 @@ enum DocumentDisplayStatus: string
     {
         return match ($this) {
             self::Draft => 'Not signed yet - sign it yourself, or request a signature from someone else.',
+            self::Pending => 'Sent for signature. Each signer signs in turn, and nobody can jump the queue.',
             self::Signed => 'Signed and sealed. Every version is kept as a tamper-evident record.',
+            self::Expired => 'The signing deadline passed before everyone signed. Signed versions are kept.',
         };
     }
 
@@ -50,7 +59,9 @@ enum DocumentDisplayStatus: string
     {
         return match ($this) {
             self::Draft => 'border-warning-500/20 bg-warning-500/10 text-warning-600',
+            self::Pending => 'border-info-500/20 bg-info-500/10 text-info-600',
             self::Signed => 'border-success-500/20 bg-success-500/10 text-success-600',
+            self::Expired => 'border-danger-500/20 bg-danger-500/10 text-danger-600',
         };
     }
 
@@ -59,7 +70,9 @@ enum DocumentDisplayStatus: string
     {
         return match ($this) {
             self::Draft => 'bg-warning-500',
+            self::Pending => 'bg-info-500',
             self::Signed => 'bg-success-500',
+            self::Expired => 'bg-danger-500',
         };
     }
 
@@ -72,7 +85,9 @@ enum DocumentDisplayStatus: string
     {
         return match ($this) {
             self::Draft => 'ti-writing-sign',
+            self::Pending => 'ti-clock',
             self::Signed => 'ti-circle-check',
+            self::Expired => 'ti-alert-triangle',
         };
     }
 
@@ -83,8 +98,18 @@ enum DocumentDisplayStatus: string
         return self::Draft === $this;
     }
 
+    public function isPending(): bool
+    {
+        return self::Pending === $this;
+    }
+
     public function isSigned(): bool
     {
         return self::Signed === $this;
+    }
+
+    public function isExpired(): bool
+    {
+        return self::Expired === $this;
     }
 }

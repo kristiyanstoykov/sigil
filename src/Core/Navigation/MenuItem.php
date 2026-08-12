@@ -8,14 +8,20 @@ namespace App\Core\Navigation;
  * One sidebar entry. $role gates visibility (null = any authenticated user).
  * $route null = module not built yet: rendered dimmed with a "coming soon" hint.
  * $badgeKey looks up a live count in the badges map passed at render time.
+ *
+ * @phpstan-type RouteParams array<string, scalar>
  */
 final readonly class MenuItem
 {
+    /**
+     * @param array<string, scalar> $routeParams query/path parameters for $route
+     */
     public function __construct(
         public string $label,
         public ?string $route,
         public string $icon,
         public ?string $role = null,
         public ?string $badgeKey = null,
+        public array $routeParams = [],
     ) {}
 }

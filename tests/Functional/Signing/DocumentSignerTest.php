@@ -12,10 +12,13 @@ use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentUploader;
 use App\Document\Service\DocumentVersionWriter;
 use App\Signing\Exception\TokenPinRejectedException;
+use App\Signing\Repository\SigningRequestRepository;
 use App\Signing\Service\DocumentSigner;
 use App\Signing\Service\NoTsaProvider;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
+use App\Signing\Service\SigningRequestNotifier;
+use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -73,6 +76,9 @@ class DocumentSignerTest extends AuthWebTestCase
             // references DocumentSigner. Test env uses the "none" TSA anyway.
             new TsaProviderRegistry([new NoTsaProvider()], 'none'),
             $c->get(DocumentVersionWriter::class),
+            $c->get(SigningRequestRepository::class),
+            $c->get(SigningRequestService::class),
+            $c->get(SigningRequestNotifier::class),
             $caPath,
         );
     }

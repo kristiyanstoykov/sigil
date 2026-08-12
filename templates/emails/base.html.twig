@@ -1,0 +1,28 @@
+{# Transactional email shell. Inline styles only - mail clients drop <style>. #}
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family: Arial, Helvetica, sans-serif; color: #0A0A0A; line-height: 1.5;">
+    <h1 style="font-size: 20px;">{% block heading %}{% endblock %}</h1>
+
+    {% block body %}{% endblock %}
+
+    {% if block('action_url') is defined and block('action_url')|trim %}
+        <p style="margin: 24px 0;">
+            <a href="{{ block('action_url')|trim }}"
+               style="display: inline-block; background: #1E3A8A; color: #ffffff; text-decoration: none;
+                      padding: 12px 20px; border-radius: 8px; font-weight: 600;">
+                {% block action_label %}Open in Sigil{% endblock %}
+            </a>
+        </p>
+
+        <p style="color: #6B7280; font-size: 13px;">
+            If the button does not work, copy and paste this URL into your browser:<br>
+            <span style="word-break: break-all;">{{ block('action_url')|trim }}</span>
+        </p>
+    {% endif %}
+
+    <p style="color: #6B7280; font-size: 13px;">
+        Sigil - Signum Veritatis. You are receiving this because of activity on your Sigil account.
+    </p>
+</body>
+</html>

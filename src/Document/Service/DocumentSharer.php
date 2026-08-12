@@ -9,6 +9,7 @@ use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
 use App\Document\Entity\DocumentKeyGrant;
+use App\Document\Entity\DocumentVersion;
 use App\Document\Repository\DocumentKeyGrantRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -34,6 +35,7 @@ final class DocumentSharer
     public function __construct(
         private readonly KeyManagementService $keys,
         private readonly DocumentKeyGrantRepository $grants,
+        private readonly DocumentNotifier $notifier,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $em,
     ) {
@@ -86,6 +88,52 @@ final class DocumentSharer
             ],
             subjectType: 'Document',
             subjectId: $document->getId()->toRfc4122(),
+        );
+
+        $this->notifier->notifyShared($document, $recipient, $actor);
+    }
+
+    /**
+     * Give $recipient read access to a single version, re-wrapping that version's
+     * DEK out of $actor's own grant. Used by the signing queue, which hands access
+     * over one turn at a time instead of sharing the whole document up front.
+     *
+     * The authority check belongs to the caller: $actor only needs to be able to
+     * read the version, which is not the same as being allowed to hand it on.
+     *
+     * @throws DomainException if $actor cannot read this version
+     */
+    public function grantVersion(DocumentVersion $version, User $actor, User $recipient): void
+    {
+        if (null !== $this->grants->findForVersionAndUser($version, $recipient)) {
+            return;
+        }
+
+        $actorGrant = $this->grants->findForVersionAndUser($version, $actor)
+            ?? throw new DomainException('You do not have access to this version.');
+
+        $dek = $this->keys->unwrapDek($actor, $actorGrant->getWrappedDek(), $version->dekAad());
+        try {
+            $this->em->persist(new DocumentKeyGrant(
+                $version,
+                $recipient,
+                $this->keys->wrapDek($recipient, $dek, $version->dekAad()),
+            ));
+            $this->em->flush();
+        } finally {
+            sodium_memzero($dek);
+        }
+
+        $this->auditLogger->log(
+            action: 'document.version_access_granted',
+            actor: $actor,
+            payload: [
+                'recipientId' => $recipient->getId()->toRfc4122(),
+                'recipientEmail' => $recipient->getEmail(),
+                'versionNumber' => $version->getVersionNumber(),
+            ],
+            subjectType: 'Document',
+            subjectId: $version->getDocument()->getId()->toRfc4122(),
         );
     }
 

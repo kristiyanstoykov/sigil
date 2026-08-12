@@ -26,14 +26,19 @@
         toggling: a hidden datatable measures its columns against a zero-width
         container and comes back wrong when shown.
     #}
-    {% set tab = app.request.query.get('tab') == 'shared' ? 'shared' : 'mine' %}
+    {# "To sign" comes from a Twig function rather than the controller: the
+       Document module does not depend on Signing, and the tab is a view of the
+       signing queue, not of this page's data. #}
+    {% set requested = app.request.query.get('tab') %}
+    {% set tab = requested in ['shared', 'tosign'] ? requested : 'mine' %}
+    {% set toSign = signing_requests_for_me() %}
     {% set rows = tab == 'shared' ? sharedDocuments : documents %}
 
     <div class="mb-5 flex items-center justify-between gap-4 border-b border-theme-border">
         <div class="flex gap-6">
-            {% for key, label in {'mine': 'My documents', 'shared': 'Shared with me'} %}
-                {% set count = key == 'shared' ? sharedDocuments|length : documents|length %}
-                <a href="{{ path('app_documents', key == 'shared' ? {tab: 'shared'} : {}) }}"
+            {% for key, label in {'mine': 'My documents', 'shared': 'Shared with me', 'tosign': 'To sign'} %}
+                {% set count = key == 'shared' ? sharedDocuments|length : (key == 'tosign' ? toSign|length : documents|length) %}
+                <a href="{{ path('app_documents', key == 'mine' ? {} : {tab: key}) }}"
                    class="inline-flex items-center gap-2 pb-3 text-sm font-semibold {{ tab == key
                        ? 'border-b-2 border-primary-500 text-primary-500'
                        : 'text-theme-secondarytextcolor hover:text-theme-headings' }}">
@@ -46,7 +51,58 @@
         </div>
     </div>
 
-    {% if rows is empty and tab == 'shared' %}
+    {% if tab == 'tosign' %}
+        {#
+            The signing inbox. Not the datatable: until the queue reaches you the
+            document is not yours to open, so these rows carry a turn, not the
+            file actions the other tabs offer.
+        #}
+        {% if toSign is empty %}
+            <div class="card !mb-0 !bg-white/80 p-14 text-center">
+                <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                    <i class="ti ti-signature text-3xl leading-none" aria-hidden="true"></i>
+                </div>
+                <h2 class="text-lg font-extrabold text-theme-headings">Nothing waiting on you</h2>
+                <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">When someone asks you to sign a document, it appears here - with your place in the signing order.</p>
+            </div>
+        {% else %}
+            <div class="card !mb-0 overflow-hidden !bg-white/90">
+                <ul class="divide-y divide-theme-border/60">
+                    {% for request in toSign %}
+                        {% set mine = request.signerFor(app.user) %}
+                        {% set myTurn = request.isTurnOf(app.user) %}
+                        <li class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
+                            <div class="flex min-w-0 flex-1 items-start gap-3">
+                                {{ docs.pdf_icon('sm') }}
+                                <div class="min-w-0">
+                                    <span class="block truncate text-sm font-semibold text-theme-headings">{{ request.document.title }}</span>
+                                    <span class="mt-0.5 block truncate text-[11.5px] text-theme-secondarytextcolor">
+                                        From {{ request.requester.fullName }} · you are signer {{ mine.position }} of {{ request.signers|length }} · expires {{ request.deadline|date('d M Y') }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% if mine.hasSigned %}
+                                <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-success-500/20 bg-success-500/10 px-2.5 py-0.5 text-xs font-semibold text-success-600">
+                                    <i class="ti ti-circle-check text-sm leading-none" aria-hidden="true"></i>
+                                    You signed
+                                </span>
+                            {% elseif myTurn %}
+                                <a href="{{ path('app_document_sign', {id: request.document.id}) }}"
+                                   class="btn btn-sm btn-primary inline-flex shrink-0 items-center justify-center gap-1.5">
+                                    <i class="ti ti-signature text-sm leading-none" aria-hidden="true"></i>
+                                    Sign now
+                                </a>
+                            {% else %}
+                                <span class="shrink-0 rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor">
+                                    Waiting for {{ request.currentSigner.user.fullName }}
+                                </span>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+    {% elseif rows is empty and tab == 'shared' %}
         {# ── empty state: nothing shared with me ────────────────────────── #}
         <div class="card !mb-0 !bg-white/80 p-14 text-center">
             <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
@@ -131,7 +187,7 @@
                                 </td>
                                 {# The document's state, not the latest version's kind:
                                    an unsigned document is a Draft, i.e. unfinished. #}
-                                <td class="px-5 py-3.5" data-label="Status">{{ docs.doc_status_badge(document.displayStatus) }}</td>
+                                <td class="px-5 py-3.5" data-label="Status">{{ docs.doc_status_badge(document_status(document)) }}</td>
                                 {# Raw bytes: the datatable sorts on the cell's value and
                                    renders the human-readable size for display. #}
                                 <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Size">{{ v.sizeBytes }}</td>

@@ -13,7 +13,9 @@ use App\Document\Entity\DocumentVersion;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentVersionWriter;
+use App\Signing\Entity\SigningRequest;
 use App\Signing\Exception\TokenPinRejectedException;
+use App\Signing\Repository\SigningRequestRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
@@ -34,6 +36,9 @@ final class DocumentSigner
         private readonly PadesSignerInterface $signer,
         private readonly TsaProviderRegistry $tsa,
         private readonly DocumentVersionWriter $versionWriter,
+        private readonly SigningRequestRepository $requests,
+        private readonly SigningRequestService $requestService,
+        private readonly SigningRequestNotifier $notifier,
         #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
         private readonly string $caCertPath,
     ) {
@@ -47,15 +52,12 @@ final class DocumentSigner
      */
     public function sign(Document $document, Certificate $certificate, User $actor, #[\SensitiveParameter] string $pin): DocumentVersion
     {
-        if ($document->getOwner() !== $actor || $certificate->getUser() !== $actor) {
-            throw new DomainException('You can only sign your own document with your own certificate.');
+        if ($certificate->getUser() !== $actor) {
+            throw new DomainException('You can only sign with your own certificate.');
         }
 
-        // Sign-once. The controller blocks this earlier; this is the layer that
-        // makes it true for every caller, including future non-web ones.
-        if ($document->isSigned()) {
-            throw new DomainException('This document has already been signed.');
-        }
+        $signingRequest = $this->requests->findPendingForDocument($document);
+        $this->assertMaySign($document, $signingRequest, $actor);
 
         $latest = $document->getLatestVersion();
         if (null === $latest) {
@@ -97,7 +99,7 @@ final class DocumentSigner
             throw $e;
         }
 
-        return $this->versionWriter->write(
+        $version = $this->versionWriter->write(
             $document,
             $actor,
             $signedPdf,
@@ -105,5 +107,42 @@ final class DocumentSigner
             'document.signed',
             ['certificateSerial' => $certificate->getSerialNumber()],
         );
+
+        $remaining = 0;
+        if (null !== $signingRequest) {
+            $this->requestService->recordSignature($signingRequest, $actor, $version);
+            $remaining = \count($signingRequest->getSigners()) - $signingRequest->signedCount();
+        }
+
+        $this->notifier->notifySigned($document, $actor, $remaining);
+
+        return $version;
+    }
+
+    /**
+     * Who may sign right now: under a pending request, only whoever holds the
+     * turn; otherwise only the owner, and only while the document is unsigned.
+     *
+     * @throws DomainException when it is not this user's signature to give
+     */
+    private function assertMaySign(Document $document, ?SigningRequest $request, User $actor): void
+    {
+        if (null !== $request) {
+            if (!$request->isTurnOf($actor)) {
+                throw new DomainException('It is not your turn to sign this document.');
+            }
+
+            return;
+        }
+
+        if ($document->getOwner() !== $actor) {
+            throw new DomainException('You can only sign your own document.');
+        }
+
+        // Sign-once, for the self-signing path only: a request is explicitly a
+        // sequence of signatures on the same document.
+        if ($document->isSigned()) {
+            throw new DomainException('This document has already been signed.');
+        }
     }
 }

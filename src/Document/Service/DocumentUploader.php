@@ -21,6 +21,7 @@ final class DocumentUploader
 {
     public function __construct(
         private readonly DocumentVersionWriter $versionWriter,
+        private readonly DocumentNotifier $notifier,
         private readonly EntityManagerInterface $em,
         #[Autowire('%app.max_document_size_bytes%')]
         private readonly int $maxSizeBytes,
@@ -48,6 +49,8 @@ final class DocumentUploader
             'document.uploaded',
             ['title' => $document->getTitle()],
         );
+
+        $this->notifier->notifyUploaded($document);
 
         return $document;
     }

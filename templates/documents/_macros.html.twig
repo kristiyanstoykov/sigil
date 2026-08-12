@@ -65,11 +65,16 @@
                 {# Shared with me: read-only. View above is the whole menu. #}
             {% else %}
             <div class="my-1 border-t border-theme-border/60"></div>
-            {# The two ways a document gets signed. "Sign yourself" is live;
-               "Request a signature" is the SigningRequest workflow (ADR-007) and
-               is deliberately shown as Soon so the second path is visible in the
-               UI before it exists. #}
-            {% if document.displayStatus.signed %}
+            {# The two ways a document gets signed: sign it yourself, or send it
+               to other people. While a request is out both are the queue's call,
+               so neither is offered here. #}
+            {% set status = document_status(document) %}
+            {% if status.pending %}
+                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-info-600/80 cursor-not-allowed" title="A signature request is out on this document.">
+                    <i class="ti ti-clock text-base leading-none" aria-hidden="true"></i>
+                    Awaiting signatures
+                </span>
+            {% elseif status.signed %}
                 <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-success-600/70 cursor-not-allowed" title="This document has already been signed.">
                     <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
                     Signed
@@ -80,6 +85,11 @@
                     <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
                     Sign yourself
                 </a>
+                <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                   class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
+                    <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
+                    Request a signature
+                </a>
             {% endif %}
             {# Sharing lives on the document page, next to the list of who already
                has access - a menu is the wrong place to manage a set. #}
@@ -88,16 +98,11 @@
                 <i class="ti ti-share text-base leading-none" aria-hidden="true"></i>
                 Share
             </a>
-            {% for soon in [
-                {label: 'Request a signature', icon: 'ti-send'},
-                {label: 'Delete', icon: 'ti-trash'}
-            ] %}
-                <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="Coming soon">
-                    <i class="ti {{ soon.icon }} text-base leading-none" aria-hidden="true"></i>
-                    {{ soon.label }}
-                    <span class="ml-auto text-[10px] font-bold uppercase tracking-wide">Soon</span>
-                </span>
-            {% endfor %}
+            <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="Coming soon">
+                <i class="ti ti-trash text-base leading-none" aria-hidden="true"></i>
+                Delete
+                <span class="ml-auto text-[10px] font-bold uppercase tracking-wide">Soon</span>
+            </span>
             {% endif %}
         </div>
     </div>

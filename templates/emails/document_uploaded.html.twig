@@ -1,0 +1,13 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}Your document is stored and encrypted{% endblock %}
+
+{% block body %}
+    <p>
+        <strong>{{ title }}</strong> was uploaded to Sigil and encrypted at rest. Nothing has been
+        signed yet: sign it yourself, or request signatures from other people.
+    </p>
+{% endblock %}
+
+{% block action_url %}{{ url }}{% endblock %}
+{% block action_label %}Open the document{% endblock %}

@@ -16,6 +16,9 @@
        rules live in @layer utilities and use !important exactly so they beat
        this unlayered one. Keep this order. #}
     <link rel="stylesheet" href="{{ asset('able-pro/css/plugins/simple-datatables.css') }}">
+    {# dragula's own stylesheet, same plugin split: it defines the drag mirror and
+       the gu-* state classes that the signer-order list relies on. #}
+    <link rel="stylesheet" href="{{ asset('able-pro/css/plugins/dragula.min.css') }}">
     <link rel="stylesheet" href="{{ asset('able-pro/css/style.css') }}">
     <link rel="stylesheet" href="{{ asset('able-pro/fonts/tabler-icons.css') }}">
     {% block stylesheets %}{% endblock %}

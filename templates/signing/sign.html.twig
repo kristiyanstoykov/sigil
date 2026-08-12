@@ -1,5 +1,6 @@
 {% extends 'layout/app.html.twig' %}
 {% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
 
 {% block title %}Sign {{ document.title }} · Sigil{% endblock %}
 {% block main_class %}docs-gradient{% endblock %}
@@ -110,9 +111,19 @@
     {% endif %}
 
     {# The other half of the seam: this page is "sign yourself". Sending the
-       document to someone else is the SigningRequest workflow (ADR-007). #}
-    <p class="mt-4 text-center text-xs text-theme-secondarytextcolor">
-        Not the one who should sign? Requesting a signature from someone else is coming soon.
-    </p>
+       document to other people is the request workflow, live below. #}
+    {% if signingRequest %}
+        <div class="mt-6">
+            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h2>
+            {{ signing.signer_queue(signingRequest) }}
+            {{ signing.deadline_note(signingRequest) }}
+        </div>
+    {% elseif document.owner.id == app.user.id %}
+        <p class="mt-4 text-center text-xs text-theme-secondarytextcolor">
+            Not the one who should sign?
+            <a href="{{ path('app_signing_request_new', {id: document.id}) }}" class="font-semibold text-primary-500 hover:underline">Request a signature</a>
+            from someone else instead.
+        </p>
+    {% endif %}
 </div>
 {% endblock %}

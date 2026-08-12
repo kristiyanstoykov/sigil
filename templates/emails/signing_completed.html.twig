@@ -1,0 +1,13 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}Everyone has signed{% endblock %}
+
+{% block body %}
+    <p>
+        All {{ total }} signer(s) have signed <strong>{{ title }}</strong>. The request is complete
+        and each signature is kept as its own version of the document.
+    </p>
+{% endblock %}
+
+{% block action_url %}{{ url }}{% endblock %}
+{% block action_label %}Open the document{% endblock %}

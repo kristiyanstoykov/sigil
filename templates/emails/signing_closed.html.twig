@@ -1,0 +1,20 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}
+    {{ expired ? 'A signature request expired' : 'A signature request was cancelled' }}
+{% endblock %}
+
+{% block body %}
+    <p>
+        The request to sign <strong>{{ title }}</strong> is closed
+        {% if expired %}
+            because its deadline of {{ deadline|date('j M Y, H:i') }} passed before everyone signed.
+        {% else %}
+            because {{ requester }} withdrew it.
+        {% endif %}
+    </p>
+
+    {% if signed > 0 %}
+        <p>{{ signed }} signature(s) were collected and are kept with the document.</p>
+    {% endif %}
+{% endblock %}

@@ -305,6 +305,10 @@ class DocumentController extends AbstractController
             $revokeForms[$id] = $form->createView();
         }
 
+        // The signing panel's data comes from Twig functions in the Signing
+        // module (pending_signing_request / signing_cancel_form): this module
+        // does not depend on that one, and the show page is not the only place
+        // that needs them.
         return $this->render('documents/show.html.twig', [
             'document' => $document,
             'isOwner' => $this->isOwner($document),

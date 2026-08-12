@@ -31,10 +31,15 @@
             <ul class="pc-navbar grow">
                 {% for item in sidebar_menu() %}
                     {% set enabled = item.route is not null %}
-                    {% set active = enabled and app.current_route == item.route %}
-                    {% set badge = item.badgeKey ? badges[item.badgeKey]|default(0) : 0 %}
+                    {# Two entries share app_documents (the list and the signing
+                       inbox), so "active" has to match the parameters too. #}
+                    {% set active = enabled and app.current_route == item.route
+                        and (item.routeParams.tab|default(null)) == app.request.query.get('tab') %}
+                    {% set badge = item.badgeKey == 'signing_requests'
+                        ? signing_requests_for_me()|length
+                        : (item.badgeKey ? badges[item.badgeKey]|default(0) : 0) %}
                     <li class="pc-item {{ active ? 'active' }}">
-                        <a href="{{ enabled ? path(item.route) : '#' }}"
+                        <a href="{{ enabled ? path(item.route, item.routeParams) : '#' }}"
                            class="pc-link {{ not enabled ? 'opacity-50 cursor-default' }}"
                            {% if active %}aria-current="page"{% endif %}
                            {% if not enabled %}title="Coming soon" aria-disabled="true"{% endif %}>

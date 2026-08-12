@@ -17,7 +17,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  * The certificate gate: without a usable certificate a user can only reach
  * the dashboard (which shows deliveries addressed to them - receiving needs
  * no key), the document pages (uploading/storing/viewing needs no signing
- * key - only signing does), and the certificate pages. Everything else
+ * key - only signing does), the signature-request pages (asking someone else to
+ * sign needs no key either), and the certificate pages. Everything else
  * redirects to the wizard. Mirrors TwoFactorEnrollmentSubscriber, which runs
  * first - this gate stays silent until 2FA enrollment is complete.
  */
@@ -63,7 +64,10 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
         $route = (string) $event->getRequest()->attributes->get('_route');
         if (\in_array($route, self::ALLOWED_ROUTES, true)
             || str_starts_with($route, 'app_certificate')
-            || str_starts_with($route, 'app_document')) {
+            || str_starts_with($route, 'app_document')
+            // Asking other people to sign is not signing: the requester needs no
+            // key of their own, only the people on the list do.
+            || str_starts_with($route, 'app_signing_request')) {
             return;
         }
 

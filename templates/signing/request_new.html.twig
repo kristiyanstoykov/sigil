@@ -1,0 +1,91 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}Request a signature · {{ document.title }} · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set E_SIGNERS = constant('App\\Signing\\Form\\CreateSigningRequestForm::E_SIGNERS') %}
+{% set E_DEADLINE = constant('App\\Signing\\Form\\CreateSigningRequestForm::E_DEADLINE_DAYS') %}
+
+<div class="docs-rise mx-auto max-w-2xl">
+
+    <a href="{{ path('app_document_show', {id: document.id}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
+        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
+        {{ document.title }}
+    </a>
+
+    <div class="mb-5 flex items-center gap-3">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+            <i class="ti ti-send text-xl leading-none" aria-hidden="true"></i>
+        </span>
+        <div>
+            <h1 class="text-xl font-extrabold tracking-tight text-theme-headings">Request a signature</h1>
+            <p class="text-sm text-theme-secondarytextcolor">The people you add sign one after another, top to bottom.</p>
+        </div>
+    </div>
+
+    <div class="card !mb-0 !bg-white/90 p-5">
+        <div class="flex items-start gap-4">
+            {{ docs.pdf_icon('lg') }}
+            <div class="min-w-0 flex-1">
+                <h2 class="truncate text-base font-bold text-theme-headings">{{ document.title }}</h2>
+                <p class="mt-1 text-sm text-theme-secondarytextcolor">Each signature is added as a new version of this document.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-5 !mb-0 p-6"
+         data-controller="signer-order"
+         data-signer-order-lookup-url-value="{{ path('app_signing_request_lookup', {id: document.id}) }}">
+
+        {{ form_start(form, {action: path('app_signing_request_new', {id: document.id}), attr: {novalidate: 'novalidate'}}) }}
+
+        <label for="signer_email" class="form-label text-sm font-medium">Add a signer</label>
+        <div class="flex flex-col gap-2.5 sm:flex-row sm:items-stretch">
+            <input type="email" id="signer_email" autocomplete="off" placeholder="colleague@example.com"
+                   class="form-control w-full min-w-0 flex-1"
+                   data-signer-order-target="input"
+                   data-action="keydown->signer-order#keydown">
+            <button type="button" class="btn btn-outline-secondary inline-flex shrink-0 items-center justify-center gap-2"
+                    data-action="signer-order#add">
+                <i class="ti ti-user-plus text-base leading-none" aria-hidden="true"></i>
+                Add
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-danger-600" data-signer-order-target="error" hidden></p>
+        <p class="mt-2 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
+            <i class="ti ti-users mt-px text-sm leading-none" aria-hidden="true"></i>
+            <span>A signer needs a verified Sigil account and a usable certificate. That is checked now, when you send - not again afterwards.</span>
+        </p>
+
+        {# The order of these rows IS the signing order; the hidden field mirrors it. #}
+        <h3 class="mt-5 mb-2 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h3>
+        <div class="overflow-hidden rounded-lg border border-theme-border">
+            <ol data-signer-order-target="list" class="divide-y divide-theme-border/60"></ol>
+            <p data-signer-order-target="empty" class="px-4 py-6 text-center text-sm text-theme-secondarytextcolor">
+                Nobody added yet. The first person on the list signs first.
+            </p>
+        </div>
+
+        {{ form_widget(form[E_SIGNERS], {attr: {'data-signer-order-target': 'hidden'}}) }}
+        {{ form_errors(form[E_SIGNERS]) }}
+
+        <div class="mt-5">
+            {{ form_label(form[E_DEADLINE], null, {label_attr: {class: 'form-label text-sm font-medium'}}) }}
+            {{ form_widget(form[E_DEADLINE], {attr: {class: 'form-control'}}) }}
+            {{ form_errors(form[E_DEADLINE]) }}
+            <p class="mt-1.5 text-xs text-theme-secondarytextcolor">
+                If it is not fully signed by then the request lapses. Signatures already collected are kept.
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary disabled mt-5 w-full inline-flex items-center justify-center gap-2"
+                data-signer-order-target="submit" disabled aria-disabled="true">
+            <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
+            Send request
+        </button>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}
