@@ -5,3 +5,8 @@ symfonycasts_tailwind:
     # and this build regenerates the utility classes our templates use (Able
     # Pro's precompiled CSS only shipped ~57% of them).
     binary_version: 'v4.1.11'
+
+    # The Docker image ships the binary and sets TAILWIND_BINARY, so no build
+    # ever downloads it. Unset (local PHP, no container) this is null and the
+    # bundle falls back to downloading binary_version above.
+    binary: '%env(default::TAILWIND_BINARY)%'

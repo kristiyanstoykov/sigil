@@ -40,6 +40,23 @@ WORKDIR /app
 # heavy apk/pip layers above stay cached on rebuild).
 COPY docker/php-uploads.ini /usr/local/etc/php/conf.d/zz-sigil-uploads.ini
 
+# Tailwind standalone binary, baked in rather than fetched per build: var/ is an
+# anonymous volume, so the bundle's own download would repeat on every CI run and
+# die whenever GitHub returns a 503. TAILWIND_BINARY makes the bundle skip the
+# download entirely - keep this version in lockstep with binary_version in
+# config/packages/symfonycasts_tailwind.yaml, which it overrides.
+ARG TAILWIND_VERSION=v4.1.11
+RUN case "$(uname -m)" in \
+        x86_64) TW_ARCH=linux-x64-musl ;; \
+        aarch64) TW_ARCH=linux-arm64-musl ;; \
+        *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors \
+        -o /usr/local/bin/tailwindcss \
+        "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${TW_ARCH}" \
+    && chmod +x /usr/local/bin/tailwindcss
+ENV TAILWIND_BINARY=/usr/local/bin/tailwindcss
+
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
