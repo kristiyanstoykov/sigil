@@ -151,88 +151,99 @@
                         <p class="mt-0.5 text-sm text-theme-secondarytextcolor">{{ status.hint }}</p>
                     </div>
                 </div>
-                <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                <a href="{{ path('app_document_sign', {id: document.id}) }}"
                    class="btn btn-outline-secondary inline-flex shrink-0 items-center gap-2 self-start sm:self-auto">
-                    <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
-                    Request a signature
+                    <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
+                    Sign it yourself
                 </a>
             </div>
         </div>
     {% endif %}
 
     {#
-        ── sharing ─────────────────────────────────────────────────────────
-        Owner only. Sharing re-wraps this document's keys for the recipient
-        (ADR-004) - the stored file is never re-encrypted - and revoking deletes
-        those wrapped keys again.
+        ── send for signature ──────────────────────────────────────────────
+        Owner only, and only ever once: a document gets a single request in its
+        life, so once one has closed the panel stays but the action is spent.
+        Sending is also the only way to put a document in someone else's hands -
+        Sigil has no plain "share" any more.
     #}
-    {% if isOwner %}
-        <div id="sharing" class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Shared with</h2>
+    {% if isOwner and not signingRequest %}
+        {% set canRequest = can_request_signatures(document) %}
+        <div id="request" class="mt-6">
+            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Send for signature</h2>
             <div class="card !mb-0 !bg-white/90 p-5">
-
-                {# A real Symfony form (ShareDocumentForm): CSRF and validation
-                   come from the component, and "no such account" renders as a
-                   field error under the input rather than as a flash.
-                   items-stretch, not items-start, so the button matches the
-                   input's height instead of sitting short next to it. #}
-                {% set E_EMAIL = constant('App\\Document\\Form\\ShareDocumentForm::E_EMAIL') %}
-                {{ form_start(shareForm, {
-                    action: path('app_document_share', {id: document.id}),
-                    attr: {novalidate: 'novalidate', class: 'flex flex-col gap-2.5 sm:flex-row sm:items-stretch'}
-                }) }}
-                    <div class="min-w-0 flex-1">
-                        {{ form_widget(shareForm[E_EMAIL], {attr: {class: 'form-control w-full'}}) }}
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-start gap-3">
+                        <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ canRequest ? 'bg-primary-500/10 text-primary-500' : 'bg-theme-activebg text-theme-secondarytextcolor' }}">
+                            <i class="ti ti-send text-xl leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            {% if canRequest %}
+                                <p class="text-sm font-bold text-theme-headings">Ask other people to sign this</p>
+                                <p class="mt-0.5 text-sm text-theme-secondarytextcolor">
+                                    Choose the signers and the order they sign in. Each one is handed the document only when their turn comes, and you get a sealed delivery receipt when it closes.
+                                </p>
+                            {% else %}
+                                <p class="text-sm font-bold text-theme-headings">This document has already been through a signature request</p>
+                                <p class="mt-0.5 text-sm text-theme-secondarytextcolor">
+                                    A document is sent for signature once. Its outcome is sealed into the delivery receipt below, and reopening the queue would sign a different version than the receipt attests. Upload the file again to start a new one.
+                                </p>
+                            {% endif %}
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2">
-                        <i class="ti ti-share text-base leading-none" aria-hidden="true"></i>
-                        Share
-                    </button>
-                {{ form_end(shareForm) }}
-                {{ form_errors(shareForm[E_EMAIL]) }}
-                <p class="mt-2 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
-                    <i class="ti ti-key mt-px text-sm leading-none" aria-hidden="true"></i>
-                    <span>They must already have a Sigil account. They get their own encrypted copy of the key - the file itself is never re-encrypted, and you can take access back at any time.</span>
-                </p>
+                    {% if canRequest %}
+                        <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                           class="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2">
+                            <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
+                            Request signatures
+                        </a>
+                    {% else %}
+                        <button type="button" class="btn btn-primary disabled inline-flex shrink-0 items-center justify-center gap-2"
+                                disabled aria-disabled="true">
+                            <i class="ti ti-check text-base leading-none" aria-hidden="true"></i>
+                            Sent once
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
 
-                {% if recipients is not empty %}
-                    <ul class="mt-4 divide-y divide-theme-border/60 border-t border-theme-border/60">
-                        {% for person in recipients %}
-                            <li class="flex items-center gap-3 py-3">
-                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-xs font-bold uppercase text-primary-500">
-                                    {{ person.firstName|first }}{{ person.lastName|first }}
+    {#
+        ── signatures ──────────────────────────────────────────────────────
+        Who has signed, to the second. Comes from the Signing module through a
+        Twig function, like the panels above: a signature made through a request
+        carries its own timestamp, a document the owner signed alone is dated by
+        the version it produced.
+    #}
+    {% set signatures = document_signatures(document) %}
+    {% if signatures is not empty %}
+        <div class="mt-6">
+            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">
+                Signatures
+                <span class="ml-1 font-bold normal-case tracking-normal text-theme-headings">{{ signatures|length }}</span>
+            </h2>
+            <div class="card !mb-0 overflow-hidden !bg-white/90">
+                <ol class="divide-y divide-theme-border/60">
+                    {% for signature in signatures %}
+                        <li class="flex flex-wrap items-center gap-x-4 gap-y-2 p-5">
+                            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-500/10 text-success-600">
+                                <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-sm font-semibold text-theme-headings">{{ signature.user.fullName }}</span>
+                                <span class="block truncate text-xs text-theme-secondarytextcolor">{{ signature.user.email }}</span>
+                            </span>
+                            <span class="shrink-0 text-right">
+                                {# Seconds matter: this is the evidentiary record, not a feed. #}
+                                <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ signature.signedAt|date('d M Y, H:i:s') }}</span>
+                                <span class="block text-[11px] text-theme-secondarytextcolor">
+                                    v{{ signature.versionNumber }} · {{ signature.viaRequest ? 'by request' : 'signed by the owner' }}
                                 </span>
-                                <span class="min-w-0 flex-1">
-                                    <span class="block truncate text-sm font-semibold text-theme-headings">{{ person.fullName }}</span>
-                                    <span class="block truncate text-xs text-theme-secondarytextcolor">{{ person.email }}</span>
-                                </span>
-                                {# A signer's access comes from the open request, not from a
-                                   share: revoking it here would break their turn, so the row
-                                   says where the access came from and offers no Remove. #}
-                                {% if is_pending_signer(document, person) %}
-                                    <span class="shrink-0 rounded-full border border-info-500/20 bg-info-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-info-600">Signing</span>
-                                {% else %}
-                                    <span class="hidden shrink-0 rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor sm:inline">Can view</span>
-                                    {% set revokeForm = revokeForms[person.id] %}
-                                    {{ form_start(revokeForm, {
-                                        action: path('app_document_share_revoke', {id: document.id}),
-                                        attr: {class: 'shrink-0'}
-                                    }) }}
-                                        {# Every row renders the same form type, so the hidden
-                                           field needs a per-row id to stay unique. #}
-                                        {{ form_widget(revokeForm[constant('App\\Document\\Form\\RevokeShareForm::E_USER')], {id: 'revoke_user_' ~ person.id}) }}
-                                        <button type="submit" class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
-                                            <i class="ti ti-user-minus text-sm leading-none" aria-hidden="true"></i>
-                                            Remove
-                                        </button>
-                                    {{ form_end(revokeForm) }}
-                                {% endif %}
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="mt-4 border-t border-theme-border/60 pt-4 text-sm text-theme-secondarytextcolor">Only you can open this document.</p>
-                {% endif %}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ol>
             </div>
         </div>
     {% endif %}
@@ -276,5 +287,38 @@
         </div>
         <p class="mt-3 text-xs text-theme-secondarytextcolor">Every version is kept. The original and each future signed copy for a complete, tamper-evident record.</p>
     </div>
+
+    {# ── delivery receipts ──────────────────────────────────────────────── #}
+    {# Reached through a Twig function, like the signing panel above it: the
+       Document module does not depend on Receipt. #}
+    {% set receipts = document_receipts(document) %}
+    {% if receipts is not empty %}
+        <div class="mt-6">
+            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Delivery receipts</h2>
+            <div class="card !mb-0 overflow-hidden !bg-white/90">
+                <ul class="divide-y divide-theme-border/60">
+                    {% for receipt in receipts %}
+                        <li class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-x-4">
+                            <div class="flex min-w-0 flex-1 items-start gap-3">
+                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
+                                    <i class="ti ti-receipt text-base leading-none" aria-hidden="true"></i>
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-theme-headings">Sealed {{ receipt.sealedAt|date('d M Y, H:i') }}</p>
+                                    <p class="mt-0.5 text-xs text-theme-secondarytextcolor">Outcome: {{ receipt.outcome.label }} · {{ docs.filesize(receipt.sizeBytes) }}</p>
+                                </div>
+                            </div>
+                            <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+                               class="btn btn-sm btn-outline-secondary inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto">
+                                <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
+                                Download
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <p class="mt-3 text-xs text-theme-secondarytextcolor">Sigil's sealed record of who the document was delivered to and what each recipient did with it.</p>
+        </div>
+    {% endif %}
 </div>
 {% endblock %}

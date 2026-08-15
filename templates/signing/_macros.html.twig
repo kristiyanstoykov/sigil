@@ -1,7 +1,73 @@
 {#
     Signing-request macros. Import with:
       {% import 'signing/_macros.html.twig' as signing %}
+
+    Class strings are written out in full, never interpolated: Tailwind scans
+    templates for literal utilities.
 #}
+
+{#
+    The outcome of a closed request. Only History renders this: on the Sent tab
+    every card is pending by definition, and the progress bar says it better.
+#}
+{% macro outcome_badge(status) %}
+    {% set style = {
+        'completed': {classes: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check'},
+        'declined':  {classes: 'bg-danger-500/10 text-danger-600',   icon: 'ti-ban'},
+        'expired':   {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-clock-x'},
+        'cancelled': {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-arrow-back-up'},
+        'pending':   {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-clock'},
+    }[status.value] %}
+    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold {{ style.classes }}">
+        <i class="ti {{ style.icon }} text-xs leading-none" aria-hidden="true"></i>
+        {{ status.label }}
+    </span>
+{% endmacro %}
+
+{# How many of the list have signed, as a bar plus a count. #}
+{% macro progress(request) %}
+    {% set total = request.signers|length %}
+    {% set done = request.signedCount %}
+    <div class="min-w-0">
+        <div class="flex items-baseline justify-between gap-3">
+            <span class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Progress</span>
+            <span class="text-xs font-bold text-theme-headings">{{ done }} of {{ total }} signed</span>
+        </div>
+        <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-theme-activebg">
+            <div class="h-full rounded-full bg-primary-500" style="width: {{ total ? (done / total * 100)|round : 0 }}%"></div>
+        </div>
+    </div>
+{% endmacro %}
+
+{# Due date with a countdown, coloured by how little time is left. #}
+{% macro due(deadline, loud) %}
+    {% set daysLeft = ((deadline.timestamp - "now"|date('U')) / 86400)|round(0, 'floor') %}
+    {% set tone = not loud
+        ? 'text-theme-secondarytextcolor'
+        : (daysLeft <= 1 ? 'text-danger-600' : (daysLeft <= 3 ? 'text-warning-600' : 'text-primary-500')) %}
+    <div class="min-w-0">
+        <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Due</div>
+        <div class="mt-0.5 text-sm font-bold {{ tone }}">
+            {{ deadline|date('d M Y') }}
+            {%- if loud %}
+                <span class="font-semibold">
+                    · {% if daysLeft < 0 %}overdue{% elseif daysLeft == 0 %}today{% elseif daysLeft == 1 %}tomorrow{% else %}in {{ daysLeft }} days{% endif %}
+                </span>
+            {%- endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+{# An empty tab. Same shape as the documents list's empty states. #}
+{% macro empty(icon, heading, body) %}
+    <div class="card !mb-0 !bg-white/80 p-14 text-center">
+        <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+            <i class="ti {{ icon }} text-3xl leading-none" aria-hidden="true"></i>
+        </div>
+        <h2 class="text-lg font-extrabold text-theme-headings">{{ heading }}</h2>
+        <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">{{ body }}</p>
+    </div>
+{% endmacro %}
 
 {#
     The ordered signer list, read-only. Top is first: each row shows whether that

@@ -86,8 +86,8 @@ final class SigningRequestNotifier
     }
 
     /**
-     * Expired or cancelled: the requester always hears about it, and so does the
-     * signer who was holding the turn when it closed.
+     * Expired, cancelled or declined: the requester always hears about it, and so
+     * does the signer who was holding the turn when it closed.
      */
     public function notifyClosed(SigningRequest $request, SigningRequestStatus $status): void
     {
@@ -96,7 +96,13 @@ final class SigningRequestNotifier
         }
 
         $document = $request->getDocument();
-        $expired = SigningRequestStatus::Expired === $status;
+        $declined = $request->declinedBy();
+
+        $subject = match ($status) {
+            SigningRequestStatus::Expired => 'Signature request expired',
+            SigningRequestStatus::Declined => 'Signature request declined',
+            default => 'Signature request cancelled',
+        };
 
         $recipients = [$request->getRequester()->getEmail()];
         $pending = $request->currentSigner();
@@ -108,14 +114,17 @@ final class SigningRequestNotifier
             $this->mailer->trySend(
                 (new TemplatedEmail())
                     ->to($recipient)
-                    ->subject(sprintf('%s: %s', $expired ? 'Signature request expired' : 'Signature request cancelled', $document->getTitle()))
+                    ->subject(sprintf('%s: %s', $subject, $document->getTitle()))
                     ->htmlTemplate('emails/signing_closed.html.twig')
                     ->context([
                         'title' => $document->getTitle(),
-                        'expired' => $expired,
+                        'status' => $status->value,
+                        'expired' => SigningRequestStatus::Expired === $status,
                         'requester' => $request->getRequester()->getFullName(),
                         'deadline' => $request->getDeadline(),
                         'signed' => $request->signedCount(),
+                        'declinedBy' => $declined?->getUser()->getFullName(),
+                        'declineReason' => $declined?->getDeclineReason(),
                     ]),
             );
         }

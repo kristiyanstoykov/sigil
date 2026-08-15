@@ -68,10 +68,13 @@ final class DocumentWebTest extends AuthWebTestCase
         self::assertStringContainsString('Integrity fingerprint', $show);
 
         // An unsigned document reads as unfinished, and both ways out are shown:
-        // sign yourself (live) and request a signature (the ADR-007 seam).
+        // sign yourself, and send it to other people. Requesting signatures has
+        // its own permanent panel rather than living only in the draft callout.
         self::assertStringContainsString('still a draft', $show);
-        self::assertStringContainsString('Request a signature', $show);
+        self::assertStringContainsString('Sign it yourself', $show);
+        self::assertStringContainsString('Request signatures', $show);
         self::assertStringContainsString($showUrl.'/sign', $show);
+        self::assertStringContainsString($showUrl.'/request', $show);
 
         // List now shows the document, badged Draft.
         $this->client->request('GET', '/documents');

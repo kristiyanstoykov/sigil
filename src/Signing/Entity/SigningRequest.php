@@ -154,6 +154,18 @@ class SigningRequest
         return $count;
     }
 
+    /** The signer who refused, if this request was closed by a refusal. */
+    public function declinedBy(): ?SigningRequestSigner
+    {
+        foreach ($this->signers as $signer) {
+            if ($signer->hasDeclined()) {
+                return $signer;
+            }
+        }
+
+        return null;
+    }
+
     public function hasAnySignature(): bool
     {
         return $this->signedCount() > 0;

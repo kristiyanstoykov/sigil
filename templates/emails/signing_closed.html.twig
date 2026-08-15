@@ -1,18 +1,36 @@
 {% extends 'emails/base.html.twig' %}
 
 {% block heading %}
-    {{ expired ? 'A signature request expired' : 'A signature request was cancelled' }}
+    {% if status == 'declined' %}
+        A signature request was declined
+    {% elseif expired %}
+        A signature request expired
+    {% else %}
+        A signature request was cancelled
+    {% endif %}
 {% endblock %}
 
 {% block body %}
     <p>
         The request to sign <strong>{{ title }}</strong> is closed
-        {% if expired %}
+        {% if status == 'declined' %}
+            because {{ declinedBy }} declined to sign it.
+        {% elseif expired %}
             because its deadline of {{ deadline|date('j M Y, H:i') }} passed before everyone signed.
         {% else %}
             because {{ requester }} withdrew it.
         {% endif %}
     </p>
+
+    {% if status == 'declined' %}
+        {% if declineReason %}
+            <p>They gave this reason:</p>
+            <p><em>{{ declineReason }}</em></p>
+        {% else %}
+            <p>They did not give a reason.</p>
+        {% endif %}
+        <p>Nobody further down the list was asked to sign.</p>
+    {% endif %}
 
     {% if signed > 0 %}
         <p>{{ signed }} signature(s) were collected and are kept with the document.</p>

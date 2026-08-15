@@ -52,7 +52,10 @@ final class PyHankoAdapter implements PadesSignerInterface
             'reason' => $request->reason,
             'location' => $request->location,
             'tsa_url' => $request->tsaUrl,
-            'appearance' => ['signer_name' => $request->signerName],
+            'appearance' => array_filter([
+                'signer_name' => $request->signerName,
+                'line1' => $request->appearanceLine1,
+            ], static fn (?string $value): bool => null !== $value),
             'page' => $request->page,
         ]);
 

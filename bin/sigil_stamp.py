@@ -257,7 +257,14 @@ def fit_scale(signer_name: str, target_w: float, max_scale: float = DEFAULT_SCAL
     return min(max_scale, target_w / natural)
 
 
-def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE) -> bytes:
+# What the stamp calls itself. A seal overrides it - a delivery receipt is not
+# a qualified signature by a person (ADR-012). Body lines never drive the frame
+# width (header and signer name do), so an override cannot overflow the frame.
+DEFAULT_LINE1 = "Qualified electronic signature"
+
+
+def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE,
+              line1: str = DEFAULT_LINE1) -> bytes:
     s = scale
     W, H = dimensions(signer_name, scale)
     pad = PAD * s
@@ -296,7 +303,7 @@ def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE) ->
 
     # 5. Body: signer name (bold), then the two qualified lines.
     ops.append(_text(pad, top_y - 17 * s, FS_NAME * s, INK, "F2", name))
-    ops.append(_text(pad, top_y - 28 * s, FS_BODY * s, GREY, "F1", "Qualified electronic signature"))
+    ops.append(_text(pad, top_y - 28 * s, FS_BODY * s, GREY, "F1", line1))
     ops.append(_text(pad, top_y - 38 * s, FS_BODY * s, GREY, "F1", f"Qualified time-stamped: {timestamp}"))
 
     # 6. Footer on the bottom line, flush right (smaller), clear of the corner.
@@ -308,16 +315,18 @@ def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE) ->
 class SigilStampContent(PdfContent):
     """pyHanko PdfContent wrapping the appearance; embeds the Sofia Sans faces."""
 
-    def __init__(self, signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE):
+    def __init__(self, signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE,
+                 line1: str = DEFAULT_LINE1):
         w, h = dimensions(signer_name, scale)
         super().__init__(box=BoxConstraints(width=w, height=h))
         self._signer = signer_name
         self._ts = timestamp
         self._scale = scale
+        self._line1 = line1
 
     def render(self) -> bytes:
         self.set_resource(ResourceType.FONT, NameObject("/F1"), _embed(self.writer, "reg"))
         self.set_resource(ResourceType.FONT, NameObject("/F2"), _embed(self.writer, "bold"))
         self.set_resource(ResourceType.FONT, NameObject("/F3"), _embed(self.writer, "bolditalic"))
         self.set_resource(ResourceType.FONT, NameObject("/F4"), _embed(self.writer, "italic"))
-        return stamp_ops(self._signer, self._ts, self._scale)
+        return stamp_ops(self._signer, self._ts, self._scale, self._line1)

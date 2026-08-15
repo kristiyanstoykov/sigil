@@ -33,10 +33,14 @@ final readonly class SidebarMenuProvider
             ),
             new MenuItem(
                 label: 'Signing requests',
-                route: 'app_documents',
+                route: 'app_signing_requests',
                 icon: '<path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 13V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/>',
                 badgeKey: 'signing_requests',
-                routeParams: ['tab' => 'tosign'],
+            ),
+            new MenuItem(
+                label: 'Receipts',
+                route: 'app_receipts',
+                icon: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
             ),
             new MenuItem(
                 label: 'Certificates',

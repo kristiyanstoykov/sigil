@@ -22,6 +22,13 @@ enum SigningRequestStatus: string
     /** Withdrawn by the requester before it completed. */
     case Cancelled = 'cancelled';
 
+    /**
+     * Refused by the signer whose turn it was. Signing is consensual - being
+     * asked to sign is not being obliged to - so a refusal is a first-class
+     * outcome, distinct from letting the deadline run out (ADR-012).
+     */
+    case Declined = 'declined';
+
     public function label(): string
     {
         return match ($this) {
@@ -29,6 +36,7 @@ enum SigningRequestStatus: string
             self::Completed => 'Completed',
             self::Expired => 'Expired',
             self::Cancelled => 'Cancelled',
+            self::Declined => 'Declined',
         };
     }
 

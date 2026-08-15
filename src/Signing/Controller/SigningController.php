@@ -11,6 +11,7 @@ use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
 use App\Signing\Exception\TokenPinRejectedException;
+use App\Signing\Form\DeclineFormFactory;
 use App\Signing\Form\SignDocumentForm;
 use App\Signing\Repository\SigningRequestRepository;
 use App\Signing\Service\DocumentSigner;
@@ -32,6 +33,7 @@ class SigningController extends AbstractController
         private readonly CertificateRepository $certificates,
         private readonly DocumentSigner $signer,
         private readonly SigningRequestRepository $signingRequests,
+        private readonly DeclineFormFactory $declineForms,
         private readonly ClockInterface $clock,
     ) {
     }
@@ -115,6 +117,9 @@ class SigningController extends AbstractController
             'form' => $form,
             'hasUsableCertificate' => [] !== $usable,
             'signingRequest' => $signingRequest,
+            // Only reachable here when it is this user's turn: the waiting view
+            // returned above covers everyone else.
+            'declineForm' => null !== $signingRequest ? $this->declineForms->create($signingRequest)->createView() : null,
         ]);
 
         // A submitted-but-invalid form re-renders with its field errors; 422 so

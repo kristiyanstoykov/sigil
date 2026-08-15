@@ -26,6 +26,8 @@ final readonly class PadesSignRequest
         public ?string $location = null,
         public int $page = -1,
         public string $fieldName = 'Signature1',
+        /** What the visible stamp calls itself; null keeps the driver's default. */
+        public ?string $appearanceLine1 = null,
     ) {
     }
 }

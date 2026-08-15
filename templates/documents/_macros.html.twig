@@ -45,8 +45,8 @@
     the menu into <body> with fixed positioning on open so the table's overflow
     never clips it.
 
-    `owned` is false on the "Shared with me" tab: a recipient may read the
-    document, nothing more - signing, sharing on and deleting are the owner's.
+    `owned` is false on the "Shared with me" tab: you can read the document
+    because a signing request reached you, nothing more.
 #}
 {% macro row_menu(document, owned = true) %}
     <div data-controller="menu" class="inline-block">
@@ -85,19 +85,21 @@
                     <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
                     Sign yourself
                 </a>
-                <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
-                   class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
-                    <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
-                    Request a signature
-                </a>
+                {# One request per document, ever - a declined or expired one has
+                   already spent it, and its receipt names a fixed outcome. #}
+                {% if can_request_signatures(document) %}
+                    <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                       class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
+                        <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
+                        Request a signature
+                    </a>
+                {% else %}
+                    <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="This document has already been through a signature request.">
+                        <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
+                        Request a signature
+                    </span>
+                {% endif %}
             {% endif %}
-            {# Sharing lives on the document page, next to the list of who already
-               has access - a menu is the wrong place to manage a set. #}
-            <a href="{{ path('app_document_show', {id: document.id}) }}#sharing"
-               class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-bodycolor hover:bg-theme-activebg">
-                <i class="ti ti-share text-base leading-none" aria-hidden="true"></i>
-                Share
-            </a>
             <span class="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-theme-secondarytextcolor/60 cursor-not-allowed" title="Coming soon">
                 <i class="ti ti-trash text-base leading-none" aria-hidden="true"></i>
                 Delete

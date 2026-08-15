@@ -69,8 +69,10 @@ jobs:
                     php bin/console -e test doctrine:database:create --if-not-exists -n
                     php bin/console -e test doctrine:migrations:migrate -n
                     # Certificate/signing tests need an initialized CA (in-token key
-                    # + var/ca/ca.crt).
+                    # + var/ca/ca.crt); receipt tests additionally need the delivery
+                    # seal, which the CA issues (ADR-012).
                     php bin/console -e test sigil:ca:init
+                    php bin/console -e test sigil:seal:init
                     php bin/phpunit
                   '
 

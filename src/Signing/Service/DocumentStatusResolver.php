@@ -37,10 +37,15 @@ final class DocumentStatusResolver
                 return DocumentDisplayStatus::Pending;
             }
 
-            // A missed deadline outranks the signatures that were collected: the
-            // document is on the record as incomplete, not as finished.
+            // A missed deadline or a refusal outranks the signatures that were
+            // collected: the document is on the record as incomplete, not as
+            // finished.
             if (SigningRequestStatus::Expired === $request->getStatus()) {
                 return DocumentDisplayStatus::Expired;
+            }
+
+            if (SigningRequestStatus::Declined === $request->getStatus()) {
+                return DocumentDisplayStatus::Declined;
             }
         }
 

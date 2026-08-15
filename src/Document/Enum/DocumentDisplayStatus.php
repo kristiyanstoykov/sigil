@@ -33,6 +33,9 @@ enum DocumentDisplayStatus: string
     /** A request's deadline passed with signatures still missing. */
     case Expired = 'expired';
 
+    /** A signer refused. The request is closed and nobody after them was asked. */
+    case Declined = 'declined';
+
     public function label(): string
     {
         return match ($this) {
@@ -40,6 +43,7 @@ enum DocumentDisplayStatus: string
             self::Pending => 'Awaiting signatures',
             self::Signed => 'Signed',
             self::Expired => 'Expired',
+            self::Declined => 'Declined',
         };
     }
 
@@ -51,6 +55,7 @@ enum DocumentDisplayStatus: string
             self::Pending => 'Sent for signature. Each signer signs in turn, and nobody can jump the queue.',
             self::Signed => 'Signed and sealed. Every version is kept as a tamper-evident record.',
             self::Expired => 'The signing deadline passed before everyone signed. Signed versions are kept.',
+            self::Declined => 'A signer declined. Nobody after them was asked, and signed versions are kept.',
         };
     }
 
@@ -62,6 +67,7 @@ enum DocumentDisplayStatus: string
             self::Pending => 'border-info-500/20 bg-info-500/10 text-info-600',
             self::Signed => 'border-success-500/20 bg-success-500/10 text-success-600',
             self::Expired => 'border-danger-500/20 bg-danger-500/10 text-danger-600',
+            self::Declined => 'border-danger-500/20 bg-danger-500/10 text-danger-600',
         };
     }
 
@@ -73,6 +79,7 @@ enum DocumentDisplayStatus: string
             self::Pending => 'bg-info-500',
             self::Signed => 'bg-success-500',
             self::Expired => 'bg-danger-500',
+            self::Declined => 'bg-danger-500',
         };
     }
 
@@ -88,6 +95,7 @@ enum DocumentDisplayStatus: string
             self::Pending => 'ti-clock',
             self::Signed => 'ti-circle-check',
             self::Expired => 'ti-alert-triangle',
+            self::Declined => 'ti-ban',
         };
     }
 
@@ -111,5 +119,10 @@ enum DocumentDisplayStatus: string
     public function isExpired(): bool
     {
         return self::Expired === $this;
+    }
+
+    public function isDeclined(): bool
+    {
+        return self::Declined === $this;
     }
 }

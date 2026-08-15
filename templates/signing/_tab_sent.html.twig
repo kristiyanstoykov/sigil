@@ -1,0 +1,90 @@
+{% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
+
+{#
+    Outgoing: requests you started that are still open. The question here is not
+    "what must I do" but "has anyone done it yet", so the progress bar and the
+    name of the holdup carry the tile.
+#}
+{% if sent is empty %}
+    {{ signing.empty(
+        'ti-send',
+        'No requests out',
+        'Open a document and send it for signature. Requests you have sent appear here until everyone has signed or the deadline runs out.'
+    ) }}
+{% else %}
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {% for request in sent %}
+            {% set withdrawForm = withdrawForms[request.id] %}
+            {% set current = request.currentSigner %}
+
+            <div class="card !mb-0 flex overflow-hidden !bg-white/90">
+                <div class="w-1.5 shrink-0 bg-primary-500/40"></div>
+                <div class="min-w-0 flex-1 p-5">
+
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">
+                                To {{ request.signers|length }} signer{{ request.signers|length == 1 ? '' : 's' }}
+                            </div>
+                            <div class="mt-1 flex items-start gap-2.5">
+                                {{ docs.pdf_icon('sm') }}
+                                <a href="{{ path('app_document_show', {id: request.document.id}) }}"
+                                   class="min-w-0 break-words text-base font-bold text-theme-headings hover:text-primary-500">{{ request.document.title }}</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">{{ signing.progress(request) }}</div>
+
+                    <div class="mt-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+                        {{ signing.due(request.deadline, true) }}
+                        {% if current %}
+                            <span class="rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor">
+                                Waiting for {{ current.user.fullName }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap gap-2">
+                        <a href="{{ path('app_document_show', {id: request.document.id}) }}"
+                           class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
+                            <i class="ti ti-file-text text-sm leading-none" aria-hidden="true"></i>
+                            Open document
+                        </a>
+
+                        <div data-controller="confirm" class="contents">
+                            <button type="button" data-action="confirm#open"
+                                    class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
+                                <i class="ti ti-arrow-back-up text-sm leading-none" aria-hidden="true"></i>
+                                Withdraw
+                            </button>
+
+                            <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+                                 data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+                                 class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+                                <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+                                    <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
+                                        <i class="ti ti-arrow-back-up text-xl leading-none" aria-hidden="true"></i>
+                                    </div>
+                                    <h2 class="mb-2 text-lg font-semibold text-theme-headings">Withdraw the request on "{{ request.document.title }}"?</h2>
+                                    <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
+                                        Nobody is asked to sign it again and {{ current ? current.user.fullName : 'the current signer' }}
+                                        loses access. Signatures already collected are kept as versions of the document.
+                                    </p>
+                                    {{ form_start(withdrawForm, {
+                                        action: path('app_signing_request_withdraw', {id: request.id}),
+                                        attr: {class: 'flex gap-2.5'}
+                                    }) }}
+                                        <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
+                                        <button type="submit" class="btn btn-danger flex-1">Withdraw</button>
+                                    {{ form_end(withdrawForm) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}

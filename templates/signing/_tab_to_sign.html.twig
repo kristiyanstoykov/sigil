@@ -1,0 +1,115 @@
+{% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
+
+{#
+    Incoming: what other people are waiting on you for. A coloured urgency rail
+    down the left, the sender up top, the countdown as the loudest thing on the
+    tile.
+#}
+{% set mine = incoming|filter(r => r.isTurnOf(app.user)) %}
+{% set waiting = incoming|filter(r => not r.isTurnOf(app.user)) %}
+
+{% if incoming is empty %}
+    {{ signing.empty(
+        'ti-mail-opened',
+        'Nothing waiting on you',
+        'When someone asks you to sign a document, it appears here - with your place in the signing order and how long you have.'
+    ) }}
+{% else %}
+    {% for group in [{label: 'Your turn', items: mine}, {label: 'Waiting on someone before you', items: waiting}] %}
+        {% if group.items|length %}
+            <h2 class="mb-3 mt-6 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor first:mt-0">{{ group.label }}</h2>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {% for request in group.items %}
+                    {% set me = request.signerFor(app.user) %}
+                    {% set declineForm = declineForms[request.id] %}
+                    {% set myTurn = request.isTurnOf(app.user) %}
+                    {% set daysLeft = ((request.deadline.timestamp - "now"|date('U')) / 86400)|round(0, 'floor') %}
+                    {# Full class strings, never interpolated: Tailwind scans for literal utilities. #}
+                    {% set rail = not myTurn
+                        ? 'bg-theme-border'
+                        : (daysLeft <= 1 ? 'bg-danger-500' : (daysLeft <= 3 ? 'bg-warning-500' : 'bg-primary-500')) %}
+
+                    <div class="card !mb-0 flex overflow-hidden {{ myTurn ? '!bg-white/90' : '!bg-white/60' }}">
+                        <div class="w-1.5 shrink-0 {{ rail }}"></div>
+                        <div class="min-w-0 flex-1 p-5">
+
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">From {{ request.requester.fullName }}</div>
+                                    <div class="mt-1 flex items-start gap-2.5">
+                                        {{ docs.pdf_icon('sm') }}
+                                        <span class="min-w-0 break-words text-base font-bold text-theme-headings">{{ request.document.title }}</span>
+                                    </div>
+                                </div>
+                                <span class="shrink-0 whitespace-nowrap rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-bold text-theme-secondarytextcolor">
+                                    {{ me.position }} of {{ request.signers|length }}
+                                </span>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+                                {{ signing.due(request.deadline, myTurn) }}
+                                {% if not myTurn %}
+                                    <span class="rounded-full bg-theme-activebg px-2.5 py-0.5 text-[11px] font-semibold text-theme-secondarytextcolor">
+                                        Waiting for {{ request.currentSigner.user.fullName }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            {% if myTurn %}
+                                <div class="mt-5 flex flex-wrap gap-2">
+                                    {# Preview before signing: you hold the key on your turn, so
+                                       the document is readable now - it just was never linked. #}
+                                    <a href="{{ path('app_document_view', {id: request.document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
+                                       class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
+                                        <i class="ti ti-eye text-sm leading-none" aria-hidden="true"></i>
+                                        Preview
+                                    </a>
+                                    <a href="{{ path('app_document_sign', {id: request.document.id}) }}"
+                                       class="btn btn-sm btn-primary inline-flex items-center gap-1.5">
+                                        <i class="ti ti-signature text-sm leading-none" aria-hidden="true"></i>
+                                        Read &amp; sign
+                                    </a>
+
+                                    <div data-controller="confirm" class="contents">
+                                        <button type="button" data-action="confirm#open"
+                                                class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
+                                            <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
+                                            Decline
+                                        </button>
+
+                                        <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+                                             data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+                                             class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+                                            <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+                                                <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
+                                                    <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
+                                                </div>
+                                                <h2 class="mb-2 text-lg font-semibold text-theme-headings">Decline to sign "{{ request.document.title }}"?</h2>
+                                                <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
+                                                    The request closes for everyone - nobody after you is asked to sign - and you
+                                                    lose access to the document. {{ request.requester.fullName }} is told, and it
+                                                    stays on record under History.
+                                                </p>
+                                                {{ form_start(declineForm, {
+                                                    action: path('app_signing_request_decline', {id: request.id}),
+                                                    attr: {class: 'space-y-4'}
+                                                }) }}
+                                                    {{ form_row(declineForm.reason) }}
+                                                    <div class="flex gap-2.5">
+                                                        <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
+                                                        <button type="submit" class="btn btn-danger flex-1">Decline</button>
+                                                    </div>
+                                                {{ form_end(declineForm) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+{% endif %}

@@ -43,6 +43,13 @@ class SigningRequestSigner
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?DocumentVersion $version = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $declinedAt = null;
+
+    /** Why they refused. Optional - a refusal needs no justification. */
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $declineReason = null;
+
     public function __construct(SigningRequest $request, User $user, int $position)
     {
         $this->initUuid();
@@ -86,6 +93,27 @@ class SigningRequestSigner
     {
         $this->signedAt = $at;
         $this->version = $version;
+    }
+
+    public function getDeclinedAt(): ?\DateTimeImmutable
+    {
+        return $this->declinedAt;
+    }
+
+    public function getDeclineReason(): ?string
+    {
+        return $this->declineReason;
+    }
+
+    public function hasDeclined(): bool
+    {
+        return null !== $this->declinedAt;
+    }
+
+    public function markDeclined(?string $reason, \DateTimeImmutable $at): void
+    {
+        $this->declinedAt = $at;
+        $this->declineReason = ('' === trim((string) $reason)) ? null : trim((string) $reason);
     }
 
     public function isUser(User $user): bool

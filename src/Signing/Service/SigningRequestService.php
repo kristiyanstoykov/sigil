@@ -14,9 +14,11 @@ use App\Document\Service\DocumentSharer;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Entity\SigningRequestSigner;
 use App\Signing\Enum\SigningRequestStatus;
+use App\Signing\Event\SigningRequestClosed;
 use App\Signing\Repository\SigningRequestRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * The signing queue: create a request over an ordered signer list, hand the turn
@@ -37,6 +39,7 @@ final class SigningRequestService
         private readonly SigningRequestNotifier $notifier,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly ClockInterface $clock,
+        private readonly EventDispatcherInterface $events,
         private readonly EntityManagerInterface $em,
     ) {
     }
@@ -58,8 +61,16 @@ final class SigningRequestService
         $latest = $document->getLatestVersion()
             ?? throw new DomainException('This document has no content to sign.');
 
-        if (null !== $this->requests->findPendingForDocument($document)) {
-            throw new DomainException('This document already has a signature request out.');
+        // One request per document, ever. A closed request - completed, declined
+        // or expired - is a finished chapter of that document's record, and the
+        // receipt sealed for it names a fixed audience and outcome. A second
+        // queue over the same file would sign a different version and contradict
+        // the first receipt.
+        $existing = $this->requests->findLatestForDocument($document);
+        if (null !== $existing) {
+            throw new DomainException($existing->isPending()
+                ? 'This document already has a signature request out.'
+                : 'This document has already been through a signature request. Upload it again to start a new one.');
         }
 
         if ([] === $signers) {
@@ -136,6 +147,7 @@ final class SigningRequestService
 
             $this->audit($request, 'signing_request.completed', $signer, []);
             $this->notifier->notifyCompleted($request);
+            $this->events->dispatch(new SigningRequestClosed($request));
 
             return;
         }
@@ -165,13 +177,45 @@ final class SigningRequestService
         $this->close($request, SigningRequestStatus::Cancelled, $actor);
     }
 
+    /**
+     * The signer whose turn it is refuses. Being asked to sign is not being
+     * obliged to, so a refusal closes the whole request: the queue is a sequence,
+     * and there is nothing sensible to hand the next person once a link in it
+     * says no. Signatures already collected stay - they are versions.
+     *
+     * @param string|null $reason optional; a refusal needs no justification
+     *
+     * @throws DomainException when it is not this user's turn
+     */
+    public function decline(SigningRequest $request, User $signer, ?string $reason = null): void
+    {
+        $entry = $request->signerFor($signer);
+        if (!$request->isTurnOf($signer) || null === $entry) {
+            throw new DomainException('It is not your turn to sign this document.');
+        }
+
+        $entry->markDeclined($reason, \DateTimeImmutable::createFromInterface($this->clock->now()));
+        $this->em->flush();
+
+        // close() revokes the turn-holder's grants, which is this signer: they
+        // refused, so they keep no access to what they refused.
+        $this->close($request, SigningRequestStatus::Declined, $signer, [
+            'signer' => $signer->getEmail(),
+            'position' => $entry->getPosition(),
+            'reason' => $entry->getDeclineReason() ?? '(none given)',
+        ]);
+    }
+
     /** Close an overdue request. Called by the sweep, so the actor is the requester. */
     public function expire(SigningRequest $request): void
     {
         $this->close($request, SigningRequestStatus::Expired, $request->getRequester());
     }
 
-    private function close(SigningRequest $request, SigningRequestStatus $status, User $actor): void
+    /**
+     * @param array<string, scalar> $auditPayload merged into the closing audit entry
+     */
+    private function close(SigningRequest $request, SigningRequestStatus $status, User $actor, array $auditPayload = []): void
     {
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
         $pending = $request->currentSigner();
@@ -191,8 +235,9 @@ final class SigningRequestService
             }
         }
 
-        $this->audit($request, 'signing_request.'.$status->value, $actor, []);
+        $this->audit($request, 'signing_request.'.$status->value, $actor, $auditPayload);
         $this->notifier->notifyClosed($request, $status);
+        $this->events->dispatch(new SigningRequestClosed($request));
     }
 
     /** @throws DomainException if the deadline is in the past or beyond the 30-day ceiling */

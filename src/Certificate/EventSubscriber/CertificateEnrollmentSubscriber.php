@@ -67,7 +67,10 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
             || str_starts_with($route, 'app_document')
             // Asking other people to sign is not signing: the requester needs no
             // key of their own, only the people on the list do.
-            || str_starts_with($route, 'app_signing_request')) {
+            || str_starts_with($route, 'app_signing_request')
+            // Same reasoning for the receipt that request produced - it is
+            // evidence about a delivery, not a signing operation.
+            || str_starts_with($route, 'app_receipt')) {
             return;
         }
 

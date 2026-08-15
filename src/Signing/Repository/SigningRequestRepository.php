@@ -29,10 +29,28 @@ final class SigningRequestRepository extends ServiceEntityRepository
         );
     }
 
-    /** The most recent request on a document, whatever its state. */
+    /**
+     * The most recent request on a document, whatever its state. Also the guard
+     * for "one request per document, ever": a non-null answer blocks a new one.
+     */
     public function findLatestForDocument(Document $document): ?SigningRequest
     {
         return $this->findOneBy(['document' => $document], ['createdAt' => 'DESC']);
+    }
+
+    /**
+     * Every request that ever ran on a document, oldest first.
+     *
+     * @return list<SigningRequest>
+     */
+    public function findAllForDocument(Document $document): array
+    {
+        return $this->createQueryBuilder('r')
+            ->andWhere('r.document = :document')
+            ->setParameter('document', $document)
+            ->orderBy('r.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 
     /**
@@ -67,6 +85,30 @@ final class SigningRequestRepository extends ServiceEntityRepository
             ->setParameter('user', $user)
             ->setParameter('pending', SigningRequestStatus::Pending)
             ->orderBy('r.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Closed requests $user took part in, either role, newest first - the
+     * History tab. Includes the ones they declined, which is the only place
+     * those survive: closing revokes the decliner's document grant, so the
+     * document itself is gone from every list they can see.
+     *
+     * @return list<SigningRequest>
+     */
+    public function findClosedForParticipant(User $user): array
+    {
+        // GROUP BY the PK rather than DISTINCT: the signers join yields one row
+        // per signer, and deduping on the id is cheaper and order-safe.
+        return $this->createQueryBuilder('r')
+            ->leftJoin('r.signers', 's')
+            ->andWhere('r.status != :pending')
+            ->andWhere('r.requester = :user OR s.user = :user')
+            ->setParameter('user', $user)
+            ->setParameter('pending', SigningRequestStatus::Pending)
+            ->groupBy('r.id')
+            ->orderBy('r.closedAt', 'DESC')
             ->getQuery()
             ->getResult();
     }

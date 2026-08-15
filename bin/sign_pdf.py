@@ -56,6 +56,7 @@ from sigil_stamp import (
     INK_LEFT,
     INK_RIGHT,
     INK_TOP,
+    DEFAULT_LINE1,
     SigilStampContent,
     dimensions,
     fit_scale,
@@ -311,6 +312,7 @@ def main() -> None:
         stamp = SigilStampContent(
             signer_name=signer_name,
             timestamp=stamp_ts,
+            line1=appearance.get("line1") or DEFAULT_LINE1,
             # The same scale the box was sized with, or the appearance would be
             # stretched to fit a box it was not drawn for.
             scale=stamp_scale,

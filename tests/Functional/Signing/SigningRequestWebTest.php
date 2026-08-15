@@ -81,9 +81,12 @@ final class SigningRequestWebTest extends AuthWebTestCase
         $this->sendRequest($documentId, $first, $second);
 
         $this->switchUser($first);
-        $crawler = $this->client->request('GET', '/documents?tab=tosign');
+        // The signing inbox is its own page now, not a Documents tab.
+        $crawler = $this->client->request('GET', '/signing-requests');
+        self::assertResponseIsSuccessful();
         self::assertStringContainsString('Board Resolution.pdf', $crawler->html());
-        self::assertStringContainsString('Sign now', $crawler->html());
+        self::assertStringContainsString('Read &amp; sign', $crawler->html());
+        self::assertStringContainsString('Decline', $crawler->html());
 
         $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
         self::assertResponseIsSuccessful();
@@ -93,6 +96,101 @@ final class SigningRequestWebTest extends AuthWebTestCase
         $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Not your turn yet', $crawler->html());
+    }
+
+    public function testASignerCanDeclineWithAReasonAndTheRequestClosesForEveryone(): void
+    {
+        [$documentId, $owner, $first, $second] = $this->seed('web-decline');
+        $this->loginFully($owner);
+        $this->sendRequest($documentId, $first, $second);
+
+        // The first signer refuses, straight from their inbox.
+        $this->switchUser($first);
+        $crawler = $this->client->request('GET', '/signing-requests');
+        $form = $crawler->filter('form[action*="/decline"]')->form();
+        $field = array_key_first($form->all());
+        self::assertNotNull($field);
+        $form[$field] = 'Wrong counterparty named in clause 4.';
+        $this->client->submit($form);
+
+        self::assertResponseRedirects('/signing-requests');
+        $inbox = $this->client->followRedirect()->html();
+        self::assertStringContainsString('You declined to sign', $inbox);
+        self::assertStringContainsString('Nothing waiting on you', $inbox, 'a declined request leaves the inbox');
+
+        // Declining closes the whole queue: nobody after them is asked.
+        $this->switchUser($second);
+        $this->client->request('GET', '/signing-requests');
+        self::assertStringContainsString('Nothing waiting on you', (string) $this->client->getResponse()->getContent());
+
+        // And the owner sees the outcome on the document - and cannot send it
+        // again: a document gets one request in its life.
+        $this->switchUser($owner);
+        $crawler = $this->client->request('GET', '/documents/'.$documentId);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Declined', $crawler->html());
+        self::assertStringContainsString('already been through a signature request', $crawler->html());
+        self::assertSame(0, $crawler->filter('a[href$="/request"]')->count());
+
+        $this->client->request('GET', '/documents/'.$documentId.'/request');
+        self::assertResponseRedirects('/documents/'.$documentId);
+    }
+
+    public function testTheSentTabListsWhatYouAreWaitingForAndCanWithdrawIt(): void
+    {
+        [$documentId, $owner, $first, $second] = $this->seed('web-sent');
+        $this->loginFully($owner);
+        $this->sendRequest($documentId, $first, $second);
+
+        $crawler = $this->client->request('GET', '/signing-requests?tab=sent');
+        self::assertResponseIsSuccessful();
+        $html = $crawler->html();
+        self::assertStringContainsString('Board Resolution.pdf', $html);
+        self::assertStringContainsString('0 of 2 signed', $html);
+        self::assertStringContainsString('Waiting for', $html);
+
+        $this->client->submit($crawler->filter('form[action*="/withdraw"]')->form());
+        self::assertResponseRedirects('/signing-requests?tab=sent');
+        self::assertStringContainsString('No requests out', $this->client->followRedirect()->html());
+
+        // Withdrawing is the requester's alone - a signer cannot reach the action.
+        $this->switchUser($first);
+        $this->client->request('GET', '/signing-requests?tab=sent');
+        self::assertStringContainsString('No requests out', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testHistoryKeepsWhatYouDeclinedAfterYouLoseTheDocument(): void
+    {
+        [$documentId, $owner, $first] = $this->seed('web-history');
+        $this->loginFully($owner);
+        $this->sendRequest($documentId, $first);
+
+        $this->switchUser($first);
+        $crawler = $this->client->request('GET', '/signing-requests');
+        $form = $crawler->filter('form[action*="/decline"]')->form();
+        $field = array_key_first($form->all());
+        self::assertNotNull($field);
+        $form[$field] = 'Out of scope for my role.';
+        $this->client->submit($form);
+
+        // The grant is gone with the request, so the document itself is unreachable.
+        $this->client->request('GET', '/documents/'.$documentId);
+        self::assertResponseStatusCodeSame(404);
+
+        // The refusal survives here, and nowhere else the decliner can see.
+        $html = $this->client->request('GET', '/signing-requests?tab=history')->html();
+        self::assertStringContainsString('Board Resolution.pdf', $html);
+        self::assertStringContainsString('Declined', $html);
+        self::assertStringContainsString('You declined', $html);
+        self::assertStringContainsString('Out of scope for my role.', $html);
+        // No link to a document they can no longer open.
+        self::assertStringNotContainsString('/documents/'.$documentId.'"', $html);
+
+        // The requester sees the same closed request from their side.
+        $this->switchUser($owner);
+        $html = $this->client->request('GET', '/signing-requests?tab=history')->html();
+        self::assertStringContainsString('You sent this to 1 signer', $html);
+        self::assertStringContainsString('declined', $html);
     }
 
     public function testAStrangerCannotSeeTheDocumentAtAll(): void

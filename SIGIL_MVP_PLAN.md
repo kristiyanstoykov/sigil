@@ -194,6 +194,10 @@ Maintain a `docs/adr/` directory with short markdown ADRs for each major decisio
 - ADR-006: Crypto agility (versioned envelope) + MVP algorithm suite
 - ADR-007: Synchronous hash signing; two independent asyncs; sole-control threat model
 - ADR-008: PIN verification & lockout — hash-first gate, token counter as backstop, desync tripwire
+- ADR-009: Pluggable object-storage backends (local / MinIO / AWS S3)
+- ADR-010: HSM-resident root wrapping key + gated unwrap
+- ADR-011: Pluggable signer backend (CQES)
+- ADR-012: Delivery receipts + the application seal — QERDS-modelled (eIDAS Art. 43-44, ETSI EN 319 522)
 
 Still to write: pyHanko-via-Process for PAdES signing, self-signed CA scope & trust model, hash-chained audit log for tamper evidence.
 
@@ -483,6 +487,97 @@ Working backwards from defense window of late September 2026, with documentation
 - Final rate limiting tuning
 - STRIDE threat model document (drafts thesis chapter)
 - Penetration test against own app (basic OWASP checks)
+- **TODO — honest wording on the visible stamp.** The signature stamp says
+  "Qualified electronic signature" and "Qualified time-stamped", and both claims
+  are false in every current configuration: Sigil's CA is in no trusted list, and
+  FreeTSA is not a qualified TSA (with the `none` provider there is no RFC 3161
+  timestamp at all). The mechanism to fix it already exists — `appearance.line1`
+  is threaded through `PadesSignRequest` → `bin/sign_pdf.py` → `bin/sigil_stamp.py`
+  (`DEFAULT_LINE1`), which is how the delivery seal already says "Electronic seal
+  (delivery receipt)" instead. Deliberately left as-is for now; decide the final
+  wording before the defense, since a reviewer will read the stamp.
+
+### Information architecture rework (agreed 2026-08-15)
+
+Three surfaces, each answering exactly one question, instead of one document's
+life scattered across five pages.
+
+1. **`/signing-requests` → To sign / Sent / History.** ✅ Done. The request
+   lifecycle from the user's side; the badge counts only turns that are actually
+   theirs. Absorbs the "history of what I declined" ask: closing revokes the
+   decliner's grant, so History is the only list that can still show it.
+2. **`/documents` → the library.** Drop the mine/shared tabs for one table with a
+   **Role** column (Owner / Shared / Signer) saying *why* the row is visible,
+   plus filter chips over role and `document_status()`. Today "Shared with me" is
+   a query over `DocumentKeyGrant`, so it silently mixes true shares, documents
+   awaiting your signature, and documents you signed - the column is what
+   separates them. Documents stays where you upload and sign your own files.
+3. **Dashboard → the one place that mixes roles.** Wire it to real queries
+   (waiting on you, sent and open, recent documents, recent audit activity) plus
+   the activity graph. The `awaiting_delivery` / `type: deliver` fixtures were
+   anticipating the delivery flow below; keep the idea, drop the "awaiting"
+   framing - nothing is pending for someone who has already been served.
+4. **Sidebar groups**: Work (Dashboard, Documents, Signing requests) / Evidence
+   (Receipts, Audit log) / Account (Certificates).
+
+Not doing: folding signing requests into Documents as a tab. An action queue
+sorts by urgency and empties itself; a library sorts by name and only grows.
+
+### Delivery — being served (NOT BUILT, agreed 2026-08-15)
+
+**A delivery is not a signature request.** It is hand-to-hand registered mail:
+the recipient is *served* a document. Nothing is asked of them, they cannot
+refuse it, and the sender gets sealed proof it reached them. This is Borica's
+"препоръчана поща" - registered mail with return receipt - and it is the eIDAS
+Art. 43-44 QERDS instrument proper.
+
+What exists today is only the *signature request*, which happens to deliver the
+document as a side effect of granting each signer their turn. Delivery in its own
+right has never been built, and the earlier reading of ADR-012 - that the
+per-turn key grant is the whole of Sigil's delivery story - was too narrow.
+It describes how a signature request delivers; it is not a delivery flow.
+
+**Scope:**
+
+- `Delivery` entity: sender, document, one or more recipients, `sentAt`,
+  per-recipient `deliveredAt`. **Unordered** - a delivery has no turn, unlike the
+  signing queue. All recipients are served at once.
+- Sending re-wraps the DEK for every recipient (`DocumentSharer::grantVersion` -
+  the same mechanism, no new crypto) and records the consignment moment. Since
+  Sigil does not track retrieval (ADR-012, Borica not Evrotrust), consignment
+  *is* delivery: `deliveredAt` is the grant timestamp and the receipt is sealed
+  immediately.
+- A sealed receipt per delivery, naming the document hash, the sender, every
+  recipient and the moment each was served.
+- Email notification to each recipient.
+- No decline, no acceptance, no read receipt. **Delivery cannot be refused** -
+  that is what makes it a delivery (ADR-012 §2).
+- Not revocable. This is the opposite of the share that was just removed: a share
+  was silent, revocable access with no artifact; a delivery is one-way, attested
+  and permanent.
+
+**What has to change to support it:**
+
+- `DeliveryReceipt::$outcome` is typed to `SigningRequestStatus`, and
+  `$signingRequestId` is a required column. Both assume the only thing worth
+  sealing a receipt for is a signature request. The receipt needs a source
+  type + source id (`signing_request` | `delivery`) and an outcome that covers
+  `Delivered`.
+- `templates/receipt/delivery_receipt.html.twig` renders a signer table; a
+  delivery receipt has recipients, not signers.
+- `SealReceiptOnRequestClosed` listens for `SigningRequestClosed`; deliveries
+  need their own event and subscriber.
+
+**Open questions to settle first:**
+
+- Can a document be both delivered and sent for signature, or does the
+  one-request-per-document rule extend to deliveries? (Leaning: independent -
+  they answer different questions.)
+- Where does it live in the UI? A "Delivered to me" list is legitimate; an
+  "awaiting delivery" count is not, because nothing is pending for the recipient
+  once it has been served. The dashboard stub's `awaiting_delivery` /
+  `type: deliver` rows were anticipating this flow but framed it as pending work.
+- Does a delivery need a deadline? Registered mail does not - leaning no.
 
 ### Phase 10 — Polish & Documentation Push (Weeks 16–18)
 - UI polish, animations, empty states, loading skeletons

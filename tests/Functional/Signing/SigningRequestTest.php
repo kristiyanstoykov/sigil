@@ -24,6 +24,7 @@ use App\Signing\Service\PadesSignRequest;
 use App\Signing\Service\SigningRequestNotifier;
 use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
+use App\Signing\Twig\SigningRequestExtension;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -95,6 +96,44 @@ class SigningRequestTest extends AuthWebTestCase
         self::assertCount(3, $document->getVersions(), 'original + one version per signature');
     }
 
+    public function testTheDocumentLandsAListOfWhoSignedAndExactlyWhen(): void
+    {
+        [$owner, $first, $second] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $this->service()->create($document, $owner, [$first, $second], $this->inDays(7));
+
+        $before = new \DateTimeImmutable('-1 minute');
+        $this->signer()->sign($document, $this->makeCertificate($first), $first, self::PIN);
+        $this->signer()->sign($document, $this->makeCertificate($second), $second, self::PIN);
+
+        $signatures = static::getContainer()->get(SigningRequestExtension::class)->signatures($document);
+
+        self::assertCount(2, $signatures);
+        self::assertSame($first->getEmail(), $signatures[0]['user']->getEmail());
+        self::assertSame($second->getEmail(), $signatures[1]['user']->getEmail());
+        // Signing order is chronological order, and each row carries the moment.
+        self::assertGreaterThan($before, $signatures[0]['signedAt']);
+        self::assertGreaterThanOrEqual($signatures[0]['signedAt'], $signatures[1]['signedAt']);
+        self::assertSame(2, $signatures[0]['versionNumber']);
+        self::assertSame(3, $signatures[1]['versionNumber']);
+        self::assertTrue($signatures[0]['viaRequest']);
+    }
+
+    public function testASelfSignedDocumentStillNamesItsSigner(): void
+    {
+        [$owner] = $this->threeSigners();
+        $document = $this->upload($owner);
+
+        $this->signer()->sign($document, $this->makeCertificate($owner), $owner, self::PIN);
+
+        $signatures = static::getContainer()->get(SigningRequestExtension::class)->signatures($document);
+
+        // No request ran, so the version's own timestamp stands in.
+        self::assertCount(1, $signatures);
+        self::assertSame($owner->getEmail(), $signatures[0]['user']->getEmail());
+        self::assertFalse($signatures[0]['viaRequest']);
+    }
+
     public function testSendIsRefusedWhenAnySignerCannotSign(): void
     {
         [$owner, $first] = $this->threeSigners();
@@ -118,6 +157,23 @@ class SigningRequestTest extends AuthWebTestCase
         $this->service()->create($document, $owner, [$first], $this->inDays(SigningRequest::MAX_DEADLINE_DAYS + 1));
     }
 
+    public function testADocumentGetsOneRequestInItsLifeEvenAfterOneClosed(): void
+    {
+        [$owner, $first, $second] = $this->threeSigners();
+        $document = $this->upload($owner);
+
+        $request = $this->service()->create($document, $owner, [$first], $this->inDays(7));
+        $this->service()->decline($request, $first, null);
+        self::assertSame(SigningRequestStatus::Declined, $request->getStatus());
+
+        // Closed is still spent: the sealed receipt names a fixed audience and
+        // outcome, and a second queue would sign a different version.
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('already been through a signature request');
+
+        $this->service()->create($document, $owner, [$second], $this->inDays(7));
+    }
+
     public function testCancellingTakesTheCurrentSignersAccessAway(): void
     {
         [$owner, $first] = $this->threeSigners();
@@ -129,6 +185,48 @@ class SigningRequestTest extends AuthWebTestCase
         $grants = static::getContainer()->get(DocumentKeyGrantRepository::class);
         self::assertSame(SigningRequestStatus::Cancelled, $request->getStatus());
         self::assertFalse($grants->hasGrantForDocument($document, $first));
+    }
+
+    public function testDecliningClosesTheQueueAndTakesTheDeclinersAccessAway(): void
+    {
+        [$owner, $first, $second] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $request = $this->service()->create($document, $owner, [$first, $second], $this->inDays(7));
+
+        $this->service()->decline($request, $first, 'Wrong counterparty in clause 4.');
+
+        self::assertSame(SigningRequestStatus::Declined, $request->getStatus());
+        self::assertTrue($request->signerFor($first)?->hasDeclined());
+        self::assertSame('Wrong counterparty in clause 4.', $request->declinedBy()?->getDeclineReason());
+
+        // The refusal stops the queue: the next signer is never handed the key.
+        $grants = static::getContainer()->get(DocumentKeyGrantRepository::class);
+        self::assertFalse($grants->hasGrantForDocument($document, $first), 'the decliner loses what the turn gave them');
+        self::assertFalse($grants->hasGrantForDocument($document, $second), 'nobody after them was ever asked');
+    }
+
+    public function testAReasonIsOptionalWhenDeclining(): void
+    {
+        [$owner, $first] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $request = $this->service()->create($document, $owner, [$first], $this->inDays(7));
+
+        $this->service()->decline($request, $first, null);
+
+        self::assertSame(SigningRequestStatus::Declined, $request->getStatus());
+        self::assertNull($request->declinedBy()?->getDeclineReason());
+    }
+
+    public function testOnlyTheSignerWhoseTurnItIsCanDecline(): void
+    {
+        [$owner, $first, $second] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $request = $this->service()->create($document, $owner, [$first, $second], $this->inDays(7));
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('not your turn');
+
+        $this->service()->decline($request, $second, 'I would rather not.');
     }
 
     public function testSweepDeletesAnUnsignedDocumentAndKeepsASignedOne(): void

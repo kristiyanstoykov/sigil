@@ -34,6 +34,26 @@ class AuditLogEntryRepository extends ServiceEntityRepository
     }
 
     /**
+     * The entries recording what happened to one subject, in sequence order.
+     *
+     * This is the evidence set a delivery receipt renders: the log is the
+     * repository of evidence, the receipt is a sealed extract of it (ADR-012).
+     *
+     * @return list<AuditLogEntry>
+     */
+    public function findForSubject(string $subjectType, string $subjectId): array
+    {
+        return $this->createQueryBuilder('e')
+            ->andWhere('e.subjectType = :type')
+            ->andWhere('e.subjectId = :id')
+            ->setParameter('type', $subjectType)
+            ->setParameter('id', $subjectId)
+            ->orderBy('e.sequence', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Streams the chain in sequence order for verification.
      *
      * @return iterable<AuditLogEntry>

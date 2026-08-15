@@ -10,6 +10,7 @@ never disk.
 Request:
 {
   "mode": "ca-selfsign" | "issue",
+  "profile": "ca" | "signer" | "seal",   // optional, defaults from mode
   "module": "/usr/lib/softhsm/libsofthsm2.so",
   "signer": {"token_label": "...", "key_label": "...", "pin": "..."},
   "subject": {"common_name": "...", "organization_name": "...",
@@ -41,6 +42,18 @@ from asn1crypto import algos, core, keys, pem, x509
 
 DIGEST = "sha384"
 SIG_ALGO = algos.SignedDigestAlgorithm({"algorithm": "sha384_ecdsa"})
+
+# Key usage per certificate profile. A seal carries non_repudiation
+# (contentCommitment) exactly like a signer certificate: that bit expresses the
+# signing ENTITY's commitment to the content, and a legal person commits as much
+# as a natural one - PAdES verifiers require it either way. What separates a seal
+# from a signature is the subject (an organisation, no natural-person attributes)
+# and the policy, not the key usage. See ADR-012.
+KEY_USAGE = {
+    "ca": {"key_cert_sign", "crl_sign"},
+    "signer": {"digital_signature", "non_repudiation"},
+    "seal": {"digital_signature", "non_repudiation"},
+}
 
 
 def fail(message: str) -> None:
@@ -86,6 +99,12 @@ def main() -> None:
     if mode not in ("ca-selfsign", "issue"):
         fail(f"unknown mode {mode!r}")
 
+    # The profile picks the key usage set, and is the seam for the extensions a
+    # seal will want later (ETSI EN 319 412-3 organizationIdentifier, QCStatements).
+    profile = req.get("profile", "ca" if is_ca else "signer")
+    if profile not in KEY_USAGE:
+        fail(f"unknown profile {profile!r}")
+
     lib = pkcs11.lib(req["module"])
     signer = req["signer"]
     token = lib.get_token(token_label=signer["token_label"])
@@ -116,9 +135,7 @@ def main() -> None:
              "extn_value": x509.BasicConstraints(
                  {"ca": is_ca} | ({"path_len_constraint": 0} if is_ca else {}))},
             {"extn_id": "key_usage", "critical": True,
-             "extn_value": x509.KeyUsage(
-                 {"key_cert_sign", "crl_sign"} if is_ca
-                 else {"digital_signature", "non_repudiation"})},
+             "extn_value": x509.KeyUsage(KEY_USAGE[profile])},
         ]
 
         tbs = x509.TbsCertificate({

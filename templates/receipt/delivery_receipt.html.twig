@@ -1,0 +1,143 @@
+{# The delivery receipt PDF (ADR-012). Rendered by mPDF, not by a browser: plain
+   print CSS only, no Tailwind, no external assets. Every value here is evidence,
+   so nothing is rounded or abbreviated away. #}
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page { footer: html_footer; }
+        body { font-family: dejavusans, sans-serif; font-size: 8.5pt; color: #111827; line-height: 1.45; }
+        h1 { font-size: 16pt; margin: 0 0 2pt; color: #1E3A8A; letter-spacing: .5pt; }
+        h2 { font-size: 9.5pt; margin: 14pt 0 4pt; color: #1E3A8A; text-transform: uppercase; letter-spacing: .6pt; }
+        .brand { font-size: 8pt; color: #6B7280; margin: 0 0 10pt; }
+        .rule { border-bottom: 1.2pt solid #1E3A8A; margin-bottom: 10pt; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; vertical-align: top; padding: 3.5pt 4pt; }
+        thead th { background: #EEF2FF; color: #1E3A8A; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .4pt; border-bottom: .6pt solid #C7D2FE; }
+        tbody tr { border-bottom: .4pt solid #E5E7EB; }
+        .meta td { padding: 2.5pt 4pt; border: none; }
+        .meta td.k { width: 26%; color: #6B7280; }
+        .hash { font-family: dejavusansmono, monospace; font-size: 6.8pt; word-break: break-all; color: #374151; }
+        .muted { color: #9CA3AF; }
+        .badge { font-size: 7.5pt; font-weight: bold; padding: 1.5pt 5pt; border-radius: 3pt; }
+        .ok { background: #ECFDF5; color: #059669; }
+        .warn { background: #FFFBEB; color: #D97706; }
+        .bad { background: #FEF2F2; color: #DC2626; }
+        .note { margin-top: 14pt; padding: 7pt 9pt; background: #F9FAFB; border-left: 2pt solid #1E3A8A; font-size: 7.6pt; color: #4B5563; }
+        .foot { font-size: 7pt; color: #9CA3AF; border-top: .4pt solid #E5E7EB; padding-top: 3pt; }
+    </style>
+</head>
+<body>
+
+{% set outcome = request.status %}
+{% set outcome_class = outcome.value == 'completed' ? 'ok' : (outcome.value == 'expired' ? 'warn' : 'bad') %}
+{# A refusal is an outcome, not a failure: the record has to say who refused and
+   why, or the receipt cannot explain why the request stopped where it did. #}
+
+<h1>Delivery receipt</h1>
+<p class="brand">Sigil &mdash; Signum Veritatis &middot; issued {{ sealedAt|date('d.m.Y H:i:s e') }}</p>
+<div class="rule"></div>
+
+<table class="meta">
+    <tr><td class="k">Reference</td><td class="hash">{{ request.id }}</td></tr>
+    <tr><td class="k">Document</td><td><strong>{{ document.title }}</strong></td></tr>
+    <tr><td class="k">Document digest</td><td class="hash">{{ documentHash|default('—') }} <span class="muted">(SHA-384)</span></td></tr>
+    <tr><td class="k">Sender</td><td>{{ request.requester.fullName }} &lt;{{ request.requester.email }}&gt;</td></tr>
+    <tr><td class="k">Sent</td><td>{{ request.createdAt|date('d.m.Y H:i:s') }}</td></tr>
+    <tr><td class="k">Deadline</td><td>{{ request.deadline|date('d.m.Y H:i:s') }}</td></tr>
+    <tr><td class="k">Closed</td><td>{{ request.closedAt ? request.closedAt|date('d.m.Y H:i:s') : '—' }}</td></tr>
+    <tr><td class="k">Outcome</td><td><span class="badge {{ outcome_class }}">{{ outcome.label|upper }}</span></td></tr>
+</table>
+
+<h2>Recipients</h2>
+<table>
+    <thead>
+        <tr>
+            <th style="width:5%">#</th>
+            <th style="width:33%">Recipient</th>
+            <th style="width:31%">Delivered</th>
+            <th style="width:31%">Signed</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in signers %}
+        <tr>
+            <td>{{ row.signer.position }}</td>
+            <td>
+                {{ row.signer.user.fullName }}<br>
+                <span class="muted">{{ row.signer.user.email }}</span>
+            </td>
+            <td>
+                {% if row.deliveredAt %}
+                    {{ row.deliveredAt|date('d.m.Y H:i:s') }}
+                {% else %}
+                    <span class="muted">Not delivered &mdash; the turn never reached this recipient</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if row.signer.hasSigned %}
+                    {{ row.signer.signedAt|date('d.m.Y H:i:s') }}
+                {% elseif row.signer.hasDeclined %}
+                    <span class="badge bad">DECLINED</span>
+                    {{ row.signer.declinedAt|date('d.m.Y H:i:s') }}<br>
+                    {% if row.signer.declineReason %}
+                        <span class="muted">Reason: {{ row.signer.declineReason }}</span>
+                    {% else %}
+                        <span class="muted">No reason given</span>
+                    {% endif %}
+                {% else %}
+                    <span class="muted">Not signed</span>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>Evidence</h2>
+<table>
+    <thead>
+        <tr>
+            <th style="width:6%">Seq</th>
+            <th style="width:19%">Time (UTC)</th>
+            <th style="width:26%">Event</th>
+            <th style="width:49%">Entry hash (SHA-256)</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for entry in evidence %}
+        <tr>
+            <td>{{ entry.sequence }}</td>
+            <td>{{ entry.occurredAt|date('d.m.Y H:i:s') }}</td>
+            <td>{{ entry.action }}</td>
+            <td class="hash">{{ entry.entryHash }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="4" class="muted">No recorded events.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<div class="note">
+    <strong>How to verify this receipt.</strong><br>
+    This document carries a PAdES signature applied with Sigil's delivery seal, an
+    electronic seal in the sense of Regulation (EU) 910/2014 Art. 35-40: it attests
+    that Sigil recorded these events, and is not a signature by any of the people
+    named above. Any change to the pages above invalidates it, and a PDF reader
+    that trusts the Sigil CA will report the seal as broken.<br><br>
+    The <em>Evidence</em> rows are entries from Sigil's append-only audit log. Each
+    entry hash is <em>SHA-256(previous entry hash ‖ entry payload)</em>, so the rows
+    form a chain: recomputing it over the log reproduces these values, and altering
+    any earlier record breaks every hash after it. Delivery here means the document
+    was made available to the recipient (the consignment event of ETSI EN&nbsp;319&nbsp;522);
+    Sigil does not record whether a recipient subsequently opened it.
+</div>
+
+<htmlpagefooter name="footer">
+    <div class="foot">
+        Sigil &mdash; Signum Veritatis &middot; delivery receipt {{ request.id }} &middot; page {PAGENO} of {nbpg}
+    </div>
+</htmlpagefooter>
+
+</body>
+</html>

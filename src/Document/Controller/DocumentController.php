@@ -6,20 +6,14 @@ namespace App\Document\Controller;
 
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
-use App\Core\Repository\UserRepository;
 use App\Document\Entity\Document;
 use App\Document\Entity\DocumentVersion;
-use App\Document\Form\RevokeShareForm;
-use App\Document\Form\ShareDocumentForm;
 use App\Document\Form\UploadDocumentForm;
 use App\Document\Repository\DocumentKeyGrantRepository;
 use App\Document\Repository\DocumentRepository;
 use App\Document\Service\DocumentDownloader;
-use App\Document\Service\DocumentSharer;
 use App\Document\Service\DocumentUploader;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Form\FormError;
-use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -147,9 +141,7 @@ class DocumentController extends AbstractController
     #[Route('/{id}', name: 'app_document_show', methods: ['GET'])]
     public function show(string $id): Response
     {
-        $document = $this->readableDocument($id);
-
-        return $this->renderShow($document, $this->createForm(ShareDocumentForm::class));
+        return $this->renderShow($this->readableDocument($id));
     }
 
     #[Route('/{id}/download', name: 'app_document_download', methods: ['GET'])]
@@ -174,73 +166,6 @@ class DocumentController extends AbstractController
         $document = $this->readableDocument($id);
 
         return $this->streamVersion($document, $this->versionNumbered($document, $number), $downloader, attachment: true);
-    }
-
-    #[Route('/{id}/share', name: 'app_document_share', methods: ['POST'])]
-    public function share(string $id, Request $request, DocumentSharer $sharer, UserRepository $users): Response
-    {
-        $document = $this->ownedDocument($id);
-
-        $form = $this->createForm(ShareDocumentForm::class);
-        $form->handleRequest($request);
-
-        if ($form->isSubmitted() && $form->isValid()) {
-            /** @var string $email */
-            $email = $form->get(ShareDocumentForm::E_EMAIL)->getData();
-            $recipient = $users->findOneByEmail($email);
-
-            if (null === $recipient) {
-                // Deliberately explicit rather than an enumeration-safe silent
-                // success: a share that quietly does nothing is worse, and
-                // inviting strangers by email is a feature in its own right.
-                $form->get(ShareDocumentForm::E_EMAIL)->addError(
-                    new FormError('No Sigil account uses that email address.'),
-                );
-            } else {
-                try {
-                    $sharer->share($document, $this->currentUser(), $recipient);
-                    $this->addFlash('success', sprintf('Shared with %s.', $recipient->getEmail()));
-
-                    return $this->redirectToRoute('app_document_show', ['id' => $id]);
-                } catch (DomainException $e) {
-                    $form->get(ShareDocumentForm::E_EMAIL)->addError(new FormError($e->getMessage()));
-                }
-            }
-        }
-
-        // Anything unresolved re-renders the page with the error under the field
-        // that caused it. 422, not 200, so Turbo replaces the page instead of
-        // discarding the response.
-        return $this->renderShow($document, $form, Response::HTTP_UNPROCESSABLE_ENTITY);
-    }
-
-    #[Route('/{id}/share/revoke', name: 'app_document_share_revoke', methods: ['POST'])]
-    public function revokeShare(string $id, Request $request, DocumentSharer $sharer, UserRepository $users): Response
-    {
-        $document = $this->ownedDocument($id);
-
-        $form = $this->createForm(RevokeShareForm::class);
-        $form->handleRequest($request);
-
-        if (!$form->isSubmitted() || !$form->isValid()) {
-            // Nothing here is user-typed, so a bad payload is a tampered or
-            // stale POST, not a mistake to explain.
-            throw $this->createNotFoundException();
-        }
-
-        $recipient = $users->find((string) $form->get(RevokeShareForm::E_USER)->getData());
-        if (!$recipient instanceof User) {
-            throw $this->createNotFoundException();
-        }
-
-        try {
-            $sharer->revoke($document, $this->currentUser(), $recipient);
-            $this->addFlash('success', sprintf('Access removed for %s.', $recipient->getEmail()));
-        } catch (DomainException $e) {
-            $this->addFlash('danger', $e->getMessage());
-        }
-
-        return $this->redirectToRoute('app_document_show', ['id' => $id]);
     }
 
     private function streamVersion(
@@ -284,52 +209,17 @@ class DocumentController extends AbstractController
     }
 
     /**
-     * The document page. Shared by show() and by a share attempt that came back
-     * with errors, so the form (and its messages) render identically either way.
-     *
-     * @param FormInterface<mixed> $shareForm
+     * The document page. Its signing panel, signature list and receipts all come
+     * from Twig functions in the Signing and Receipt modules (see
+     * pending_signing_request / document_signatures / document_receipts): this
+     * module does not depend on either of them.
      */
-    private function renderShow(Document $document, FormInterface $shareForm, int $status = Response::HTTP_OK): Response
+    private function renderShow(Document $document): Response
     {
-        $recipients = $this->grants->findRecipientsForDocument($document);
-
-        // One revoke form per recipient, each carrying its target. They share a
-        // form name (the POST handler cannot know which row will be submitted),
-        // so the template gives the hidden field a per-row id to keep the ids
-        // unique.
-        $revokeForms = [];
-        foreach ($recipients as $person) {
-            $id = $person->getId()->toRfc4122();
-            $form = $this->createForm(RevokeShareForm::class);
-            $form->get(RevokeShareForm::E_USER)->setData($id);
-            $revokeForms[$id] = $form->createView();
-        }
-
-        // The signing panel's data comes from Twig functions in the Signing
-        // module (pending_signing_request / signing_cancel_form): this module
-        // does not depend on that one, and the show page is not the only place
-        // that needs them.
         return $this->render('documents/show.html.twig', [
             'document' => $document,
             'isOwner' => $this->isOwner($document),
-            'recipients' => $recipients,
-            'shareForm' => $shareForm,
-            'revokeForms' => $revokeForms,
-        ], new Response(status: $status));
-    }
-
-    /**
-     * For actions only the owner may take (sharing, revoking).
-     */
-    private function ownedDocument(string $id): Document
-    {
-        $document = $this->documents->find($id);
-        if (null === $document || !$this->isOwner($document)) {
-            // 404, not 403: do not reveal that the id exists.
-            throw $this->createNotFoundException();
-        }
-
-        return $document;
+        ]);
     }
 
     /**

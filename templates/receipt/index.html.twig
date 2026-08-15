@@ -1,0 +1,65 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Receipts · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+<div class="docs-rise mx-auto max-w-5xl">
+
+    <div class="mb-5">
+        <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Delivery receipts</h1>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">Sealed proof of what was delivered, to whom, and what they did with it.</p>
+    </div>
+
+    {% if receipts is empty %}
+        <div class="card !mb-0 !bg-white/80 p-14 text-center">
+            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                <i class="ti ti-receipt text-3xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-extrabold text-theme-headings">No receipts yet</h2>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">
+                A receipt is sealed when a signature request finishes - whether everyone signed, it was withdrawn, or it ran out of time.
+            </p>
+        </div>
+    {% else %}
+        <div class="card !mb-0 overflow-hidden !bg-white/90">
+            <ul class="divide-y divide-theme-border/60">
+                {% for receipt in receipts %}
+                    {# Full class strings, never interpolated: Tailwind scans templates
+                       for literal utilities and would not emit a built-up name. #}
+                    {% set tone = receipt.outcome.value == 'completed'
+                        ? {badge: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check'}
+                        : (receipt.outcome.value == 'expired'
+                            ? {badge: 'bg-warning-500/10 text-warning-600', icon: 'ti-clock-x'}
+                            : (receipt.outcome.value == 'declined'
+                                ? {badge: 'bg-danger-500/10 text-danger-600', icon: 'ti-ban'}
+                                : {badge: 'bg-danger-500/10 text-danger-600', icon: 'ti-x'})) %}
+                    <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4">
+                        <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ tone.badge }}">
+                            <i class="ti {{ tone.icon }} text-xl leading-none" aria-hidden="true"></i>
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-bold text-theme-headings">{{ receipt.documentTitle }}</p>
+                            <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                                Sealed {{ receipt.sealedAt|date('d.m.Y H:i') }}
+                                <span class="mx-1.5 text-theme-border">·</span>
+                                {{ (receipt.sizeBytes / 1024)|round }} KB
+                            </p>
+                        </div>
+
+                        <span class="badge rounded-full {{ tone.badge }}">{{ receipt.outcome.label }}</span>
+
+                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}"
+                           class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                            <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
+                            Download
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

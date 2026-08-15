@@ -29,6 +29,7 @@ class CertificateIssuer
     private const string KEY_ID = '01';
     private const int USER_CERT_DAYS = 365;
     public const int CA_CERT_DAYS = 1825; // 5 years
+    public const int SEAL_CERT_DAYS = 1095; // 3 years
 
     public function __construct(
         private readonly Pkcs11TokenManager $tokens,
@@ -41,11 +42,16 @@ class CertificateIssuer
         private readonly string $modulePath,
         #[Autowire(env: 'SIGIL_CA_PIN')]
         private readonly string $caPin,
+        #[Autowire(env: 'SIGIL_SEAL_PIN')]
+        private readonly string $sealPin,
         #[Autowire('%kernel.project_dir%/bin/issue_cert.py')]
         private readonly string $driverPath,
         #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
         private readonly string $caCertPath,
+        #[Autowire('%kernel.project_dir%/var/ca/seal.crt')]
+        private readonly string $sealCertPath,
         private readonly string $caTokenLabel = 'sigil-ca',
+        private readonly string $sealTokenLabel = 'sigil-seal',
     ) {
     }
 
@@ -167,7 +173,7 @@ class CertificateIssuer
         // CA cert stored in the token instead of failing or re-keying
         if ($this->tokens->tokenExists($this->caTokenLabel)) {
             $der = $this->tokens->readCertificate($this->caTokenLabel, self::KEY_LABEL);
-            $this->writeCaCertFile(self::derToPem($der));
+            $this->writeCertFile($this->caCertPath, self::derToPem($der));
 
             return $this->caCertPath;
         }
@@ -201,7 +207,7 @@ class CertificateIssuer
             self::KEY_ID,
             $this->caPin,
         );
-        $this->writeCaCertFile($result['certificate_pem']);
+        $this->writeCertFile($this->caCertPath, $result['certificate_pem']);
 
         $this->auditLogger->log(
             action: 'certificate.ca_initialized',
@@ -210,6 +216,74 @@ class CertificateIssuer
         );
 
         return $this->caCertPath;
+    }
+
+    /**
+     * Seal bootstrap (sigil:seal:init). The seal is the application's own
+     * signing credential - it seals delivery receipts, which are Sigil's
+     * attestation about a delivery rather than any person's signature
+     * (ADR-012). What makes it a seal is the subject and the policy, not the
+     * key usage: an organisation, with no natural person behind it.
+     */
+    public function bootstrapSeal(): string
+    {
+        if (is_file($this->sealCertPath)) {
+            throw new DomainException('Seal already initialized - refusing to overwrite.');
+        }
+        if (!is_file($this->caCertPath)) {
+            throw new DomainException('The certificate authority is not initialized (run sigil:ca:init).');
+        }
+
+        // Same recovery as the CA: the token is on a named volume, var/ is not.
+        if ($this->tokens->tokenExists($this->sealTokenLabel)) {
+            $der = $this->tokens->readCertificate($this->sealTokenLabel, self::KEY_LABEL);
+            $this->writeCertFile($this->sealCertPath, self::derToPem($der));
+
+            return $this->sealCertPath;
+        }
+
+        $algorithm = $this->algorithms->default();
+        $this->tokens->initToken($this->sealTokenLabel, $this->sealPin);
+        $this->tokens->generateKeyPair($this->sealTokenLabel, $algorithm->pkcs11KeyType(), self::KEY_LABEL, self::KEY_ID, $this->sealPin);
+
+        $result = $this->runDriver([
+            'mode' => 'issue',
+            'profile' => 'seal',
+            'module' => $this->modulePath,
+            'signer' => [
+                'token_label' => $this->caTokenLabel,
+                'key_label' => self::KEY_LABEL,
+                'pin' => $this->caPin,
+            ],
+            'subject' => [
+                'country_name' => 'BG',
+                'organization_name' => 'Sigil',
+                'common_name' => 'Sigil Signum Veritatis Delivery Seal',
+            ],
+            'validity_days' => self::SEAL_CERT_DAYS,
+            'issuer_cert_pem' => (string) file_get_contents($this->caCertPath),
+            'subject_pubkey' => [
+                'token_label' => $this->sealTokenLabel,
+                'key_label' => self::KEY_LABEL,
+            ],
+        ]);
+
+        $this->tokens->writeCertificate(
+            $this->sealTokenLabel,
+            self::pemToDer($result['certificate_pem']),
+            self::KEY_LABEL,
+            self::KEY_ID,
+            $this->sealPin,
+        );
+        $this->writeCertFile($this->sealCertPath, $result['certificate_pem']);
+
+        $this->auditLogger->log(
+            action: 'certificate.seal_initialized',
+            payload: ['serialNumber' => $result['serial_number'], 'subjectDn' => $result['subject_dn']],
+            severity: AuditSeverity::Warning,
+        );
+
+        return $this->sealCertPath;
     }
 
     public static function assertValidPin(#[\SensitiveParameter] string $pin): void
@@ -264,13 +338,13 @@ class CertificateIssuer
         return $decoded;
     }
 
-    private function writeCaCertFile(string $pem): void
+    private function writeCertFile(string $path, string $pem): void
     {
-        $dir = \dirname($this->caCertPath);
+        $dir = \dirname($path);
         if (!is_dir($dir) && !mkdir($dir, 0750, true)) {
             throw new DomainException('Could not create CA directory.');
         }
-        file_put_contents($this->caCertPath, $pem);
+        file_put_contents($path, $pem);
     }
 
     private static function derToPem(string $der): string

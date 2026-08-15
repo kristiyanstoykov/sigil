@@ -44,8 +44,13 @@ class SigningRequestController extends AbstractController
     {
         $document = $this->ownedDocument($id);
 
-        if (null !== $this->requests->findPendingForDocument($document)) {
-            $this->addFlash('info', 'This document already has a signature request out.');
+        // A document gets one request in its life, open or closed - see
+        // SigningRequestService::create(), which enforces the same rule.
+        $existing = $this->requests->findLatestForDocument($document);
+        if (null !== $existing) {
+            $this->addFlash('info', $existing->isPending()
+                ? 'This document already has a signature request out.'
+                : 'This document has already been through a signature request.');
 
             return $this->redirectToRoute('app_document_show', ['id' => $id]);
         }
