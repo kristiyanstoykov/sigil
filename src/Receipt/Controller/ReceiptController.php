@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Receipt\Controller;
 
 use App\Core\Entity\User;
+use App\Core\Http\ContentDisposition;
 use App\Core\Exception\DomainException;
 use App\Receipt\Entity\DeliveryReceipt;
 use App\Receipt\Repository\DeliveryReceiptRepository;
@@ -44,7 +45,7 @@ class ReceiptController extends AbstractController
 
         return new Response($bytes, Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => sprintf('attachment; filename="%s"', $receipt->getFilename()),
+            'Content-Disposition' => ContentDisposition::attachment($receipt->getFilename()),
             'Cache-Control' => 'no-store, private',
         ]);
     }

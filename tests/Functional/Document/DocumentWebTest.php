@@ -89,6 +89,51 @@ final class DocumentWebTest extends AuthWebTestCase
         self::assertSame(self::MINIMAL_PDF, (string) $this->client->getResponse()->getContent());
     }
 
+    public function testANonAsciiTitleSurvivesTheDownloadHeader(): void
+    {
+        $email = $this->uniqueEmail('doc-cyrillic');
+        $this->createUser($email, verified: true, totpEnabled: true);
+        $this->loginFully($email);
+
+        $showUrl = $this->uploadPdf('Дипломна_работа_Кристиян Стойков_02.pdf');
+
+        $this->client->request('GET', $showUrl.'/download');
+        self::assertResponseIsSuccessful();
+        $disposition = (string) $this->client->getResponse()->headers->get('Content-Disposition');
+
+        // RFC 6266: the real name rides in filename*, percent-encoded UTF-8.
+        // Stripping non-ASCII (what this used to do) left "__ _02.pdf".
+        self::assertStringContainsString("filename*=utf-8''", $disposition);
+        self::assertStringContainsString(rawurlencode('Дипломна_работа_Кристиян Стойков_02.pdf'), $disposition);
+        // And the ASCII fallback is transliterated, not blanked.
+        self::assertStringContainsString('filename=Diplomna-rabota-Kristian-Stojkov-02.pdf', $disposition);
+    }
+
+    public function testTheLibraryRowSaysWhyYouCanSeeItAndFiltersOnIt(): void
+    {
+        $email = $this->uniqueEmail('doclib');
+        $this->createUser($email, verified: true, totpEnabled: true);
+        $this->loginFully($email);
+
+        $this->uploadPdf('Contract.pdf');
+
+        $crawler = $this->client->request('GET', '/documents');
+        self::assertResponseIsSuccessful();
+        $list = $crawler->html();
+        // One list with a Role column, not a "mine" / "shared" pair of tabs.
+        self::assertStringContainsString('Owner', $list);
+        self::assertSame(1, $crawler->filter('tbody tr')->count());
+
+        // A filter that matches keeps the row; one that does not says so rather
+        // than showing the "no documents at all" state.
+        $crawler = $this->client->request('GET', '/documents?status=draft');
+        self::assertSame(1, $crawler->filter('tbody tr')->count());
+
+        $crawler = $this->client->request('GET', '/documents?role=others');
+        self::assertStringContainsString('Nothing matches those filters', $crawler->html());
+        self::assertStringNotContainsString('No documents yet', $crawler->html());
+    }
+
     public function testAnotherUserGets404(): void
     {
         $owner = $this->uniqueEmail('docowner');

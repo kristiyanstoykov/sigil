@@ -7,6 +7,7 @@ namespace App\Receipt\Twig;
 use App\Core\Entity\User;
 use App\Document\Entity\Document;
 use App\Receipt\Entity\DeliveryReceipt;
+use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptKeyGrantRepository;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Signing\Entity\SigningRequest;
@@ -43,7 +44,7 @@ final class ReceiptExtension extends AbstractExtension
     public function forRequest(SigningRequest $request): ?DeliveryReceipt
     {
         $user = $this->security->getUser();
-        $receipt = $this->receipts->findForRequest($request->getId());
+        $receipt = $this->receipts->findForSource(ReceiptSource::SigningRequest, $request->getId());
 
         if (!$user instanceof User || null === $receipt) {
             return null;

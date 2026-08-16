@@ -4,35 +4,131 @@ declare(strict_types=1);
 
 namespace App\Dashboard\Controller;
 
+use App\AuditLog\Repository\AuditLogEntryRepository;
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Enum\CertificateDisplayStatus;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
+use App\Delivery\Repository\DeliveryRepository;
+use App\Document\Repository\DocumentRepository;
+use App\Signing\Entity\SigningRequest;
+use App\Signing\Repository\SigningRequestRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+/**
+ * The one surface that mixes roles: what is waiting on you, what you are waiting
+ * on other people for, and what you have been doing. Every other page answers a
+ * single question; this one is the overview.
+ *
+ * It reads the feature modules' repositories directly. That is deliberate and is
+ * the only place it happens - a dashboard aggregates by definition, and giving
+ * each module a "dashboard summary" service would spread this one view across
+ * five of them.
+ */
 #[IsGranted('IS_AUTHENTICATED_FULLY')]
 class DashboardController extends AbstractController
 {
+    /** How far back the activity chart looks. */
+    private const int CHART_MONTHS = 6;
+
+    /** What counts as activity worth charting, in the order the legend shows. */
+    private const array CHART_ACTIONS = [
+        'uploaded' => 'document.uploaded',
+        'signed' => 'document.signed',
+        'delivered' => 'delivery.served',
+    ];
+
+    public function __construct(
+        private readonly CertificateRepository $certificates,
+        private readonly DocumentRepository $documents,
+        private readonly SigningRequestRepository $requests,
+        private readonly DeliveryRepository $deliveries,
+        private readonly AuditLogEntryRepository $auditEntries,
+    ) {
+    }
+
     #[Route('/', name: 'app_dashboard')]
-    public function index(
-        CertificateRepository $certificateRepository,
-        SignatureAlgorithmRegistry $algorithms,
-    ): Response {
+    public function index(SignatureAlgorithmRegistry $algorithms): Response
+    {
         $user = $this->getUser();
         \assert($user instanceof User);
 
-        $certificates = [];
-        foreach ($certificateRepository->findByUser($user) as $certificate) {
+        // Incoming requests split the same way the signing inbox splits them:
+        // only turns that are actually yours are work you can do now.
+        $incoming = $this->requests->findPendingForSigner($user);
+        $myTurn = array_values(array_filter($incoming, static fn (SigningRequest $r): bool => $r->isTurnOf($user)));
+        $sent = $this->requests->findPendingByRequester($user);
+        $documents = $this->documents->findVisibleTo($user);
+        $served = $this->deliveries->findServedTo($user);
+
+        $certificates = $this->certificateCards($user, $algorithms);
+
+        return $this->render('dashboard/index.html.twig', [
+            'onboarding' => [] === $certificates && [] === $documents,
+            'stats' => [
+                'awaiting_me' => \count($myTurn),
+                'sent_pending' => \count($sent),
+                'delivered' => \count($served),
+                'documents' => \count($documents),
+            ],
+            'myTurn' => \array_slice($myTurn, 0, 4),
+            'sent' => \array_slice($sent, 0, 4),
+            'recentDocuments' => \array_slice($documents, 0, 5),
+            'activity' => $this->auditEntries->findRecentForActor($user, 6),
+            'monthly' => $this->monthlyActivity($user),
+            'certificates' => $certificates,
+        ]);
+    }
+
+    /**
+     * Six months of activity read straight off the audit log - the record of what
+     * happened already exists, so the chart is a view of it rather than a second
+     * set of counters that could drift from it.
+     *
+     * @return list<array{label: string, uploaded: int, signed: int, delivered: int}>
+     */
+    private function monthlyActivity(User $user): array
+    {
+        $first = (new \DateTimeImmutable('first day of this month'))
+            ->setTime(0, 0)
+            ->modify(sprintf('-%d months', self::CHART_MONTHS - 1));
+
+        $counts = $this->auditEntries->countPerMonthForActor($user, array_values(self::CHART_ACTIONS), $first);
+
+        $months = [];
+        for ($i = 0; $i < self::CHART_MONTHS; ++$i) {
+            $month = $first->modify(sprintf('+%d months', $i));
+            $key = $month->format('Y-m');
+
+            $row = ['label' => $month->format('M')];
+            foreach (self::CHART_ACTIONS as $series => $action) {
+                $row[$series] = $counts[$action][$key] ?? 0;
+            }
+
+            /** @var array{label: string, uploaded: int, signed: int, delivered: int} $row */
+            $months[] = $row;
+        }
+
+        return $months;
+    }
+
+    /**
+     * @return list<array{id: \Symfony\Component\Uid\Uuid, name: string, cn: string, algorithm: string, valid_until: string, status: CertificateDisplayStatus, expires_in: ?string}>
+     */
+    private function certificateCards(User $user, SignatureAlgorithmRegistry $algorithms): array
+    {
+        $cards = [];
+        foreach ($this->certificates->findByUser($user) as $certificate) {
             if (CertificateStatus::Revoked === $certificate->getStatus()) {
                 continue;
             }
             $daysLeft = (int) (new \DateTimeImmutable())->diff($certificate->getNotAfter())->format('%r%a');
             $expiring = CertificateStatus::Active === $certificate->getStatus() && $daysLeft <= 30;
-            $certificates[] = [
+            $cards[] = [
                 'id' => $certificate->getId(),
                 'name' => 'Personal signing',
                 'cn' => $certificate->getSubjectDn(),
@@ -43,50 +139,6 @@ class DashboardController extends AbstractController
             ];
         }
 
-        // TODO: replace the remaining arrays below with repository queries once
-        // the Document / Signing modules exist. The shapes mirror the planned
-        // entities so the template won't need to change.
-        // The signing-requests badge is live: the sidebar reads it straight from
-        // the Signing module, so nothing has to be passed from here.
-        return $this->render('dashboard/index.html.twig', [
-            'stats' => [
-                'awaiting_me' => 2,
-                'awaiting_delivery' => 1,
-                'sent_pending' => 3,
-                'signed_30d' => 18,
-                'documents' => 41,
-            ],
-            // deliveries (receive/acknowledge, no signature) always sort before signing requests
-            'inbox_requests' => [
-                ['type' => 'deliver', 'document' => 'Updated employment contract.pdf', 'from' => 'HR - Maria Koleva', 'due' => 'delivered today'],
-                ['type' => 'sign', 'document' => 'Series-B SAFE agreement.pdf', 'from' => 'Daniel Petrov', 'due' => 'due today'],
-                ['type' => 'sign', 'document' => 'NDA - Aurelia Labs.pdf', 'from' => 'Lena Fischer', 'due' => 'due in 2 days'],
-            ],
-            'sent_requests' => [
-                ['document' => 'Vendor MSA v3.pdf', 'to' => 'Orion GmbH', 'status' => 'Awaiting', 'meta' => 'sent 1 day ago'],
-                ['document' => 'Board consent Q3.pdf', 'to' => '4 signers', 'status' => 'In progress', 'meta' => '2 of 4 signed'],
-            ],
-            'certificates' => $certificates,
-            'activity' => [
-                ['type' => 'signed', 'text' => 'You signed <strong>Payroll addendum.pdf</strong>', 'when' => '2 hours ago'],
-                ['type' => 'uploaded', 'text' => 'Uploaded <strong>Q3 report.pdf</strong>', 'when' => 'Yesterday'],
-                ['type' => 'shared', 'text' => 'Shared <strong>MSA v3.pdf</strong> with Orion', 'when' => '2 days ago'],
-            ],
-            'monthly' => array_map(
-                static fn (int $i): array => [
-                    'label' => (new \DateTimeImmutable("first day of -{$i} months"))->format('M'),
-                    'signed' => [9, 14, 11, 17, 21, 26][5 - $i],
-                    'sent' => [5, 8, 12, 9, 15, 19][5 - $i],
-                    'received' => [7, 10, 8, 13, 11, 16][5 - $i],
-                ],
-                range(5, 0),
-            ),
-            'recent_documents' => [
-                ['name' => 'Payroll addendum.pdf', 'version' => 'v3', 'updated' => '2h ago', 'status' => 'Signed', 'people' => ['MK', 'DP']],
-                ['name' => 'Series-B SAFE.pdf', 'version' => 'v1', 'updated' => 'today', 'status' => 'Pending', 'people' => ['DP']],
-                ['name' => 'Board consent Q3.pdf', 'version' => 'v2', 'updated' => '1d ago', 'status' => 'In progress', 'people' => ['MK', 'JR', '+2']],
-                ['name' => 'Q3 report.pdf', 'version' => 'v1', 'updated' => '1d ago', 'status' => 'Draft', 'people' => ['MK']],
-            ],
-        ]);
+        return $cards;
     }
 }

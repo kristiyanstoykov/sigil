@@ -43,6 +43,7 @@ import sys
 
 from asn1crypto import algos, pem, x509
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields, signers
 from pyhanko.sign.pkcs11 import PKCS11Signer, open_pkcs11_session
 from pyhanko.sign.timestamps import HTTPTimeStamper
@@ -255,7 +256,24 @@ def main() -> None:
     appearance = req.get("appearance") or {}
 
     pdf_bytes = base64.b64decode(req["pdf_b64"])
-    writer = IncrementalPdfFileWriter(io.BytesIO(pdf_bytes))
+
+    # A password-protected PDF cannot be signed without its password, and the
+    # failure deep inside pyHanko is unreadable. Say so plainly instead.
+    if PdfFileReader(io.BytesIO(pdf_bytes)).security_handler is not None:
+        fail("EncryptedPdf")
+
+    # strict=False so hybrid cross-reference documents can be signed. Word,
+    # LibreOffice and most "print to PDF" paths still emit them, and pyHanko
+    # refuses them in strict mode because such a file carries two parallel
+    # cross-reference views that a reader could resolve differently.
+    #
+    # Sigil accepts that risk deliberately: it is a rendering ambiguity in the
+    # *input*, not in what gets signed. The signature covers an exact byte
+    # range, and Sigil independently records SHA-384 of those same bytes on the
+    # DocumentVersion, which the delivery receipt then names - so what was
+    # signed stays pinned regardless of how a viewer resolves the xref. See
+    # "Hybrid cross-reference PDFs" in CLAUDE.md.
+    writer = IncrementalPdfFileWriter(io.BytesIO(pdf_bytes), strict=False)
 
     field_name = req.get("field_name") or "Signature1"
     page = resolve_page(writer, int(req.get("page", -1)))

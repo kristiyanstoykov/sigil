@@ -7,6 +7,7 @@ namespace App\Receipt\Repository;
 use App\Core\Entity\User;
 use App\Receipt\Entity\DeliveryReceipt;
 use App\Receipt\Entity\DeliveryReceiptKeyGrant;
+use App\Receipt\Enum\ReceiptSource;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\Persistence\ManagerRegistry;
@@ -22,9 +23,10 @@ final class DeliveryReceiptRepository extends ServiceEntityRepository
         parent::__construct($registry, DeliveryReceipt::class);
     }
 
-    public function findForRequest(Uuid $signingRequestId): ?DeliveryReceipt
+    /** The receipt for one signature request or one delivery, if it was sealed. */
+    public function findForSource(ReceiptSource $source, Uuid $sourceId): ?DeliveryReceipt
     {
-        return $this->findOneBy(['signingRequestId' => $signingRequestId]);
+        return $this->findOneBy(['source' => $source, 'sourceId' => $sourceId]);
     }
 
     /**

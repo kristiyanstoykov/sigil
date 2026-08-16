@@ -9,6 +9,7 @@ use App\Core\Entity\User;
 use App\Core\Repository\UserRepository;
 use App\Document\Service\DocumentUploader;
 use App\Receipt\Entity\DeliveryReceipt;
+use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Receipt\Service\ReceiptSealer;
 use App\Signing\Service\SigningRequestService;
@@ -108,7 +109,7 @@ class ReceiptControllerTest extends AuthWebTestCase
         );
         $container->get(SigningRequestService::class)->cancel($request, $owner);
 
-        $receipt = $container->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $receipt = $container->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
         self::assertNotNull($receipt);
 
         return $receipt;

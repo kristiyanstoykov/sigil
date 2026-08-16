@@ -16,6 +16,8 @@ use App\Document\Repository\DocumentRepository;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentUploader;
 use App\Document\Service\DocumentVersionWriter;
+use App\Receipt\Enum\ReceiptOutcome;
+use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Receipt\Service\ReceiptDownloader;
 use App\Receipt\Service\ReceiptGenerator;
@@ -72,7 +74,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
 
         $receipt = $this->generator()->generateFor($request);
 
-        self::assertSame(SigningRequestStatus::Completed, $receipt->getOutcome());
+        self::assertSame(ReceiptOutcome::Completed, $receipt->getOutcome());
         self::assertSame($document->getTitle(), $receipt->getDocumentTitle());
         self::assertNotSame('', $receipt->getStorageKey());
 
@@ -98,9 +100,9 @@ class DeliveryReceiptTest extends AuthWebTestCase
         // and the Receipt subscriber does the rest.
         $this->service()->cancel($request, $owner);
 
-        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
         self::assertNotNull($receipt, 'closing a request seals its receipt');
-        self::assertSame(SigningRequestStatus::Cancelled, $receipt->getOutcome());
+        self::assertSame(ReceiptOutcome::Cancelled, $receipt->getOutcome());
     }
 
     public function testReceiptOutlivesADocumentDestroyedByTheSweep(): void
@@ -116,9 +118,9 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $documents = static::getContainer()->get(DocumentRepository::class);
         self::assertNull($documents->find($documentId->toRfc4122()), 'nobody signed, so the document is destroyed');
 
-        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
         self::assertNotNull($receipt, 'the receipt survives its document - it is what attests the deletion');
-        self::assertSame(SigningRequestStatus::Expired, $receipt->getOutcome());
+        self::assertSame(ReceiptOutcome::Expired, $receipt->getOutcome());
         self::assertSame($documentId->toRfc4122(), $receipt->getDocumentId()->toRfc4122());
     }
 
@@ -130,9 +132,9 @@ class DeliveryReceiptTest extends AuthWebTestCase
 
         $this->service()->decline($request, $first, 'Not the agreed wording.');
 
-        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
         self::assertNotNull($receipt, 'a refusal closes the request, so it seals a receipt like any other close');
-        self::assertSame(SigningRequestStatus::Declined, $receipt->getOutcome());
+        self::assertSame(ReceiptOutcome::Declined, $receipt->getOutcome());
 
         // The requester keeps the receipt even though the signer refused: the
         // refusal is exactly what it has to attest.
@@ -148,7 +150,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $this->service()->cancel($request, $owner);
 
         $again = $this->generator()->generateFor($request);
-        $stored = static::getContainer()->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $stored = static::getContainer()->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
 
         self::assertNotNull($stored);
         self::assertSame($stored->getId()->toRfc4122(), $again->getId()->toRfc4122(), 'one receipt per request');
@@ -173,7 +175,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $request = $this->service()->create($document, $owner, [$first], $this->inDays(7));
         $this->signAs($document, $first);
 
-        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForRequest($request->getId());
+        $receipt = static::getContainer()->get(DeliveryReceiptRepository::class)->findForSource(ReceiptSource::SigningRequest, $request->getId());
         self::assertNotNull($receipt);
 
         // The receipt renders the audit entries for this document, so every entry

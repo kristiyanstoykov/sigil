@@ -1,0 +1,102 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}Deliver · {{ document.title }} · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set E_RECIPIENTS = constant('App\\Delivery\\Form\\DeliverDocumentForm::E_RECIPIENTS') %}
+{% set E_NOTE = constant('App\\Delivery\\Form\\DeliverDocumentForm::E_NOTE') %}
+
+<div class="docs-rise mx-auto max-w-2xl">
+
+    <a href="{{ path('app_document_show', {id: document.id}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
+        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
+        {{ document.title }}
+    </a>
+
+    <div class="mb-5 flex items-center gap-3">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+            <i class="ti ti-mail-forward text-xl leading-none" aria-hidden="true"></i>
+        </span>
+        <div>
+            <h1 class="text-xl font-extrabold tracking-tight text-theme-headings">Deliver this document</h1>
+            <p class="text-sm text-theme-secondarytextcolor">Registered mail: everyone gets it at once, and nothing is asked of them.</p>
+        </div>
+    </div>
+
+    <div class="card !mb-0 !bg-white/90 p-5">
+        <div class="flex items-start gap-4">
+            {{ docs.pdf_icon('lg') }}
+            <div class="min-w-0 flex-1">
+                <h2 class="truncate text-base font-bold text-theme-headings">{{ document.title }}</h2>
+                <p class="mt-1 text-sm text-theme-secondarytextcolor">The current version is what gets delivered. Later versions are not sent on.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-5 !mb-0 p-6"
+         data-controller="recipient-picker"
+         data-recipient-picker-lookup-url-value="{{ path('app_delivery_lookup', {id: document.id}) }}">
+
+        {{ form_start(form, {action: path('app_delivery_new', {id: document.id}), attr: {novalidate: 'novalidate'}}) }}
+
+        <label for="recipient_email" class="form-label text-sm font-medium">Add a recipient</label>
+        <div class="flex flex-col gap-2.5 sm:flex-row sm:items-stretch">
+            <input type="email" id="recipient_email" autocomplete="off" placeholder="colleague@example.com"
+                   class="form-control w-full min-w-0 flex-1"
+                   data-recipient-picker-target="input"
+                   data-action="keydown->recipient-picker#keydown">
+            <button type="button" class="btn btn-outline-secondary inline-flex shrink-0 items-center justify-center gap-2"
+                    data-action="recipient-picker#add">
+                <i class="ti ti-user-plus text-base leading-none" aria-hidden="true"></i>
+                Add
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-danger-600" data-recipient-picker-target="error" hidden></p>
+        <p class="mt-2 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
+            <i class="ti ti-users mt-px text-sm leading-none" aria-hidden="true"></i>
+            <span>A recipient needs a verified Sigil account. No certificate is involved - nobody is being asked to sign.</span>
+        </p>
+
+        {# No order here, unlike the signing queue: everyone is served at once. #}
+        <h3 class="mt-5 mb-2 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Recipients</h3>
+        <div class="overflow-hidden rounded-lg border border-theme-border">
+            <ul data-recipient-picker-target="list" class="divide-y divide-theme-border/60"></ul>
+            <p data-recipient-picker-target="empty" class="px-4 py-6 text-center text-sm text-theme-secondarytextcolor">
+                Nobody added yet. Everyone you add is served at the same moment.
+            </p>
+        </div>
+
+        {{ form_widget(form[E_RECIPIENTS], {attr: {'data-recipient-picker-target': 'hidden'}}) }}
+        {{ form_errors(form[E_RECIPIENTS]) }}
+
+        <div class="mt-5">
+            {{ form_label(form[E_NOTE], null, {label_attr: {class: 'form-label text-sm font-medium'}}) }}
+            {{ form_widget(form[E_NOTE], {attr: {class: 'form-control'}}) }}
+            {{ form_errors(form[E_NOTE]) }}
+            <p class="mt-1.5 text-xs text-theme-secondarytextcolor">
+                Goes in the notification email and on the sealed receipt.
+            </p>
+        </div>
+
+        <div class="mt-5 rounded-lg border border-info-500/25 bg-info-500/[0.06] p-4">
+            <p class="flex items-start gap-2 text-xs leading-relaxed text-theme-bodycolor">
+                <i class="ti ti-info-circle mt-px text-sm leading-none text-info-600" aria-hidden="true"></i>
+                <span>
+                    A delivery cannot be taken back or refused - that is what makes it a delivery.
+                    Each recipient can open the document from the moment you send it, and you get a
+                    sealed receipt naming who was served and exactly when.
+                </span>
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary disabled mt-5 w-full inline-flex items-center justify-center gap-2"
+                data-recipient-picker-target="submit" disabled aria-disabled="true">
+            <i class="ti ti-mail-forward text-base leading-none" aria-hidden="true"></i>
+            Deliver
+        </button>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

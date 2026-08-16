@@ -506,24 +506,22 @@ life scattered across five pages.
    lifecycle from the user's side; the badge counts only turns that are actually
    theirs. Absorbs the "history of what I declined" ask: closing revokes the
    decliner's grant, so History is the only list that can still show it.
-2. **`/documents` → the library.** Drop the mine/shared tabs for one table with a
-   **Role** column (Owner / Shared / Signer) saying *why* the row is visible,
-   plus filter chips over role and `document_status()`. Today "Shared with me" is
-   a query over `DocumentKeyGrant`, so it silently mixes true shares, documents
-   awaiting your signature, and documents you signed - the column is what
-   separates them. Documents stays where you upload and sign your own files.
-3. **Dashboard → the one place that mixes roles.** Wire it to real queries
-   (waiting on you, sent and open, recent documents, recent audit activity) plus
-   the activity graph. The `awaiting_delivery` / `type: deliver` fixtures were
-   anticipating the delivery flow below; keep the idea, drop the "awaiting"
-   framing - nothing is pending for someone who has already been served.
+2. **`/documents` → the library.** ✅ Done. One table over
+   `findVisibleTo()`, a **Role** column (Owner / Signer) saying why the row is
+   visible, and `?role=` / `?status=` filter chips. Delivery adds one more role.
+3. **Dashboard → the one place that mixes roles.** ✅ Done. Real queries
+   throughout, on Able Pro's Default dashboard grid: four stat tiles, "needs your
+   action" and "waiting on others", the certificate rail, an activity feed read
+   off the audit log, and a 6-month chart from the same source. The old
+   `awaiting_delivery` framing is gone - the tile is "Delivered to you", with
+   nothing to do.
 4. **Sidebar groups**: Work (Dashboard, Documents, Signing requests) / Evidence
    (Receipts, Audit log) / Account (Certificates).
 
 Not doing: folding signing requests into Documents as a tab. An action queue
 sorts by urgency and empties itself; a library sorts by name and only grows.
 
-### Delivery — being served (NOT BUILT, agreed 2026-08-15)
+### Delivery — being served (✅ BUILT 2026-08-15)
 
 **A delivery is not a signature request.** It is hand-to-hand registered mail:
 the recipient is *served* a document. Nothing is asked of them, they cannot
@@ -568,16 +566,138 @@ It describes how a signature request delivers; it is not a delivery flow.
 - `SealReceiptOnRequestClosed` listens for `SigningRequestClosed`; deliveries
   need their own event and subscriber.
 
-**Open questions to settle first:**
+**Decisions taken while building:**
 
-- Can a document be both delivered and sent for signature, or does the
-  one-request-per-document rule extend to deliveries? (Leaning: independent -
-  they answer different questions.)
-- Where does it live in the UI? A "Delivered to me" list is legitimate; an
-  "awaiting delivery" count is not, because nothing is pending for the recipient
-  once it has been served. The dashboard stub's `awaiting_delivery` /
-  `type: deliver` rows were anticipating this flow but framed it as pending work.
-- Does a delivery need a deadline? Registered mail does not - leaning no.
+- **Independent of signature requests.** A delivery does not consume the
+  one-request-per-document rule, and a document may be delivered any number of
+  times. They answer different questions.
+- **No deadline.** Registered mail has none, and there is nothing to wait for.
+- **In the UI:** the Deliver panel and the "Delivered to" list live on the
+  document page; a recipient finds the document in their library badged
+  **Recipient**. There is no separate inbox and no count, because nothing is
+  pending for someone who has already been served - which is what was wrong with
+  the dashboard stub's `awaiting_delivery` framing.
+
+### Delivery + upload flow — REWORK NEEDED (raised 2026-08-16)
+
+The delivery flow works but its shape is wrong. Four changes:
+
+**1. The entry point belongs at upload, not on the document page.** Uploading and
+deciding what the document is *for* should be one motion: upload to deliver,
+upload to sign yourself, or upload to have someone else sign it. Today you upload,
+land on the sign page, then hunt for a panel. **Requesting a signature on a
+freshly uploaded document is the least intuitive path in the app and should be
+the easiest.**
+
+**2. A delivered document is no longer a Draft.** Sending an unsigned document for
+delivery currently leaves it reading `Draft`, because `DocumentStatusResolver`
+only consults signature requests. It should read **Delivered**, and that state is
+**terminal** - nothing further can be done with the document.
+
+Needs: a `DocumentDisplayStatus::Delivered` case, and the resolver has to consult
+the `Delivery` module as well as `Signing`. Note the dependency direction -
+`DocumentStatusResolver` lives in `Signing`, so either it moves or the delivery
+half arrives through another seam.
+
+**3. On the recipient's side a delivery is the first thing in "Needs your
+action"** - above every signature request - and the action is to **view** it.
+
+**4. Open question this raises, settle before building.** ADR-012 §2 says Sigil
+records consignment and deliberately not retrieval ("do not add read receipts
+without revisiting this decision"), and the dashboard tile currently says
+*Nothing to do*. "You need to view it" is close to ETSI category E handover.
+Decide which of these it is:
+
+- a **UI nudge only** - the row disappears once the recipient opens the document,
+  nothing is recorded, ADR-012 is untouched; or
+- a **recorded acknowledgement** - the moment of viewing enters the audit log and
+  the receipt, which is a real change to ADR-012 and to what a Sigil receipt
+  attests.
+
+The first keeps the Borica model. The second is closer to Evrotrust, which was
+explicitly rejected once already - so it needs a deliberate reversal, not a
+side effect of a UI change.
+
+### Emails — proper HTML templates (TODO, raised 2026-08-16)
+
+**Research answer first: Brevo templates are NOT required.** The transactional
+send endpoint takes raw `htmlContent` from the caller, and Symfony's
+`brevo+api://` transport already posts our rendered Twig that way. Templates stay
+in the repo, versioned with the code, and no marketing-tool round trip is needed.
+
+**One real constraint: Brevo's transactional API does not support inline (CID)
+images.** Attachments work (URL or base64), but an `<img src="cid:...">` in the
+body does not render. So the footer logo has to be either:
+
+- a **hosted PNG** served by the app at a stable absolute URL and linked with
+  `<img src>` - note every Sigil logo is SVG today and most mail clients will not
+  render SVG, so this needs a PNG export; or
+- a **styled text wordmark**, no image at all - immune to blocked-image settings
+  and to the tracking-pixel look, but not the actual mark; or
+- switching the DSN to Brevo's **SMTP relay** instead of the API, where CID may
+  work. Unverified, and it changes `MAILER_DSN` - only worth it if the embedded
+  mark matters more than the simpler transport.
+
+**What the emails need:**
+
+- A **centred container with a max width** (~600px, the transactional norm), not
+  a body that stretches edge to edge. Table-based, since flex/grid are unreliable
+  in Outlook.
+- A **footer carrying the Sigil logo** on every email, plus the "why you are
+  getting this" line that already exists.
+- A real header/brand band rather than a bare `<h1>`.
+
+**Current state:** `templates/emails/base.html.twig` is a bare unstyled shell -
+no container, no width cap, no logo, no preheader text. Eight templates extend
+it. Also missing and worth folding into the same pass: a **plain-text
+alternative** (`TemplatedEmail::textTemplate()`), which mail clients and spam
+filters both expect.
+
+Sources: [Brevo send-transac-email reference](https://developers.brevo.com/reference/sendtransacemail),
+[Anymail's Brevo notes on inline images](https://anymail.dev/en/v10.2/esps/brevo/),
+[Brevo community thread on embedded images](https://community.brevo.com/t/does-transactional-email-support-embedded-image/6665).
+
+### Live notifications (TODO, raised 2026-08-16)
+
+Something happens to a document and the person it concerns should be told **as it
+happens**, not on their next page load: someone sent a document for signature or
+delivery, or someone signed one you requested.
+
+**Decisions already taken** (Kristiyan, 2026-08-16):
+
+- **Transport: a Mercure hub.** Real SSE, and it is what the stack table and
+  ADR-007 already commit to. Cost: a new service in `compose.yaml`, JWT config
+  and one more thing that has to be running for the demo.
+- **Notifications are stored, with a bell list.** A `Notification` entity plus an
+  unread count and dropdown. Push alone loses every notification that arrives
+  while the recipient is offline - which is exactly the one that matters.
+
+**Current state:** nothing exists. The header bell is a dead stub
+(`title="Notifications - coming soon"` in `templates/layout/app.html.twig`), and
+**Mercure is not installed** - no bundle, no hub service - despite being named in
+the stack table and ADR-007.
+
+**Shape:**
+
+- `src/Notification/`: `Notification` entity (recipient, type, title, body, url,
+  `readAt`), a type enum owning its icon and tone, repository
+  (`findRecentFor`, `countUnreadFor`, `markAllReadFor`), and a `Notifier` that
+  **stores first and pushes second** - a hub outage must never fail signing or
+  delivering, the same rule `Mailer::trySend` follows.
+- Link the document by plain UUID and resolve the URL at creation, like
+  `DeliveryReceipt` does, so "your turn to sign X" survives X being erased.
+- Private per-user topic `/users/{uuid}/notifications`, subscriber JWT minted by
+  the app so a subscriber can only ever get its own stream.
+- Bell dropdown with an unread badge, plus a toast on arrival.
+
+**The events do not exist yet, and this is the forcing function for the deferred
+event-model work.** `SigningRequestClosed` and `DocumentDelivered` exist;
+"request sent", "your turn" and "someone signed your document" do not - those are
+inline `SigningRequestNotifier` calls today. Rather than bolt a second inline
+call next to each, dispatch domain events and let both Mailer and Notification
+subscribe. That is the proposal recorded earlier ("we could trigger events for
+signing and so on, so the audit log can hook on it"); this feature is the reason
+to finally do it.
 
 ### Phase 10 — Polish & Documentation Push (Weeks 16–18)
 - UI polish, animations, empty states, loading skeletons

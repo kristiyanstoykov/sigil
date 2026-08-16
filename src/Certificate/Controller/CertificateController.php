@@ -18,6 +18,7 @@ use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Service\PinGate;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Core\Entity\User;
+use App\Core\Http\ContentDisposition;
 use App\Core\Exception\DomainException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
@@ -124,7 +125,7 @@ class CertificateController extends AbstractController
 
         return new Response($certificate->getCertificatePem(), Response::HTTP_OK, [
             'Content-Type' => 'application/x-pem-file',
-            'Content-Disposition' => sprintf('attachment; filename="sigil-%s.crt"', $certificate->getSerialNumber()),
+            'Content-Disposition' => ContentDisposition::attachment(sprintf('sigil-%s.crt', $certificate->getSerialNumber())),
         ]);
     }
 

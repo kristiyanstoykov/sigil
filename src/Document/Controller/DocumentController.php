@@ -6,6 +6,7 @@ namespace App\Document\Controller;
 
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Core\Http\ContentDisposition;
 use App\Document\Entity\Document;
 use App\Document\Entity\DocumentVersion;
 use App\Document\Form\UploadDocumentForm;
@@ -38,9 +39,12 @@ class DocumentController extends AbstractController
     {
         $user = $this->currentUser();
 
+        // One list, not two: the page is a library, and which documents are the
+        // user's own is a column, not a separate tab. Role and status filtering
+        // happen in the template - status comes from document_status(), which
+        // lives in the Signing module this one must not depend on.
         return $this->render('documents/index.html.twig', [
-            'documents' => $this->documents->findByOwner($user),
-            'sharedDocuments' => $this->documents->findSharedWith($user),
+            'documents' => $this->documents->findVisibleTo($user),
         ]);
     }
 
@@ -182,11 +186,9 @@ class DocumentController extends AbstractController
 
         return new Response($bytes, Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => sprintf(
-                '%s; filename="%s"',
-                $attachment ? 'attachment' : 'inline',
-                self::headerFilename($document->getTitle()),
-            ),
+            'Content-Disposition' => $attachment
+                ? ContentDisposition::attachment($document->getTitle())
+                : ContentDisposition::inline($document->getTitle()),
             // Decrypted plaintext must never be cached by the browser or proxies.
             'Cache-Control' => 'no-store, private',
         ]);
@@ -242,15 +244,6 @@ class DocumentController extends AbstractController
     private function isOwner(Document $document): bool
     {
         return $document->getOwner()->getId()->toRfc4122() === $this->currentUser()->getId()->toRfc4122();
-    }
-
-    /** Strip characters that could break out of the Content-Disposition header. */
-    private static function headerFilename(string $title): string
-    {
-        $safe = preg_replace('/[^\x20-\x7E]/', '', str_replace(['"', '\\', "\r", "\n"], '', $title)) ?? 'document.pdf';
-        $safe = trim($safe);
-
-        return '' === $safe ? 'document.pdf' : $safe;
     }
 
     private function currentUser(): User

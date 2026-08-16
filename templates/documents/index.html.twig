@@ -5,13 +5,36 @@
 {% block main_class %}docs-gradient{% endblock %}
 
 {% block content %}
+{#
+    The library: every document this user can open, in one table. Which ones are
+    theirs is the Role column, not a separate tab - the two used to be split, and
+    "Shared with me" quietly meant four different things.
+
+    Role and status filtering happen here rather than in the controller because
+    document_status() lives in the Signing module, which Document must not depend
+    on. Both filters are plain links, so the page still works without JavaScript
+    and the datatable's own search keeps working inside the result.
+#}
+{% set role = app.request.query.get('role') in ['mine', 'others'] ? app.request.query.get('role') : 'all' %}
+{% set status = app.request.query.get('status') %}
+
+{% set rows = documents %}
+{% if role == 'mine' %}
+    {% set rows = rows|filter(d => d.owner.id == app.user.id) %}
+{% elseif role == 'others' %}
+    {% set rows = rows|filter(d => d.owner.id != app.user.id) %}
+{% endif %}
+{% if status %}
+    {% set rows = rows|filter(d => document_status(d).value == status) %}
+{% endif %}
+
 <div class="docs-rise mx-auto max-w-5xl">
 
     {# ── header ─────────────────────────────────────────────────────────── #}
     <div class="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div class="min-w-0 max-sm:basis-full">
             <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Documents</h1>
-            <p class="mt-1 text-sm text-theme-secondarytextcolor">Your uploaded and signed documents.</p>
+            <p class="mt-1 text-sm text-theme-secondarytextcolor">Everything you can open - what you uploaded, and what reached you.</p>
         </div>
         <button type="button" data-action="documents-upload#open"
                 class="btn btn-primary inline-flex shrink-0 items-center gap-2 max-sm:ml-auto">
@@ -20,47 +43,51 @@
         </button>
     </div>
 
-    {# ── tabs ───────────────────────────────────────────────────────────── #}
-    {#
-        Two lists, one at a time, selected by ?tab= rather than client-side
-        toggling: a hidden datatable measures its columns against a zero-width
-        container and comes back wrong when shown.
-    #}
-    {# "To sign" used to be a tab here. It is its own page now (app_signing_requests):
-       an inbox answering "is anything waiting on me" is not a view of your
-       documents, and it carries the sidebar count. #}
-    {% set requested = app.request.query.get('tab') %}
-    {% set tab = requested == 'shared' ? 'shared' : 'mine' %}
-    {% set rows = tab == 'shared' ? sharedDocuments : documents %}
-
-    <div class="mb-5 flex items-center justify-between gap-4 border-b border-theme-border">
-        <div class="flex gap-6">
-            {% for key, label in {'mine': 'My documents', 'shared': 'Shared with me'} %}
-                {% set count = key == 'shared' ? sharedDocuments|length : documents|length %}
-                <a href="{{ path('app_documents', key == 'mine' ? {} : {tab: key}) }}"
-                   class="inline-flex items-center gap-2 pb-3 text-sm font-semibold {{ tab == key
-                       ? 'border-b-2 border-primary-500 text-primary-500'
-                       : 'text-theme-secondarytextcolor hover:text-theme-headings' }}">
-                    {{ label }}
-                    {% if count %}
-                        <span class="rounded-full bg-theme-activebg px-2 py-0.5 text-[11px] font-bold text-theme-secondarytextcolor">{{ count }}</span>
-                    {% endif %}
-                </a>
-            {% endfor %}
-        </div>
-    </div>
-
-    {% if rows is empty and tab == 'shared' %}
-        {# ── empty state: nothing shared with me ────────────────────────── #}
-        <div class="card !mb-0 !bg-white/80 p-14 text-center">
-            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
-                <i class="ti ti-users text-3xl leading-none" aria-hidden="true"></i>
+    {# ── filters ────────────────────────────────────────────────────────── #}
+    {% if documents is not empty %}
+        <div class="mb-5 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-theme-border pb-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">Role</span>
+                {# Only All carries a number - it is the size of the library, which
+                   is worth knowing. Per-filter counts just crowded the row. #}
+                {% for key, label in {'all': 'All', 'mine': 'Mine', 'others': 'From others'} %}
+                    <a href="{{ path('app_documents', (key == 'all' ? {} : {role: key})|merge(status ? {status: status} : {})) }}"
+                       class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold {{ role == key
+                           ? 'bg-primary-500 text-white'
+                           : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">
+                        {{ label }}
+                        {% if key == 'all' %}
+                            <span class="{{ role == key ? 'text-white/70' : 'text-theme-secondarytextcolor/70' }}">{{ documents|length }}</span>
+                        {% endif %}
+                    </a>
+                {% endfor %}
             </div>
-            <h2 class="text-lg font-extrabold text-theme-headings">Nothing shared with you yet</h2>
-            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">When a signature request reaches you, the document appears here - decryptable only by you, with your own key.</p>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">Status</span>
+                {% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'declined': 'Declined', 'expired': 'Expired'} %}
+                <a href="{{ path('app_documents', role == 'all' ? {} : {role: role}) }}"
+                   class="rounded-full px-3 py-1 text-xs font-semibold {{ status is null
+                       ? 'bg-primary-500 text-white'
+                       : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">Any</a>
+                {% for key, label in statuses %}
+                    {# Only offer a status some document actually has - the count
+                       decides whether the chip appears, it is not shown. #}
+                    {% if documents|filter(d => document_status(d).value == key)|length %}
+                        <a href="{{ path('app_documents', {status: key}|merge(role == 'all' ? {} : {role: role})) }}"
+                           class="rounded-full px-3 py-1 text-xs font-semibold {{ status == key
+                               ? 'bg-primary-500 text-white'
+                               : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">
+                            {{ label }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
         </div>
-    {% elseif rows is empty %}
-        {# ── empty state ────────────────────────────────────────────────── #}
+    {% endif %}
+
+    {% if documents is empty %}
+        {# ── empty state: nothing at all ────────────────────────────────── #}
         <div class="card !mb-0 !bg-white/80 p-14 text-center">
             <div class="relative mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
                 <i class="ti ti-file-text text-3xl leading-none" aria-hidden="true"></i>
@@ -75,6 +102,19 @@
                 <i class="ti ti-upload text-base leading-none" aria-hidden="true"></i>
                 Upload document
             </button>
+        </div>
+    {% elseif rows is empty %}
+        {# ── empty state: the filters excluded everything ───────────────── #}
+        <div class="card !mb-0 !bg-white/80 p-14 text-center">
+            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                <i class="ti ti-filter text-3xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-extrabold text-theme-headings">Nothing matches those filters</h2>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">You have {{ documents|length }} document{{ documents|length == 1 ? '' : 's' }} in total.</p>
+            <a href="{{ path('app_documents') }}" class="btn btn-outline-secondary mt-5 inline-flex items-center gap-2 mx-auto">
+                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
+                Clear filters
+            </a>
         </div>
     {% else %}
         {#
@@ -96,14 +136,15 @@
         <div class="card !mb-0 overflow-hidden !bg-white/90 docs-table"
              data-controller="documents-table"
              data-documents-table-per-page-value="10"
-             data-documents-table-size-column-value="2"
-             data-documents-table-date-column-value="3"
-             data-documents-table-actions-column-value="4">
+             data-documents-table-size-column-value="3"
+             data-documents-table-date-column-value="4"
+             data-documents-table-actions-column-value="5">
             <div class="table-responsive">
                 <table class="table w-full text-left" data-documents-table-target="table">
                     <thead class="border-b border-theme-border bg-theme-bodybg/70 text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">
                         <tr>
                             <th class="px-5 py-3 font-bold">Document</th>
+                            <th class="px-5 py-3 font-bold">Role</th>
                             <th class="px-5 py-3 font-bold">Status</th>
                             <th class="px-5 py-3 font-bold">Size</th>
                             <th class="px-5 py-3 font-bold">Uploaded</th>
@@ -113,6 +154,7 @@
                     <tbody class="divide-y divide-theme-border/60">
                         {% for document in rows %}
                             {% set v = document.latestVersion %}
+                            {% set owned = document.owner.id == app.user.id %}
                             <tr class="hover:bg-theme-activebg/60">
                                 <td class="px-5 py-3.5" data-label="Document">
                                     <a href="{{ path('app_document_show', {id: document.id}) }}" class="flex items-center gap-3">
@@ -120,19 +162,21 @@
                                         <span class="min-w-0">
                                             <span class="block truncate text-sm font-semibold text-theme-headings">{{ document.title }}</span>
                                             <span class="mt-0.5 inline-flex items-center gap-1 text-[11.5px] text-theme-secondarytextcolor">
-                                                {% if tab == 'shared' %}
-                                                    {# Whose document this is matters more than "encrypted" here -
-                                                       and it stays in the same cell, so both tabs share one table shape. #}
-                                                    <i class="ti ti-user text-xs leading-none" aria-hidden="true"></i>
-                                                    {{ document.owner.fullName }}
-                                                {% else %}
+                                                {% if owned %}
                                                     <i class="ti ti-lock text-xs leading-none" aria-hidden="true"></i>
                                                     Encrypted
+                                                {% else %}
+                                                    <i class="ti ti-user text-xs leading-none" aria-hidden="true"></i>
+                                                    {{ document.owner.fullName }}
                                                 {% endif %}
                                             </span>
                                         </span>
                                     </a>
                                 </td>
+                                {# Why you can see this row. With no plain sharing left, a
+                                   grant on someone else's document means a signature
+                                   request reached you. #}
+                                <td class="px-5 py-3.5" data-label="Role">{{ docs.role_badge(document, owned) }}</td>
                                 {# The document's state, not the latest version's kind:
                                    an unsigned document is a Draft, i.e. unfinished. #}
                                 <td class="px-5 py-3.5" data-label="Status">{{ docs.doc_status_badge(document_status(document)) }}</td>
@@ -147,7 +191,7 @@
                                             <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
                                             Download
                                         </a>
-                                        <div class="relative">{{ docs.row_menu(document, tab != 'shared') }}</div>
+                                        <div class="relative">{{ docs.row_menu(document, owned) }}</div>
                                     </div>
                                 </td>
                             </tr>

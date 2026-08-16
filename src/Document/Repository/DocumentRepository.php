@@ -36,6 +36,28 @@ final class DocumentRepository extends ServiceEntityRepository
     }
 
     /**
+     * Every document $user can open: the ones they own, plus the ones a
+     * DocumentKeyGrant lets them decrypt. One list, because the documents page
+     * is a library - which of the two a row is shows up as its Role column.
+     *
+     * @return list<Document>
+     */
+    public function findVisibleTo(User $user): array
+    {
+        // LEFT JOINs plus an OR rather than a UNION: Doctrine has no UNION, and
+        // grouping on the PK dedupes the row-per-granted-version fan-out.
+        return $this->createQueryBuilder('d')
+            ->leftJoin(DocumentVersion::class, 'v', Join::WITH, 'v.document = d')
+            ->leftJoin(DocumentKeyGrant::class, 'g', Join::WITH, 'g.version = v AND g.user = :user')
+            ->andWhere('d.owner = :user OR g.id IS NOT NULL')
+            ->setParameter('user', $user)
+            ->groupBy('d.id')
+            ->orderBy('d.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Documents someone else owns that $user can decrypt - i.e. holds a
      * DocumentKeyGrant on at least one version of. The grants are the access
      * list (ADR-004), so this asks them directly rather than a sharing table.

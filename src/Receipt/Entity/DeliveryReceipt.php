@@ -6,21 +6,25 @@ namespace App\Receipt\Entity;
 
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
+use App\Receipt\Enum\ReceiptOutcome;
+use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptRepository;
-use App\Signing\Enum\SigningRequestStatus;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Sigil's attestation that a document was delivered to a set of signers and what
- * each of them did with it - the "return receipt" half of registered delivery
- * (eIDAS Art. 43-44, ETSI EN 319 522; see ADR-012).
+ * Sigil's attestation that a document reached people and what became of it - the
+ * "return receipt" half of registered delivery (eIDAS Art. 43-44,
+ * ETSI EN 319 522; see ADR-012).
+ *
+ * Two things produce one: a closed signature request, or a delivery. $source
+ * says which, and $sourceId points at it.
  *
  * The stored PDF is sealed with the application's own certificate, encrypted
- * under its own DEK and readable by the requester and every signer through a
+ * under its own DEK and readable by everyone who took part, through a
  * {@see DeliveryReceiptKeyGrant}.
  *
- * Document and request are plain UUID columns rather than foreign keys, for the
+ * Document and source are plain UUID columns rather than foreign keys, for the
  * same reason {@see \App\AuditLog\Entity\AuditLogEntry::$actorId} is: a receipt
  * outlives its document. An unsigned request that expires has its document
  * erased, and the receipt attesting that is precisely what has to survive.
@@ -37,9 +41,15 @@ class DeliveryReceipt
     #[ORM\Column(type: 'uuid')]
     private Uuid $documentId;
 
-    /** One receipt per request: the request closes exactly once. */
+    #[ORM\Column(enumType: ReceiptSource::class)]
+    private ReceiptSource $source;
+
+    /**
+     * The request or delivery being attested. Unique: a request closes exactly
+     * once, and a delivery is made exactly once.
+     */
     #[ORM\Column(type: 'uuid', unique: true)]
-    private Uuid $signingRequestId;
+    private Uuid $sourceId;
 
     /** Snapshot - the document may not exist by the time anyone reads this. */
     #[ORM\Column(length: 255)]
@@ -49,8 +59,8 @@ class DeliveryReceipt
     #[ORM\Column(length: 96)]
     private string $documentHash;
 
-    #[ORM\Column(enumType: SigningRequestStatus::class)]
-    private SigningRequestStatus $outcome;
+    #[ORM\Column(enumType: ReceiptOutcome::class)]
+    private ReceiptOutcome $outcome;
 
     /** Set after construction: the envelope AAD needs the id, which is minted here. */
     #[ORM\Column(length: 255, unique: true)]
@@ -72,10 +82,11 @@ class DeliveryReceipt
 
     public function __construct(
         Uuid $documentId,
-        Uuid $signingRequestId,
+        ReceiptSource $source,
+        Uuid $sourceId,
         string $documentTitle,
         string $documentHash,
-        SigningRequestStatus $outcome,
+        ReceiptOutcome $outcome,
         string $contentHash,
         int $sizeBytes,
         \DateTimeImmutable $sealedAt,
@@ -83,7 +94,8 @@ class DeliveryReceipt
     ) {
         $this->initUuid();
         $this->documentId = $documentId;
-        $this->signingRequestId = $signingRequestId;
+        $this->source = $source;
+        $this->sourceId = $sourceId;
         $this->documentTitle = $documentTitle;
         $this->documentHash = $documentHash;
         $this->outcome = $outcome;
@@ -98,9 +110,14 @@ class DeliveryReceipt
         return $this->documentId;
     }
 
-    public function getSigningRequestId(): Uuid
+    public function getSource(): ReceiptSource
     {
-        return $this->signingRequestId;
+        return $this->source;
+    }
+
+    public function getSourceId(): Uuid
+    {
+        return $this->sourceId;
     }
 
     public function getDocumentTitle(): string
@@ -113,7 +130,7 @@ class DeliveryReceipt
         return $this->documentHash;
     }
 
-    public function getOutcome(): SigningRequestStatus
+    public function getOutcome(): ReceiptOutcome
     {
         return $this->outcome;
     }

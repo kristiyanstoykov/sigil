@@ -34,6 +34,24 @@
     </span>
 {% endmacro %}
 
+{#
+    Why a row is visible at all. With no plain sharing left there are three ways:
+    you own it, a signature request reached you, or it was delivered to you.
+    Delivery and signing both leave a DocumentKeyGrant, so only the delivery
+    record tells them apart.
+#}
+{% macro role_badge(document, owned) %}
+    {% set role = owned
+        ? {label: 'Owner', icon: 'ti-user', classes: 'bg-theme-activebg text-theme-bodycolor'}
+        : (was_delivered_to_me(document)
+            ? {label: 'Recipient', icon: 'ti-mail-forward', classes: 'bg-primary-500/10 text-primary-500'}
+            : {label: 'Signer', icon: 'ti-signature', classes: 'bg-info-500/10 text-info-600'}) %}
+    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold {{ role.classes }}">
+        <i class="ti {{ role.icon }} text-xs leading-none" aria-hidden="true"></i>
+        {{ role.label }}
+    </span>
+{% endmacro %}
+
 {% macro pdf_icon(size) %}
     <span class="inline-flex items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 {{ size == 'lg' ? 'w-11 h-11' : 'w-9 h-9' }}">
         <i class="ti ti-file-text {{ size == 'lg' ? 'text-xl' : 'text-base' }} leading-none" aria-hidden="true"></i>

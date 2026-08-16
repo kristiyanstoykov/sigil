@@ -92,10 +92,37 @@ class DocumentSigningE2ETest extends AuthWebTestCase
         self::assertSame('INTACT TRUSTED', $this->validatePades($signedBytes, $projectDir));
     }
 
+    public function testAHybridCrossReferencePdfCanBeSigned(): void
+    {
+        $container = static::getContainer();
+        $projectDir = (string) $container->getParameter('kernel.project_dir');
+        // Word, LibreOffice and most "print to PDF" paths emit these. pyHanko
+        // refuses them in strict mode, which made every such upload fail with a
+        // bare "Document signing failed" - see sign_pdf.py's writer.
+        $pdf = (string) file_get_contents($projectDir.'/tests/Fixtures/hybrid-xref.pdf');
+
+        $user = $this->createUser($this->uniqueEmail('e2e-hybrid'));
+        $document = $container->get(DocumentUploader::class)->upload($user, $pdf, 'Exported from Word.pdf');
+
+        $certificate = $container->get(CertificateIssuer::class)->issueForUser($user, self::PIN);
+        $this->tokensToCleanUp[] = $certificate->getTokenLabel();
+
+        $signedVersion = $container->get(DocumentSigner::class)->sign($document, $certificate, $user, self::PIN);
+
+        self::assertSame(DocumentVersionKind::Signed, $signedVersion->getKind());
+        $signedBytes = $container->get(DocumentDownloader::class)->download($signedVersion, $user);
+        // A hybrid-reference file needs a non-strict reader on the way out too,
+        // and the signature still has to cover the whole file.
+        self::assertSame('INTACT TRUSTED ENTIRE_FILE', $this->validatePades($signedBytes, $projectDir, strict: false));
+    }
+
     /**
      * Validates the last embedded signature with pyHanko against var/ca/ca.crt.
+     *
+     * $strict mirrors pyHanko's own default: it refuses to validate signatures in
+     * hybrid-reference files, so that one case has to opt out.
      */
-    private function validatePades(string $pdfBytes, string $projectDir): string
+    private function validatePades(string $pdfBytes, string $projectDir, bool $strict = true): string
     {
         $pdfFile = (string) tempnam(sys_get_temp_dir(), 'sigil-signed-');
         file_put_contents($pdfFile, $pdfBytes);
@@ -109,12 +136,18 @@ class DocumentSigningE2ETest extends AuthWebTestCase
             ca = load_cert_from_pemder(sys.argv[2])
             vc = ValidationContext(trust_roots=[ca])
             with open(sys.argv[1], "rb") as fh:
-                sig = PdfFileReader(fh).embedded_signatures[-1]
+                sig = PdfFileReader(fh, strict=sys.argv[3] == "1").embedded_signatures[-1]
                 st = validate_pdf_signature(sig, vc)
-            print(("INTACT" if st.intact else "BROKEN"), ("TRUSTED" if st.trusted else "UNTRUSTED"))
+            out = [("INTACT" if st.intact else "BROKEN"), ("TRUSTED" if st.trusted else "UNTRUSTED")]
+            if sys.argv[3] != "1":
+                out.append(st.coverage.name)
+            print(*out)
             PY;
 
-        $process = new Process(['python3', '-c', $script, $pdfFile, $projectDir.'/var/ca/ca.crt'], cwd: $projectDir);
+        $process = new Process(
+            ['python3', '-c', $script, $pdfFile, $projectDir.'/var/ca/ca.crt', $strict ? '1' : '0'],
+            cwd: $projectDir,
+        );
         $process->run();
         @unlink($pdfFile);
 

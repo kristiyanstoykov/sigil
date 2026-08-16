@@ -8,7 +8,11 @@ use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Repository\AuditLogEntryRepository;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Delivery\Entity\Delivery;
+use App\Delivery\Entity\DeliveryRecipient;
 use App\Receipt\Entity\DeliveryReceipt;
+use App\Receipt\Enum\ReceiptOutcome;
+use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Entity\SigningRequestSigner;
@@ -47,7 +51,7 @@ final class ReceiptGenerator
             throw new DomainException('A receipt is only issued once the request is closed.');
         }
 
-        $existing = $this->receipts->findForRequest($request->getId());
+        $existing = $this->receipts->findForSource(ReceiptSource::SigningRequest, $request->getId());
         if (null !== $existing) {
             return $existing;
         }
@@ -62,10 +66,15 @@ final class ReceiptGenerator
         $documentHash = null !== $latest ? $latest->getContentHash() : '';
 
         $pdf = $this->renderer->render(self::TEMPLATE, [
+            'source' => ReceiptSource::SigningRequest,
+            'outcome' => ReceiptOutcome::fromSigningRequest($request->getStatus()),
             'request' => $request,
+            'delivery' => null,
             'document' => $document,
+            'documentTitle' => $document->getTitle(),
             'documentHash' => $documentHash,
-            'signers' => $this->signerRows($request),
+            'sender' => $request->getRequester(),
+            'people' => $this->signerRows($request),
             'evidence' => $this->auditEntries->findForSubject('Document', $documentId->toRfc4122()),
             'sealedAt' => $sealedAt,
         ]);
@@ -74,10 +83,11 @@ final class ReceiptGenerator
 
         $receipt = $this->writer->write(
             documentId: $documentId,
-            signingRequestId: $request->getId(),
+            source: ReceiptSource::SigningRequest,
+            sourceId: $request->getId(),
             documentTitle: $document->getTitle(),
             documentHash: $documentHash,
-            outcome: $request->getStatus(),
+            outcome: ReceiptOutcome::fromSigningRequest($request->getStatus()),
             pdfBytes: $sealed['bytes'],
             sealedAt: $sealedAt,
             sealSerialNumber: $sealed['serialNumber'],
@@ -91,6 +101,76 @@ final class ReceiptGenerator
                 'receiptId' => $receipt->getId()->toRfc4122(),
                 'requestId' => $request->getId()->toRfc4122(),
                 'outcome' => $request->getStatus()->value,
+                'contentHash' => $receipt->getContentHash(),
+                'sealSerial' => $receipt->getSealSerialNumber(),
+            ],
+            subjectType: 'Document',
+            subjectId: $documentId->toRfc4122(),
+        );
+
+        return $receipt;
+    }
+
+    /**
+     * The receipt for a delivery. Unlike a request's, there is nothing to wait
+     * for: a delivery is finished the moment it is made, so this is sealed
+     * straight away and its outcome is always Delivered.
+     */
+    public function generateForDelivery(Delivery $delivery): DeliveryReceipt
+    {
+        $existing = $this->receipts->findForSource(ReceiptSource::Delivery, $delivery->getId());
+        if (null !== $existing) {
+            return $existing;
+        }
+
+        $document = $delivery->getDocument();
+        $documentId = $document->getId();
+        $sealedAt = \DateTimeImmutable::createFromInterface($this->clock->now());
+
+        // The version actually served, not the latest: a later version is not
+        // delivered retroactively, and the receipt must name what was handed over.
+        $recipients = array_values($delivery->getRecipients()->toArray());
+        $documentHash = [] !== $recipients ? $recipients[0]->getVersion()->getContentHash() : '';
+
+        $pdf = $this->renderer->render(self::TEMPLATE, [
+            'source' => ReceiptSource::Delivery,
+            'outcome' => ReceiptOutcome::Delivered,
+            'request' => null,
+            'delivery' => $delivery,
+            'document' => $document,
+            'documentTitle' => $document->getTitle(),
+            'documentHash' => $documentHash,
+            'sender' => $delivery->getSender(),
+            'people' => array_map(
+                static fn (DeliveryRecipient $r): array => ['recipient' => $r, 'deliveredAt' => $r->getDeliveredAt()],
+                $recipients,
+            ),
+            'evidence' => $this->auditEntries->findForSubject('Document', $documentId->toRfc4122()),
+            'sealedAt' => $sealedAt,
+        ]);
+
+        $sealed = $this->sealer->seal($pdf, $document->getTitle());
+
+        $receipt = $this->writer->write(
+            documentId: $documentId,
+            source: ReceiptSource::Delivery,
+            sourceId: $delivery->getId(),
+            documentTitle: $document->getTitle(),
+            documentHash: $documentHash,
+            outcome: ReceiptOutcome::Delivered,
+            pdfBytes: $sealed['bytes'],
+            sealedAt: $sealedAt,
+            sealSerialNumber: $sealed['serialNumber'],
+            participants: $delivery->participants(),
+        );
+
+        $this->auditLogger->log(
+            action: 'receipt.sealed',
+            actor: $delivery->getSender(),
+            payload: [
+                'receiptId' => $receipt->getId()->toRfc4122(),
+                'deliveryId' => $delivery->getId()->toRfc4122(),
+                'outcome' => ReceiptOutcome::Delivered->value,
                 'contentHash' => $receipt->getContentHash(),
                 'sealSerial' => $receipt->getSealSerialNumber(),
             ],

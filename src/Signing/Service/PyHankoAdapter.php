@@ -27,6 +27,16 @@ final class PyHankoAdapter implements PadesSignerInterface
      */
     private const array TOKEN_PIN_REJECTIONS = ['PinIncorrect', 'PinLocked'];
 
+    /**
+     * Driver failures we can explain. The driver still never forwards exception
+     * *messages* - those can echo input, including the PIN - so it reports a
+     * stable code for the conditions it recognises, and this maps the code to
+     * something the user can act on. Anything else stays generic.
+     */
+    private const array EXPLAINED = [
+        'EncryptedPdf' => 'This PDF is password-protected, so it cannot be signed. Remove the password and upload it again.',
+    ];
+
     public function __construct(
         private readonly AuditLoggerInterface $auditLogger,
         #[Autowire(env: 'PKCS11_MODULE')]
@@ -99,7 +109,7 @@ final class PyHankoAdapter implements PadesSignerInterface
                 severity: AuditSeverity::Critical,
             );
 
-            throw new SigningException('Document signing failed.');
+            throw new SigningException(self::EXPLAINED[$error] ?? 'Document signing failed.');
         }
 
         /** @var array{pdf_b64: string} $decoded */

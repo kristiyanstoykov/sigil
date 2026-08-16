@@ -11,7 +11,8 @@ use App\Document\Service\DocumentStorageInterface;
 use App\Document\Service\KeyManagementService;
 use App\Receipt\Entity\DeliveryReceipt;
 use App\Receipt\Entity\DeliveryReceiptKeyGrant;
-use App\Signing\Enum\SigningRequestStatus;
+use App\Receipt\Enum\ReceiptOutcome;
+use App\Receipt\Enum\ReceiptSource;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Uid\Uuid;
 
@@ -36,14 +37,15 @@ final class ReceiptWriter
     }
 
     /**
-     * @param list<User> $participants everyone who may read the receipt - the requester and every signer
+     * @param list<User> $participants everyone who may read the receipt - the sender and everyone it reached
      */
     public function write(
         Uuid $documentId,
-        Uuid $signingRequestId,
+        ReceiptSource $source,
+        Uuid $sourceId,
         string $documentTitle,
         string $documentHash,
-        SigningRequestStatus $outcome,
+        ReceiptOutcome $outcome,
         string $pdfBytes,
         \DateTimeImmutable $sealedAt,
         string $sealSerialNumber,
@@ -51,7 +53,8 @@ final class ReceiptWriter
     ): DeliveryReceipt {
         $receipt = new DeliveryReceipt(
             documentId: $documentId,
-            signingRequestId: $signingRequestId,
+            source: $source,
+            sourceId: $sourceId,
             documentTitle: $documentTitle,
             documentHash: $documentHash,
             outcome: $outcome,

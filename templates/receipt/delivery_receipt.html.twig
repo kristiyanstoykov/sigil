@@ -29,23 +29,35 @@
 </head>
 <body>
 
-{% set outcome = request.status %}
-{% set outcome_class = outcome.value == 'completed' ? 'ok' : (outcome.value == 'expired' ? 'warn' : 'bad') %}
+{# Two things produce a receipt: a closed signature request, or a delivery.
+   `source` says which, and the meta and Recipients tables differ accordingly -
+   a delivery has no deadline, no turn and nothing to sign. #}
+{% set delivered = source.isDelivery %}
+{% set reference = delivered ? delivery.id : request.id %}
+{% set outcome_class = outcome.value in ['completed', 'delivered'] ? 'ok' : (outcome.value == 'expired' ? 'warn' : 'bad') %}
 {# A refusal is an outcome, not a failure: the record has to say who refused and
    why, or the receipt cannot explain why the request stopped where it did. #}
 
-<h1>Delivery receipt</h1>
+<h1>{{ delivered ? 'Delivery receipt' : 'Signature request receipt' }}</h1>
 <p class="brand">Sigil &mdash; Signum Veritatis &middot; issued {{ sealedAt|date('d.m.Y H:i:s e') }}</p>
 <div class="rule"></div>
 
 <table class="meta">
-    <tr><td class="k">Reference</td><td class="hash">{{ request.id }}</td></tr>
-    <tr><td class="k">Document</td><td><strong>{{ document.title }}</strong></td></tr>
+    <tr><td class="k">Reference</td><td class="hash">{{ reference }}</td></tr>
+    <tr><td class="k">Attests</td><td>{{ source.label }}</td></tr>
+    <tr><td class="k">Document</td><td><strong>{{ documentTitle }}</strong></td></tr>
     <tr><td class="k">Document digest</td><td class="hash">{{ documentHash|default('—') }} <span class="muted">(SHA-384)</span></td></tr>
-    <tr><td class="k">Sender</td><td>{{ request.requester.fullName }} &lt;{{ request.requester.email }}&gt;</td></tr>
-    <tr><td class="k">Sent</td><td>{{ request.createdAt|date('d.m.Y H:i:s') }}</td></tr>
-    <tr><td class="k">Deadline</td><td>{{ request.deadline|date('d.m.Y H:i:s') }}</td></tr>
-    <tr><td class="k">Closed</td><td>{{ request.closedAt ? request.closedAt|date('d.m.Y H:i:s') : '—' }}</td></tr>
+    <tr><td class="k">Sender</td><td>{{ sender.fullName }} &lt;{{ sender.email }}&gt;</td></tr>
+    {% if delivered %}
+        <tr><td class="k">Delivered</td><td>{{ delivery.createdAt|date('d.m.Y H:i:s') }}</td></tr>
+        {% if delivery.note %}
+            <tr><td class="k">Covering note</td><td>{{ delivery.note }}</td></tr>
+        {% endif %}
+    {% else %}
+        <tr><td class="k">Sent</td><td>{{ request.createdAt|date('d.m.Y H:i:s') }}</td></tr>
+        <tr><td class="k">Deadline</td><td>{{ request.deadline|date('d.m.Y H:i:s') }}</td></tr>
+        <tr><td class="k">Closed</td><td>{{ request.closedAt ? request.closedAt|date('d.m.Y H:i:s') : '—' }}</td></tr>
+    {% endif %}
     <tr><td class="k">Outcome</td><td><span class="badge {{ outcome_class }}">{{ outcome.label|upper }}</span></td></tr>
 </table>
 
@@ -54,13 +66,26 @@
     <thead>
         <tr>
             <th style="width:5%">#</th>
-            <th style="width:33%">Recipient</th>
-            <th style="width:31%">Delivered</th>
-            <th style="width:31%">Signed</th>
+            <th style="width:{{ delivered ? '55%' : '33%' }}">Recipient</th>
+            <th style="width:{{ delivered ? '40%' : '31%' }}">Delivered</th>
+            {% if not delivered %}<th style="width:31%">Signed</th>{% endif %}
         </tr>
     </thead>
     <tbody>
-    {% for row in signers %}
+    {% if delivered %}
+        {# Served all at once: no order, no turn, and nothing asked in return. #}
+        {% for row in people %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                    {{ row.recipient.user.fullName }}<br>
+                    <span class="muted">{{ row.recipient.user.email }}</span>
+                </td>
+                <td>{{ row.deliveredAt|date('d.m.Y H:i:s') }}</td>
+            </tr>
+        {% endfor %}
+    {% else %}
+    {% for row in people %}
         <tr>
             <td>{{ row.signer.position }}</td>
             <td>
@@ -91,6 +116,7 @@
             </td>
         </tr>
     {% endfor %}
+    {% endif %}
     </tbody>
 </table>
 
@@ -131,11 +157,15 @@
     any earlier record breaks every hash after it. Delivery here means the document
     was made available to the recipient (the consignment event of ETSI EN&nbsp;319&nbsp;522);
     Sigil does not record whether a recipient subsequently opened it.
+    {% if delivered %}
+        Nothing was asked of the recipients named above: a delivery is served, not
+        requested, and cannot be refused.
+    {% endif %}
 </div>
 
 <htmlpagefooter name="footer">
     <div class="foot">
-        Sigil &mdash; Signum Veritatis &middot; delivery receipt {{ request.id }} &middot; page {PAGENO} of {nbpg}
+        Sigil &mdash; Signum Veritatis &middot; receipt {{ reference }} &middot; page {PAGENO} of {nbpg}
     </div>
 </htmlpagefooter>
 
