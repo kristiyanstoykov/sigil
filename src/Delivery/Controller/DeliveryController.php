@@ -38,6 +38,14 @@ class DeliveryController extends AbstractController
     {
         $document = $this->ownedDocument($id);
 
+        // One delivery per document, ever - deliver() enforces the same rule.
+        // Stopping here keeps the user off a form that could only fail.
+        if ($document->isDelivered()) {
+            $this->addFlash('info', 'This document has already been delivered. Upload it again to serve it on anyone else.');
+
+            return $this->redirectToRoute('app_document_show', ['id' => $id]);
+        }
+
         $form = $this->createForm(DeliverDocumentForm::class);
         $form->handleRequest($request);
 

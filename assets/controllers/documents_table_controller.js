@@ -29,7 +29,7 @@ export default class extends Controller {
      * its element moves in the DOM. On the table that is an infinite loop -
      * connect wraps, the wrap reconnects, the reconnect wraps again.
      */
-    static targets = ['table'];
+    static targets = ['table', 'search'];
     static values = {
         perPage: { type: Number, default: 10 },
         // Column indices, passed from the template so a reordered <thead>
@@ -71,19 +71,12 @@ export default class extends Controller {
                 noResults: 'No documents match that search',
                 info: 'Showing {start}-{end} of {rows} documents',
             },
-            // Same markup as the library's default template, with the
-            // rows-per-page dropdown moved out of the top bar and down into the
-            // bottom one, so both paging controls sit together under the table
-            // and the top bar carries only the search. The library finds the
-            // select by querying the whole wrapper, so it works from there.
-            template: (opts, dom) => `
-                <div class="${opts.classes.top}">
-                    ${opts.searchable ? `<div class="${opts.classes.search}">
-                        <input class="${opts.classes.input}" placeholder="${opts.labels.placeholder}"
-                               type="search" name="search" title="${opts.labels.searchTitle}"
-                               ${dom.id ? `aria-controls="${dom.id}"` : ''}>
-                    </div>` : ''}
-                </div>
+            // The library's top bar is dropped entirely: the toolbar above the
+            // table is ours, so the search box sits on the left of the same row
+            // as the filter dropdowns instead of in a bar of its own. Paging
+            // controls stay together under the table. The library finds the
+            // per-page select by querying the whole wrapper, so it works there.
+            template: (opts) => `
                 <div class="${opts.classes.container}"></div>
                 <div class="${opts.classes.bottom}">
                     ${opts.paging ? `<div class="${opts.classes.info}"></div>` : ''}
@@ -93,6 +86,13 @@ export default class extends Controller {
                     <nav class="${opts.classes.pagination}"></nav>
                 </div>`,
         });
+
+        // Our own search box drives the library's search, so it can live in the
+        // toolbar rather than in the bar the library would have drawn.
+        if (this.hasSearchTarget) {
+            this.onSearch = (event) => this.table.search(event.target.value);
+            this.searchTarget.addEventListener('input', this.onSearch);
+        }
 
         // Turbo caches a snapshot of the page BEFORE tearing the body down, so
         // disconnect() alone is too late: the snapshot would keep the wrapper
@@ -110,6 +110,10 @@ export default class extends Controller {
 
     /** Idempotent: turbo:before-cache and disconnect can both reach it. */
     teardown() {
+        if (this.hasSearchTarget && this.onSearch) {
+            this.searchTarget.removeEventListener('input', this.onSearch);
+            this.onSearch = null;
+        }
         this.table?.destroy();
         this.table = null;
     }

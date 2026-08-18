@@ -37,7 +37,8 @@
 
     <div class="card mt-5 !mb-0 p-6"
          data-controller="signer-order"
-         data-signer-order-lookup-url-value="{{ path('app_signing_request_lookup', {id: document.id}) }}">
+         data-signer-order-lookup-url-value="{{ path('app_signing_request_lookup', {id: document.id}) }}"
+         data-signer-order-preset-value="{{ preset|default([])|json_encode }}">
 
         {{ form_start(form, {action: path('app_signing_request_new', {id: document.id}), attr: {novalidate: 'novalidate'}}) }}
 
@@ -54,6 +55,12 @@
             </button>
         </div>
         <p class="mt-2 text-xs text-danger-600" data-signer-order-target="error" hidden></p>
+        {% if alreadySigned|default(false) %}
+            <p class="mt-2 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
+                <i class="ti ti-circle-check mt-px text-sm leading-none text-success-600" aria-hidden="true"></i>
+                <span>You have already signed this document, so you cannot be on this list - a second signature from you is not something to ask for.</span>
+            </p>
+        {% endif %}
         <p class="mt-2 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
             <i class="ti ti-users mt-px text-sm leading-none" aria-hidden="true"></i>
             <span>A signer needs a verified Sigil account and a usable certificate. That is checked now, when you send - not again afterwards.</span>

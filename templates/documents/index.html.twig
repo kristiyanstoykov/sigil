@@ -43,49 +43,15 @@
         </button>
     </div>
 
-    {# ── filters ────────────────────────────────────────────────────────── #}
-    {% if documents is not empty %}
-        <div class="mb-5 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-theme-border pb-4">
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">Role</span>
-                {# Only All carries a number - it is the size of the library, which
-                   is worth knowing. Per-filter counts just crowded the row. #}
-                {% for key, label in {'all': 'All', 'mine': 'Mine', 'others': 'From others'} %}
-                    <a href="{{ path('app_documents', (key == 'all' ? {} : {role: key})|merge(status ? {status: status} : {})) }}"
-                       class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold {{ role == key
-                           ? 'bg-primary-500 text-white'
-                           : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">
-                        {{ label }}
-                        {% if key == 'all' %}
-                            <span class="{{ role == key ? 'text-white/70' : 'text-theme-secondarytextcolor/70' }}">{{ documents|length }}</span>
-                        {% endif %}
-                    </a>
-                {% endfor %}
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">Status</span>
-                {% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'declined': 'Declined', 'expired': 'Expired'} %}
-                <a href="{{ path('app_documents', role == 'all' ? {} : {role: role}) }}"
-                   class="rounded-full px-3 py-1 text-xs font-semibold {{ status is null
-                       ? 'bg-primary-500 text-white'
-                       : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">Any</a>
-                {% for key, label in statuses %}
-                    {# Only offer a status some document actually has - the count
-                       decides whether the chip appears, it is not shown. #}
-                    {% if documents|filter(d => document_status(d).value == key)|length %}
-                        <a href="{{ path('app_documents', {status: key}|merge(role == 'all' ? {} : {role: role})) }}"
-                           class="rounded-full px-3 py-1 text-xs font-semibold {{ status == key
-                               ? 'bg-primary-500 text-white'
-                               : 'bg-theme-activebg text-theme-secondarytextcolor hover:text-theme-headings' }}">
-                            {{ label }}
-                        </a>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-    {% endif %}
-
+    {#
+        ── toolbar ─────────────────────────────────────────────────────────
+        Search on the left, filters on the right. The filters are Able Pro
+        dropdowns whose items are plain links, so filtering still happens
+        server-side and works without JavaScript - only opening the menu needs
+        the theme's delegated handler. The search box drives the datatable
+        through documents_table_controller, which is why the library's own top
+        bar is switched off.
+    #}
     {% if documents is empty %}
         {# ── empty state: nothing at all ────────────────────────────────── #}
         <div class="card !mb-0 !bg-white/80 p-14 text-center">
@@ -132,13 +98,78 @@
         {# The controller sits on this wrapper, not on the <table>: initialising
            the datatable moves the table into a wrapper of its own, and a
            Stimulus controller mounted on a moved element reconnects - which
-           would initialise it again, forever. #}
-        <div class="card !mb-0 overflow-hidden !bg-white/90 docs-table"
+           would initialise it again, forever. The toolbar is inside it so the
+           search box can be a controller target. #}
+        <div class="docs-table"
              data-controller="documents-table"
              data-documents-table-per-page-value="10"
              data-documents-table-size-column-value="3"
              data-documents-table-date-column-value="4"
              data-documents-table-actions-column-value="5">
+
+            {# ── toolbar: search left, filters right ────────────────────── #}
+            <div class="mb-4 flex flex-wrap items-stretch gap-3">
+                <div class="relative min-w-0 flex-1 sm:max-w-xs">
+                    <i class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i>
+                    <input type="search" data-documents-table-target="search"
+                           class="form-control !pl-9" placeholder="Search documents" aria-label="Search documents">
+                </div>
+
+                <div class="ml-auto flex flex-wrap items-stretch gap-2">
+                    {% set roles = {'all': 'All', 'mine': 'Mine', 'others': 'From others'} %}
+                    <div class="dropdown">
+                        <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                class="btn btn-outline-secondary inline-flex h-full items-center gap-2">
+                            <i class="ti ti-user text-base leading-none" aria-hidden="true"></i>
+                            <span class="text-theme-secondarytextcolor">Role:</span>
+                            <span class="font-semibold">{{ roles[role] }}</span>
+                            <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            {% for key, label in roles %}
+                                <a href="{{ path('app_documents', (key == 'all' ? {} : {role: key})|merge(status ? {status: status} : {})) }}"
+                                   class="dropdown-item {{ role == key ? '!text-primary-500 font-semibold' }}">
+                                    {{ label }}
+                                    {% if key == 'all' %}<span class="ml-1 text-theme-secondarytextcolor">{{ documents|length }}</span>{% endif %}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    {% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'delivered': 'Delivered', 'declined': 'Declined', 'expired': 'Expired'} %}
+                    <div class="dropdown">
+                        <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                class="btn btn-outline-secondary inline-flex h-full items-center gap-2">
+                            <i class="ti ti-filter text-base leading-none" aria-hidden="true"></i>
+                            <span class="text-theme-secondarytextcolor">Status:</span>
+                            <span class="font-semibold">{{ status ? statuses[status]|default(status) : 'Any' }}</span>
+                            <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="{{ path('app_documents', role == 'all' ? {} : {role: role}) }}"
+                               class="dropdown-item {{ status is null ? '!text-primary-500 font-semibold' }}">Any</a>
+                            {% for key, label in statuses %}
+                                {# Only offer a status some document actually has. #}
+                                {% if documents|filter(d => document_status(d).value == key)|length %}
+                                    <a href="{{ path('app_documents', {status: key}|merge(role == 'all' ? {} : {role: role})) }}"
+                                       class="dropdown-item {{ status == key ? '!text-primary-500 font-semibold' }}">{{ label }}</a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    {% if role != 'all' or status %}
+                        <a href="{{ path('app_documents') }}"
+                           class="btn btn-outline-secondary inline-flex h-full items-center gap-1.5"
+                           title="Clear filters">
+                            <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
+                            Clear
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card !mb-0 overflow-hidden !bg-white/90">
             <div class="table-responsive">
                 <table class="table w-full text-left" data-documents-table-target="table">
                     <thead class="border-b border-theme-border bg-theme-bodybg/70 text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">
@@ -198,6 +229,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
             </div>
         </div>
     {% endif %}

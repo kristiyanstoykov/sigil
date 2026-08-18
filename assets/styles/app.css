@@ -457,8 +457,12 @@ button[aria-busy="true"] {
 }
 
 /* A subtle rise-in for the docs surfaces on the gradient. */
+/* backwards, not both: a filling animation keeps applying transform after it
+   ends, and even an identity matrix makes the element a containing block for
+   position:fixed children - which pins the confirm dialogs nested inside
+   .docs-rise to this element instead of the viewport. */
 .docs-rise {
-    animation: docs-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: docs-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 @keyframes docs-rise {
     from { opacity: 0; transform: translateY(8px); }

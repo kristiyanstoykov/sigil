@@ -582,17 +582,63 @@ It describes how a signature request delivers; it is not a delivery flow.
 
 The delivery flow works but its shape is wrong. Four changes:
 
-**1. The entry point belongs at upload, not on the document page.** Uploading and
-deciding what the document is *for* should be one motion: upload to deliver,
-upload to sign yourself, or upload to have someone else sign it. Today you upload,
-land on the sign page, then hunt for a panel. **Requesting a signature on a
-freshly uploaded document is the least intuitive path in the app and should be
-the easiest.**
+**1. The entry point belongs at upload, not on the document page. ✅ BUILT
+2026-08-18.** An upload lands on `/documents/{id}/sign`, and for the owner of a
+document with no signature request that page now opens with **"What is it for?"** -
+four purpose cards: *I sign it myself*, *Others sign and I sign too*, *Others
+sign I don't*, *Deliver it*. Choosing one opens a centred modal; self-signing
+keeps the certificate + PIN form in place (two clicks, no navigation), and the
+other three lead to the signer/recipient composer.
 
-**2. A delivered document is no longer a Draft.** Sending an unsigned document for
-delivery currently leaves it reading `Draft`, because `DocumentStatusResolver`
-only consults signature requests. It should read **Delivered**, and that state is
-**terminal** - nothing further can be done with the document.
+Rules that hold it together, all pure CSS - no JavaScript in the chooser at all:
+
+- Selection uses **`group-has-[#id:checked]`**, not `peer-checked`: a peer only
+  reaches later siblings and the option labels are nested, so `peer-checked`
+  silently does nothing here.
+- A fifth **`pp-none` radio** is the default and is what Back and the close
+  button select - a radio cannot be unchecked by clicking a label, only replaced.
+- Every failed-PIN redirect carries **`?purpose=self`** so the modal reopens on
+  the form the user was filling; a pure-CSS modal would otherwise close and leave
+  only a flash behind.
+- **"Others sign, and I sign too"** links with `?include_me=1`, which seeds the
+  picker with the owner (`SignerEligibility` decides the badge). It is only a
+  seed: the row is ordinary from there on - **movable**, removable - and
+  `create()` re-checks eligibility server-side.
+- The two signature options are disabled without a usable certificate, and both
+  are disabled once the document has spent its one request, each with the reason
+  stated inline.
+- The PDF viewer is **collapsed behind a "Read the document" row under `lg`** and
+  always open above it, so the four options are above the fold on a phone.
+  Deliberately *not* `<details>`: a closed `<details>` hides its content with
+  `content-visibility` on a shadow-DOM slot that author CSS cannot override, so
+  `lg:block` would not reopen it on desktop. Tested, not assumed.
+- The document header (title, `Original`, size, fingerprint) sits above both
+  columns; the left column used to repeat the filename directly under it.
+
+Still open on this point: the modal does not lock body scroll behind it (not
+possible in CSS alone - needs the Stimulus controller), and the step-2 composer
+is still its own page rather than a step inside the modal.
+
+**2. A delivered document is no longer a Draft. ✅ BUILT 2026-08-18.** It reads
+**Delivered** and that state is genuinely terminal, enforced in the domain rather
+than only in the UI:
+
+- `Document::$deliveredAt` carries the fact. It sits on the entity, not in the
+  `Delivery` module, because `Signing` has to read it and the two modules may not
+  depend on each other - which answers the "another seam" question this item
+  raised. `Delivery` remains its only writer.
+- `DeliveryService::deliver()` refuses a second delivery, `SigningRequestService::create()`
+  refuses a request, and `DocumentSigner::assertMaySign()` refuses a signature.
+  The controllers stop earlier so nobody reaches a form that could only fail.
+- `DocumentStatusResolver` returns `Delivered` ahead of everything else, and the
+  document page replaces the "What next" row with a note saying the file is
+  finished and to upload it again to serve it on anyone else.
+
+**This reverses ADR-012 §2's "repeatable and independent".** A delivery seals a
+receipt naming a fixed audience over a finished document; serving the same file
+again, or signing it afterwards, would contradict that receipt. The converse does
+*not* hold - a signature request never blocks a delivery, it only blocks another
+request, and self-signing then delivering is the ordinary path.
 
 Needs: a `DocumentDisplayStatus::Delivered` case, and the resolver has to consult
 the `Delivery` module as well as `Signing`. Note the dependency direction -
@@ -698,6 +744,539 @@ call next to each, dispatch domain events and let both Mailer and Notification
 subscribe. That is the proposal recorded earlier ("we could trigger events for
 signing and so on, so the audit log can hook on it"); this feature is the reason
 to finally do it.
+
+### Audit chain - tamper-evidence against a database-level attacker (TODO, decided 2026-08-16)
+
+Raised by the code review in `docs/review/REVIEW-2026-08-16.md` (F-01), which is
+the fullest write-up. **Decided: fix the code, not the claim.** The chain must be
+tamper-evident against an attacker holding the database, since this is a
+cybersecurity diploma project and that is the property the ADRs already imply.
+
+**The problem.** `AuditLogEntry::__construct` computes
+`entryHash = sha256(previousHash || canonicalPayload)`, and `sigil:audit:verify`
+recomputes the same public function. Every input is a column of the same row, so
+anyone with DB write access can delete an entry, renumber, rehash every following
+row, and the verifier reports "Audit chain intact". Today the chain detects
+accidental corruption and a naive single-row `UPDATE`. It does not detect a
+deliberate rewrite, which is the only thing "tamper-evident" is used to mean.
+
+**Layer 1 - key the chain.**
+`entryHash = HMAC-SHA256(K_audit, previousHash || canonicalPayload)`, where
+`K_audit` is generated inside the PKCS#11 token with `SENSITIVE=true,
+EXTRACTABLE=false`, exactly like the ADR-010 root key. A DB dump, a SQL
+injection or a DBA then has every input and still cannot forge an entry.
+
+Do **not** spawn the Python driver per audit entry - that is a ~100ms process
+start on a path that runs several times per signature. ADR-010 already blesses
+the right pattern: *"KEKs can be unwrapped once per session and held transiently,
+so the cost is per-session, not per-file."* Unwrap `K_audit` once per process and
+hold it in memory. That weakens it only against an attacker who can read process
+memory, which is host compromise, which ADR-010 already scopes out and which
+Layer 2 covers. Against the database-level attacker this is aimed at, an
+in-memory key is exactly as strong as a token round-trip per call.
+
+**Layer 2 - anchor the head externally.** This is the honest completion, and the
+part worth defending in front of a committee. Under our own threat model a
+host-level attacker gets `K_audit` too and can rewrite and re-MAC the whole
+chain; no internal secret can fix that, by construction. An external anchor can:
+periodically (every N entries, or hourly from the existing sweep cron) take the
+current head `entryHash` and obtain an **RFC 3161 timestamp** over it, storing the
+token. The TSA's signature is the TSA's - a fully compromised Sigil cannot forge
+it - so any rewrite is bounded to the window since the last anchor, provably, to
+a third party. `TsaProviderInterface`, `FreeTsaProvider` and the local dev
+responder already exist and are wired; this is a new caller, not new
+infrastructure.
+
+**Migration.** Existing entries carry unkeyed hashes. Do not recompute them -
+that is precisely the operation the design exists to make impossible. Add a
+scheme/version discriminator to the entry, have `sigil:audit:verify` check
+pre-cutover entries with SHA-256 and post-cutover ones with the HMAC, and record
+the cutover sequence. Anchor the head immediately after cutover. Same
+self-describing-artifact discipline as the envelope's `algo_id` and the root
+key's scheme byte.
+
+**What can then be claimed:** "the chain is unforgeable by a database-level
+adversary, and any rewrite by a host-level adversary is bounded to the window
+since the last third-party anchor and is detectable by comparing the anchored
+head." The current sentence does not survive cross-examination; that one does.
+
+### Hash agility - put the chain digest behind a registry (TODO, raised 2026-08-16)
+
+**Do this in the same pass as the audit-chain section above**, not separately.
+That work replaces `sha256(...)` with an HMAC and therefore has to add a
+per-entry algorithm discriminator anyway; adding the seam at the same time is
+nearly free, and doing it afterwards means migrating the chain twice.
+
+**First, correct the premise, because it matters for the thesis.** SHA-256 is
+**not** quantum-threatened in the way ECDSA and RSA are, and ADR-006 already says
+so ("Audit-log hash chain: SHA-256 acceptable for the chain"; "Only the
+*signature* side has a quantum gap; storage is already quantum-resistant").
+
+- Shor's algorithm breaks RSA and ECDSA outright - that is a **catastrophic**,
+  structural break, and it is why ADR-006 records PQC signatures as the intended
+  direction.
+- Hash functions face only **Grover**, a quadratic speedup on preimage search:
+  SHA-256 preimage goes from 2^256 to 2^128 work. 2^128 is still infeasible.
+- For collisions, the classical birthday bound is already 2^128 for SHA-256.
+  Quantum collision search (BHT) is theoretically ~2^85 but needs on the order of
+  2^85 quantum memory, which is why NIST does not treat it as a practical threat.
+- NIST's practical guidance is that a hash needs roughly **doubled output length**
+  for the same margin under Grover. SHA-256 clears the bar; SHA-384 (already the
+  document/signature digest here) gives comfortable headroom.
+
+So do **not** write "we made the hash swappable because SHA-256 is quantum-broken"
+in the thesis. It contradicts our own ADR-006 and hands an examiner a free
+correction. The honest sentence is: *the hash is not the quantum-exposed part;
+it is behind a seam for the same crypto-agility reason as the cipher registry,
+and moving to SHA-384/SHA-512 for extra Grover margin is then a config change
+rather than a migration.*
+
+**The real reasons to do it, which are good enough on their own:**
+
+1. **Consistency with ADR-006.** The whole architecture is "one seam, versioned
+   self-describing artifacts": `CipherAlgorithmInterface` + `CipherAlgorithmRegistry`
+   keyed by a stable algo id, `algo_id` stamped into every envelope,
+   `SignatureAlgorithmRegistry` for suites, backend ids stamped into storage keys.
+   The audit chain digest is the one primitive still hardcoded outside all of it.
+2. **The construction is currently written twice** and must be kept in step by
+   hand - `AuditLogEntry.php:87` and `AuditVerifyCommand.php:42` each spell out
+   `hash('sha256', $previousHash . $canonicalPayload)`. A registry removes the
+   duplication that would otherwise let the writer and the verifier drift apart,
+   which is the worst possible bug in a verification tool.
+3. It is a prerequisite for the audit-chain fix regardless.
+
+**Design constraints, learned from the envelope:**
+
+- **Bind the algorithm id into what is hashed**, exactly as `EnvelopeEncryptionService::bindAad`
+  binds `algo_id` into the GCM AAD. Otherwise an attacker who can write the
+  algorithm column claims an entry was made with a weaker algorithm and the
+  verifier obliges - the same downgrade attack the envelope already defends
+  against, and `EnvelopeEncryptionServiceTest::testAlgoIdDowngradeIsRejected` is
+  the test to copy.
+- **Store the algorithm id per entry**, not as a global setting. Old entries must
+  stay verifiable under the algorithm that produced them; rehashing history is
+  precisely the operation the chain exists to prevent.
+- Keep the id format the codebase already uses (`AES-256-GCM/v1` style), so the
+  chain reads like the rest of the system.
+
+**Other hardcoded digests worth folding into the same seam** (found while
+scoping this):
+
+- `EnvelopeEncryptionService::deriveKey` - `hash_hkdf('sha256', ...)`, line 82.
+- `EnvelopeEncryptionService::mac` - `hash_hmac('sha384', ...)`, line 87. The
+  interface docblock hardcodes the claim too (`EncryptionServiceInterface.php:52`).
+
+These two are lower priority than the chain: they are internal, their outputs are
+not stored with an algorithm marker, and changing them is a breaking migration for
+`ContentHasher` output. Worth listing in the ADR as known-fixed rather than
+pretending they are agile.
+
+**Also spotted:** `src/Certificate/Algorithm/Rsa3072Sha384.php` still exists and is
+still autoconfigured into `SignatureAlgorithmRegistry`, although ADR-006 records
+RSA as **dropped on 2026-07-25** ("it is removed"). Nothing selects it - the
+default is fixed to `EcdsaP384Sha384` and there is no user choice - so it is
+harmless, but it is live dead code contradicting an ADR. Delete it with this pass.
+
+### KDF and MAC agility - same seam for deriveKey and mac (TODO, decided 2026-08-16)
+
+Agreed: make the two remaining hardcoded digests dynamic like everything else,
+migrating so existing `ContentHasher` output is not invalidated.
+
+**Current state.** Two hardcoded choices behind one service:
+
+```php
+// src/Core/Crypto/EnvelopeEncryptionService.php:82
+return hash_hkdf('sha256', $inputKeyMaterial, 32, $context);   // deriveKey
+// src/Core/Crypto/EnvelopeEncryptionService.php:87
+return hash_hmac('sha384', $message, $key, true);              // mac
+```
+
+`ContentHasher::hash()` composes both: derive a MAC key from the root key under
+the context `sigil:document-content-hash/v1`, then HMAC the plaintext with it.
+`EncryptionServiceInterface.php:52` hardcodes the claim in its docblock too.
+
+**Important correction on "default sha384 so nothing breaks".** That is right for
+`mac`, which is *already* HMAC-SHA-384, and wrong for `deriveKey`, which is
+HKDF-**SHA-256**. Changing `deriveKey` to SHA-384 changes the derived MAC key,
+which changes every `ContentHasher` output. So to preserve existing values the v1
+suite must pin **today's** pair exactly:
+
+| Function | v1 default (must not change) | Why |
+|---|---|---|
+| `deriveKey` | HKDF-**SHA-256**, 32-byte output | changing it changes the MAC key, hence every stored hash |
+| `mac` | HMAC-**SHA-384**, 48 raw bytes | already the current value; 96 hex chars matches the column |
+
+Unifying both on SHA-384 is a perfectly reasonable *future* suite - it is just a
+v2, not the v1 default, and it produces different output by design.
+
+**Good news that lowers the cost a lot: nothing ever recomputes `contentHash`.**
+Verified 2026-08-16 - it is written once by `DocumentVersionWriter` and
+`ReceiptWriter`, and thereafter only ever *displayed* (`documents/show.html.twig`,
+`signing/sign.html.twig`, the receipt) or copied into an audit payload. There is
+no comparison path and no `sigil:document:verify` command. Integrity at rest is
+actually enforced by the AES-GCM tag on decrypt, not by this field; the field is
+an evidentiary record. So switching suites cannot make a check fail - old rows
+simply keep values computed under the old suite.
+
+**The one structural requirement: store the suite id next to every stored digest.**
+Add it as a column on `document_version` and `delivery_receipt`, the same way
+`algo_id` is stamped into every envelope and the backend id into every storage
+key. Without it, changing the default silently orphans every existing hash, since
+nothing records which suite produced it.
+
+**Do not repeat the ADR-010 mistake here.** The root key's scheme byte is
+self-describing and *nothing routes on it at runtime* (F-03), which is why a
+partial migration bricks users. Add the column **and** the code that reads it in
+the same change, not the marker first and the router later. Note
+`ContentHasher::MAC_CONTEXT` already ends in `/v1`, so a versioning hook exists in
+the context string; that alone is not enough, because the version has to be
+recorded per row to be recoverable.
+
+**Priority: lower than the audit chain.** These are internal and nothing depends
+on their agility today. The reason to do them is consistency - after this, every
+symmetric primitive in the system is behind a registry with a stable id, and the
+sentence "all crypto goes through one seam" in ADR-006 is true without an
+asterisk. Fold the `EncryptionServiceInterface` docblock fix in at the same time.
+
+### DISCUSS - what should the receipt's document digest actually be? (raised 2026-08-16)
+
+Not a decision yet. Review finding F-35; full write-up in
+`docs/review/REVIEW-2026-08-16.md`. Two correct design goals are in direct
+conflict and the code currently satisfies one while the receipt's label claims
+the other.
+
+**The situation.** `ContentHasher` is a **keyed** HMAC-SHA-384 under a
+root-derived key, not a plain digest. That was a deliberate call in the 2026-07-11
+security review and the reasoning is good: under ADR-004's threat model (DB dump
+plus object-store leak) a plain plaintext hash is a **confirmation oracle** -
+an attacker with a candidate file hashes it and learns whether Sigil holds it,
+without decrypting anything. That is a real privacy harm on its own (confirming a
+specific contract, or a specific person's ID document, is in the system).
+
+But the receipt renders that value as:
+
+```twig
+<td class="k">Document digest</td><td class="hash">{{ documentHash }} <span class="muted">(SHA-384)</span></td>
+```
+
+A recipient who runs `sha384sum` on the file they were delivered gets a mismatch,
+and cannot reach the correct value - the MAC key derives from the root key, which
+lives in the PKCS#11 token. ADR-012 grounds the receipt in Evrotrust's stated
+receipt content, *"a hash extracted from the document content"*, so the one field
+that looks independently checkable is the one only Sigil can check. Also note the
+four entity docblocks (`DocumentVersion.php:21,54`, `DeliveryReceipt.php:58,69`)
+describe it as a plain SHA-384, which is simply wrong whatever we decide.
+
+**Options.**
+
+1. **Relabel only.** Call it "Document fingerprint (Sigil keyed digest)" and state
+   on the receipt that Sigil verifies it, not the reader.
+   *For:* zero risk, keeps the oracle defence fully intact, honest immediately.
+   *Against:* the receipt loses the independently-verifiable-digest property that
+   makes a QERDS receipt useful to a counterparty, which is a real reduction in
+   what the artifact is worth as evidence.
+2. **Plain SHA-384, rendered inside the sealed PDF only.** Compute it at seal
+   time; keep the keyed value in the DB column.
+   *For:* the holder can verify; the plaintext DB column keeps no oracle; the
+   sealed PDF is encrypted at rest and only released to participants who already
+   hold the document, so they learn nothing new.
+   *Against:* two digests to compute, store and explain, and the receipt has to be
+   clear about which is which.
+3. **Plain SHA-384 everywhere, including the DB column.**
+   *For:* simplest, fully verifiable, matches what a reader expects.
+   *Against:* reintroduces exactly the confirmation oracle `ContentHasher` was
+   built to remove, reversing an accepted security decision.
+
+**Questions to settle before choosing.**
+
+- Does the thesis need the receipt digest to be **third-party verifiable**? If the
+  receipt is argued as a QERDS-style artifact under ADR-012, probably yes, and
+  option 1 weakens that argument.
+- Is the DB-dump confirmation oracle still a threat we care about, given the
+  attacker in that scenario already holds the ciphertext? (Yes - the oracle
+  reveals *which known file* it is without breaking the encryption, which is the
+  point.)
+- Does option 2's split - keyed for storage, plain inside the sealed artifact -
+  need its own ADR, or is it an amendment to ADR-012 §1?
+
+### DISCUSS - should the inline notifier and audit calls become events? (raised 2026-08-16)
+
+Not a decision. Re-raise of the "event-driven audit log" idea already referenced
+in the Live notifications section above; this entry is the place to actually
+settle it.
+
+**The observation.** Sigil has 2 domain events for roughly 12 state changes.
+`SigningRequestClosed` and `DocumentDelivered` exist only because a module rule
+forbade a direct dependency (Signing and Delivery must not know Receipt).
+Everywhere else the producer calls its collaborators inline:
+
+| State change | How it notifies / records today |
+|---|---|
+| Document uploaded | `DocumentNotifier` inline + audit inline |
+| Version written (upload or signature) | audit inline in `DocumentVersionWriter` |
+| Access granted / revoked | audit inline in `DocumentSharer` |
+| Signature request created | notifier inline + audit inline |
+| Turn advanced | notifier inline + audit inline |
+| Document signed | audit inline + `notifySigned` inline |
+| Certificate issued / revoked / held / unlocked | audit inline |
+| PIN failed / locked / desync | audit inline in `PinGate` |
+| Receipt sealed / seal failed | audit inline |
+| Document erased | audit inline **before** the delete |
+| Request closed | **event** |
+| Delivery made | **event** |
+
+**The case for converting.**
+
+1. **Live notifications force the N x M problem.** That item already commits to
+   in-app notifications for "request sent", "your turn", "someone signed". Each of
+   those moments would then have two consumers (Mailer and Notification), and
+   without an event every new consumer means editing every producer.
+2. **The seam already worked twice**, and the module rule that motivated it is
+   generic - a Notification module would be one more thing Signing, Document and
+   Certificate must not depend on.
+3. **Audit vocabulary is currently scattered** across about a dozen services, each
+   picking its own action string, payload shape, `subjectType` and severity, with
+   no single place to read the vocabulary off.
+4. **It would make "happened" and "was audited" the same fact.** ADR-012 makes the
+   audit log the evidence repository, but today a new state change can ship with
+   its audit line forgotten and no test would catch it.
+
+**The case against, or at least for doing less of it.**
+
+1. **Audit ordering is deliberate in places and events blur it.**
+   `DocumentEraser` audits *before* deleting, because afterwards there is no
+   document to describe; `PinGate` audits inside the failure path before throwing.
+   As subscribers these need the event to carry a **snapshot**, not an entity
+   reference, or they will read state that is already gone.
+2. **Failure policy differs by consumer and would have to be made explicit.** The
+   two existing listeners deliberately swallow `\Throwable` because a receipt must
+   never fail a close. Audit is the opposite - "every entry includes the chain
+   hash, no exceptions" is a stated invariant, so an audit listener must never
+   swallow. Two classes of listener with opposite policies is exactly the kind of
+   distinction that gets got wrong silently.
+3. **It would widen F-08 rather than fix it.** `AuditLogger::log()` currently
+   flushes and commits the whole unit of work at whatever point the caller invokes
+   it. Moving more work into listeners spreads that timing problem across more
+   call sites. **Sequencing conclusion: fix F-08 first, then consider this** - not
+   the other way round.
+4. **Debuggability, which matters for a thesis.** `$this->auditLogger->log('document.uploaded', ...)`
+   sitting in the method that uploads is greppable and obvious to a reader. A
+   subscriber mapping an event to an audit action is one indirection away, and a
+   committee reading the code benefits from the direct version.
+5. **Cost.** Twelve state changes means roughly twelve event classes plus
+   subscribers, each a place to get the payload wrong, a few weeks before a
+   defense.
+
+**A middle position worth considering.** Convert only where there is genuinely
+more than one consumer, or where a module rule requires it:
+
+- **Notifications: yes.** That is the real N x M case, and it is the one Live
+  notifications actually needs.
+- **Audit: probably not, or only at the moments that already have an event.**
+  Audit has exactly one consumer, has ordering constraints (erase-before-delete),
+  and has the opposite failure policy from the notification listeners.
+
+**Questions to settle before choosing.**
+
+- Is the trigger the Live-notifications work? If so, scope the event set to
+  exactly the moments notifications need, rather than all twelve.
+- Should audit move at all, given one consumer and the ordering constraints?
+- What is the failure policy per listener class, and how is it enforced rather
+  than remembered?
+- Do events carry entities or snapshots? `DocumentEraser` forces snapshots for at
+  least one case, so the answer is probably "snapshots, always", which makes the
+  event classes bigger.
+- Does F-08 get fixed first? (Recommended - see above.)
+- If notifications move to events, listener **priorities** become load-bearing
+  (sealing before "your receipt is ready"), which today nothing declares. See the
+  F-38 note in Review follow-ups.
+
+### Certificate revocation - CRL / OCSP (TODO, deprioritised 2026-08-16)
+
+Raised by the review (F-06). **Deliberately not on the priority list** - recorded
+here so the gap is a decision rather than an oversight, which is most of what the
+finding actually asked for.
+
+**What was not previously known:** a CA (Sigil, Borica, Evrotrust alike) is the
+party that publishes revocation status, and a verifier learns it from a URL baked
+into the certificate at issuance (the CRL Distribution Points extension) or from
+an OCSP responder. `CertificateIssuer::revoke()` currently sets a DB status and
+deletes the token, which no external verifier can see, so the certificate keeps
+verifying as valid outside Sigil forever. The CA cert is already issued with
+`crl_sign` (`bin/issue_cert.py:53`) and nothing consumes it.
+
+**Where the current argument holds.** "The certificate was valid when signing, and
+the timestamp plus the content hash prove the file was not modified" is correct
+as far as it goes: the RFC 3161 token proves *when*, the SHA-384 on
+`DocumentVersion` and the PAdES byte range prove *what*.
+
+**Where it stops.** Neither proves the certificate was *not revoked* at that
+moment - that is the one question only the issuer can answer, and Sigil currently
+answers it to nobody. The sharper practical consequence: user certificates are
+valid 365 days and Sigil produces PAdES-B-T. Reaching **B-LT** requires embedding
+validation material (chain plus CRL or OCSP responses) in the PDF's Document
+Security Store; **B-LTA** adds archival timestamps. Without revocation data B-LT
+is unreachable, so roughly a year after signing a verifier sees an expired
+signing certificate with no revocation information and cannot establish it was
+valid at signing time. Every signature has about a one-year clean-verification
+life. Worth stating in the thesis as a known bound rather than being asked.
+
+**If it is ever picked up,** three tiers:
+
+- **Floor (~2h):** add `subject_key_identifier` + `authority_key_identifier` to
+  `issue_cert.py` (correct chain building, costs nothing), and write the CRL gap
+  into an ADR as stated scope.
+- **Middle (~1d):** a `/crl` route serving a CA-signed CRL built from
+  `CertificateRepository`, plus a `crl_distribution_points` extension. All three
+  ingredients exist unconnected - the CA key has `crl_sign`, the driver already
+  builds and signs DER with it, and the repository already stores `revokedAt` /
+  `revocationReason`.
+- **Full (~2d):** embed the CRL at signing time (pyHanko supports it) to produce
+  PAdES-B-LT, so signatures verify indefinitely.
+
+Note `Certificate::hold()` has the same property: it is a Sigil-internal state
+with no external expression, despite being modelled on the CRL `certificateHold`
+reason code.
+
+### Review follow-ups - smaller items (raised 2026-08-16)
+
+From `docs/review/REVIEW-2026-08-16.md`. Decided but deferred; no code changes
+made yet.
+
+- **ADRs 004-012 and CLAUDE.md are not in git** (F-34). `.git/info/exclude:9`
+  carries a blanket `docs/*`, so `git add` skips them silently and always has.
+  Nine ADRs carrying the entire security argument exist as one copy on one disk
+  with no history. Replace the blanket rule with a precise `.gitignore` entry for
+  the vendored theme only (`/docs/design/able-pro-tailwind-v1.2.0/`), then
+  `git add docs/adr/`. **Two minutes, and everything else here is advice about
+  files that currently have no backup.** Note this plan file is tracked; the
+  review document is not.
+- **Unwrap rate limiting + audit** (F-07). ADR-010 promises per-user and global
+  unwrap ceilings and an audit entry; neither exists. Decided: the PIN gate on
+  download was never intended (holding access is enough to download), so ADR-010
+  §3's "extend the same gate to download" sentence should be deleted. Build the
+  limiter in `KeyManagementService::userKek` so every envelope path is covered,
+  and add the missing audit entry - including in `ReceiptDownloader`, which today
+  logs nothing at all (F-18).
+- **Receipt audience** (F-17). `ReceiptGenerator::participants()` grants a receipt
+  key to every listed signer, including ones the turn never reached. Decided: the
+  audience is everyone the document actually reached - signers whose turn came,
+  plus delivery recipients. `signerRows()` twelve lines above already computes
+  exactly this as `deliveredAt`. Correct ADR-012 §4, which says "the requester
+  plus every signer".
+- **Fail loudly when the seal is missing** (F-05). A seal failure during the
+  expiry sweep is swallowed, and the document is erased a few lines later, so the
+  receipt can never be regenerated - the "safe to re-run later" comment is true
+  for every path except the one the subscriber was made synchronous for. Check
+  `ReceiptSealer::isReady()` at sweep start and refuse to run, and skip the erase
+  when no receipt was produced.
+- **Login leaks verification state** (F-31). `UserChecker::checkPreAuth` runs
+  before the password is verified, so any wrong password against an unverified
+  account redirects to `/verify/resend` with the address prefilled. That is an
+  unauthenticated enumeration oracle, and it undoes the enumeration-safety work
+  on the resend endpoint itself. Move the check to `checkPostAuth` and add the
+  negative test - its absence is why this went unnoticed.
+- **Sign double-submit** (F-09). No lock on the request; two concurrent POSTs
+  both produce a real token signature and the second 500s on the version-number
+  unique index after its ciphertext blob is already written. Pessimistic lock in
+  `DocumentSigner::sign`.
+- **PKCS#11 wrapper untested** (F-04). `Pkcs11RootKeyWrapper`, the scheme byte,
+  the in-token GCM AAD binding and `sigil:root-key:migrate` have no test - CI
+  aliases `RootKeyWrapperInterface` to the env wrapper. Add `sigil:root-key:init`
+  to CI next to the two init commands already there.
+- **Partial root-key migration bricks users** (F-03). Nothing routes by scheme
+  byte at runtime; `Pkcs11RootKeyWrapper::unwrapKek` hard-rejects `0x01` blobs,
+  so an interrupted migration leaves those users unable to decrypt anything. Add
+  a dispatching wrapper for the migration window - which is what makes the
+  self-describing scheme byte actually pay off.
+- **Threat model.** The "Threat Model" section above plans a STRIDE chapter;
+  what is missing is the consolidation. ADR-004 (storage breach), ADR-005/007
+  (sign-moment window, sole control), ADR-010 (host compromise of SoftHSM) and
+  ADR-012 (unattended seal) each state one honest concession, in four places.
+  The chapter needs one explicit **out of scope, and why** list - that is the
+  section most projects skip and the one that earns the most credit.
+- **PIN lockout stays as designed.** Considered and rejected: replacing the
+  5-per-hour soft lock with a permanent card-style hard lock. The current design
+  is not weaker (the DB counter is authoritative, rate-limited, and unlock
+  re-proves password **plus** a fresh TOTP - two factors, which a smart card
+  cannot do), and a permanent lock turns one typo into a re-issue and a new
+  keypair. Do document that the 6-8 digit rule is scoped to *user* PINs; the
+  server-held CA/seal/root token PINs never pass through `assertValidPin` and
+  should be required to be high-entropy.
+- **Two closing paths, one implementation needed** (F-37). `recordSignature`
+  hand-rolls the closing sequence for the completed case instead of calling
+  `close()`. They are equivalent today, but nothing keeps them so - and both the
+  F-05 fix and the F-01 audit-chain work modify exactly that sequence, so each
+  would have to be applied twice or be silently missing from the most common
+  terminal state. Fold the completed case into `close()` and branch the
+  notification choice on status inside it.
+- **Declare listener priorities before notifications land** (F-38 and the Live
+  notifications item above). Today each domain event has exactly one listener, so
+  ordering never matters. The moment a Notification subscriber joins
+  `SigningRequestClosed` and `DocumentDelivered`, it does - sealing has to happen
+  before any "your receipt is ready" message, and nothing currently expresses
+  that. Separately, `CertificateEnrollmentSubscriber`'s docblock asserts that
+  `TwoFactorEnrollmentSubscriber` "runs first" while both sit at priority 0; that
+  is harmless only because their guards are mutually exclusive on
+  `isGoogleAuthenticatorEnabled()`. Either declare the priorities or fix the
+  comment to name the real mechanism.
+- **Stale docs** (F-30). `docs/HANDOFF-signing-flow.md` and
+  `docs/session-summary-july-07-2026.txt` are previous-session handoffs. Delete.
+
+### MAYBE - make the theme interchangeable (raised 2026-08-17, lowest priority)
+
+Last item on the queue on purpose. Surveyed, costed, **not** committed to: the
+presentation layer is the one part of Sigil the committee does not grade, and
+this competes with 38 review findings and two undecided architecture questions.
+Recorded so the coupling is a known quantity rather than a surprise.
+
+**Where Able Pro actually reaches.** Less deep than it looks, except in one place:
+
+| Layer | Coupling | Portable? |
+|---|---|---|
+| Brand tokens (`@theme static` + `:root` in `app.css`) | colors, fonts, radius, type scale | yes, already theme-agnostic |
+| PHP (`src/`) | two enums return `text-success-600` / badge washes (token-level); `SidebarMenuProvider` carries its own inline SVGs | yes, except `iconClass()` returning Tabler names |
+| Tests | selectors are `href` / `action` / form-name only, **zero** theme-class assertions | yes - a swap cannot break the suite |
+| `app.css`, ~150 of 533 lines | `.pc-header`, `.pc-sidebar`, `.btn*`, `.alert-*` patches | no |
+| Shell, ~240 lines (`base`, `layout/app`, `components/sidebar`, `auth/base_auth`) | `pc-header` / `pc-sidebar` / `pc-container` structure | no |
+| **26 page templates, 3419 lines** | `card` x79, `btn-*` x84, `alert*` x46, `modal` x24, `badge` x20, `form-control`/`form-label` x36, `ti ti-*` x122 (42 distinct icons) | no - **this is the whole bill** |
+| `assets/behaviors/able_pro.js`, 260 lines | implements the `data-pc-toggle` contract | no, but self-contained |
+
+Two things the survey turned up that are worth knowing regardless of whether this
+gets built:
+
+- **`assets/able-pro/js/` holds apexcharts, simple-datatables and dragula.** Those
+  are generic libraries misfiled under the theme directory, which makes the
+  boundary look worse than it is.
+- **There is no visual regression net.** `PageSnapshotTest` renders every page and
+  asserts 200, so a botched re-theme still passes CI silently. Anything past
+  Level 1 below needs a screenshot-diff harness built *first*.
+
+**Level 1 - make the boundary real (~half a day).** Move the three libraries to
+`assets/vendor/`; split `app.css` into `brand.css` (portable tokens) and
+`able-pro.css` (component patches); add an `icon('clock')` Twig function mapping
+semantic names to `ti ti-*`, and change `DocumentDisplayStatus::iconClass()` and
+`CertificateDisplayStatus` to return semantic names. **No page template changes.**
+This is the only level worth doing on its own: it buys the architecture-chapter
+line (the same strategy-seam principle as `PadesSignerInterface` /
+`DocumentStorageInterface` / `EncryptionServiceInterface`, applied to
+presentation) for about a tenth of the cost.
+
+**Level 2 - a component vocabulary (~3-5 focused days).** Roughly 12-15 Twig
+components (card, btn, badge, alert, field, modal, table, page-header, stat,
+empty-state) so no page template ever names an Able Pro class. Building the
+components is about a day; rewriting 3419 lines of page templates through them is
+the rest, page by page, with visual regression on every one. Afterwards a theme
+swap costs ~600 lines (components + shell) instead of touching 26 files. **Only
+justified if a second theme is actually going to ship.**
+
+**Level 3 - theme as a swappable bundle** (Twig namespace override, asset
+manifest, theme provider). Rejected. Sigil owns exactly one theme and it was
+bought; this is architecture for a requirement that does not exist.
+
+**Open question if this is ever picked up:** is the goal "I might want a different
+look before the defense" (Level 2, screenshot harness first) or "I do not want
+vendor lock-in in the architecture story" (Level 1 is the whole answer)?
 
 ### Phase 10 — Polish & Documentation Push (Weeks 16–18)
 - UI polish, animations, empty states, loading skeletons

@@ -7,42 +7,35 @@
 
 {% block content %}
 {% set latest = document.latestVersion %}
-{% set E_CERTIFICATE = constant('App\\Signing\\Form\\SignDocumentForm::E_CERTIFICATE') %}
-{% set E_PIN = constant('App\\Signing\\Form\\SignDocumentForm::E_PIN') %}
+{% set isOwner = document.owner.id == app.user.id %}
+{# The owner of a document nobody has been asked to sign yet is the one who
+   decides what it is for. Everyone else is here because a request reached them,
+   and gets the signature form directly. #}
+{% set choosing = isOwner and signingRequest is null %}
 
 <div class="docs-rise mx-auto max-w-6xl">
 
-    <a href="{{ path('app_document_show', {id: document.id}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
+    <a href="{{ path('app_documents') }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
         <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
-        {{ document.title }}
+        Documents
     </a>
 
-    <div class="mb-5 flex items-center gap-3">
-        <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
-            <i class="ti ti-signature text-xl leading-none" aria-hidden="true"></i>
-        </span>
-        <div>
-            <h1 class="text-xl font-extrabold tracking-tight text-theme-headings">Sign document</h1>
-            <p class="text-sm text-theme-secondarytextcolor">A qualified electronic signature (PAdES) will be added as a new version.</p>
-        </div>
-    </div>
-
-    {#
-        Two columns from lg: read the document on the left, act on it on the
-        right. Signing something you cannot see is not a decision, so the viewer
-        is part of the page rather than a link off it.
-    #}
-    <div class="grid gap-5 lg:grid-cols-5 lg:items-start">
-    <div class="lg:col-span-3">
-
-    {# ── what you are about to sign ─────────────────────────────────────── #}
-    <div class="card !mb-0 !bg-white/90 p-5">
+    {# One document header, above both columns. The left column used to repeat
+       the filename in a summary card - the same name twice on one screen. #}
+    <div class="card !mb-5 !bg-white/90 p-5">
         <div class="flex items-start gap-4">
             {{ docs.pdf_icon('lg') }}
             <div class="min-w-0 flex-1">
-                <h2 class="truncate text-base font-bold text-theme-headings">{{ document.title }}</h2>
+                <h1 class="truncate text-xl font-extrabold tracking-tight text-theme-headings">{{ document.title }}</h1>
+                <p class="mt-0.5 text-sm text-theme-secondarytextcolor">
+                    {% if choosing %}
+                        Uploaded and encrypted. Nothing has been signed or sent yet.
+                    {% else %}
+                        A qualified electronic signature (PAdES) will be added as a new version.
+                    {% endif %}
+                </p>
                 {% if latest %}
-                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-theme-secondarytextcolor">
+                    <div class="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-theme-secondarytextcolor">
                         {{ docs.status_badge(latest.kind) }}
                         <span>v{{ latest.versionNumber }} · {{ docs.filesize(latest.sizeBytes) }} · {{ latest.createdAt|date('d M Y') }}</span>
                     </div>
@@ -55,135 +48,104 @@
         </div>
     </div>
 
-    {# ── the document itself ────────────────────────────────────────────── #}
-    {# Served by app_document_view, which streams the decrypted bytes inline.
-       You already hold the key on your turn - this just stops hiding it. #}
-    <div class="card mt-4 !mb-0 overflow-hidden !bg-white/90 p-2">
-        <iframe src="{{ path('app_document_view', {id: document.id}) }}#view=FitH"
-                title="{{ document.title }}"
-                class="h-[60vh] w-full rounded-md border-0 bg-theme-activebg lg:h-[72vh]"></iframe>
-    </div>
-    <p class="mt-2 text-center text-xs text-theme-secondarytextcolor">
-        Trouble viewing it here?
-        <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
-           class="font-semibold text-primary-500 hover:underline">Open in a new tab</a>
-    </p>
+    {#
+        Two columns from lg: read the document on the left, act on it on the
+        right. Signing something you cannot see is not a decision, so the viewer
+        is part of the page rather than a link off it.
+    #}
+    <div class="grid gap-5 lg:grid-cols-5 lg:items-start">
+    <div class="lg:col-span-3">
+
+        {# Collapsed on a phone so the actions are reachable without scrolling
+           past a screen of PDF; always open from lg up.
+
+           A checkbox peer rather than <details>: the UA hides a closed details'
+           content with content-visibility on a shadow-DOM slot, which author CSS
+           cannot override, so lg:block would not reopen it. #}
+        <input type="checkbox" id="pdf-toggle" class="peer/pdf sr-only">
+        <label for="pdf-toggle"
+               class="card !mb-0 !bg-white/90 flex cursor-pointer items-center gap-3 p-4 lg:hidden peer-focus-visible/pdf:ring-2 peer-focus-visible/pdf:ring-primary-500">
+            {{ docs.pdf_icon() }}
+            <span class="min-w-0 flex-1">
+                <span class="block text-sm font-bold text-theme-headings">Read the document</span>
+                <span class="block text-xs text-theme-secondarytextcolor">
+                    <span class="peer-checked/pdf:hidden">Tap to open the preview</span>
+                    <span class="hidden peer-checked/pdf:inline">Tap to collapse it</span>
+                </span>
+            </span>
+            <i class="ti ti-chevron-down text-lg leading-none text-theme-secondarytextcolor transition-transform peer-checked/pdf:rotate-180" aria-hidden="true"></i>
+        </label>
+
+        <div class="mt-3 hidden peer-checked/pdf:block lg:mt-0 lg:block">
+            {# Served by app_document_view, which streams the decrypted bytes
+               inline. You already hold the key on your turn - this just stops
+               hiding it. #}
+            <div class="card !mb-0 overflow-hidden !bg-white/90 p-2">
+                <iframe src="{{ path('app_document_view', {id: document.id}) }}#view=FitH"
+                        title="{{ document.title }}"
+                        class="h-[60vh] w-full rounded-md border-0 bg-theme-activebg lg:h-[72vh]"></iframe>
+            </div>
+            <p class="mt-2 text-center text-xs text-theme-secondarytextcolor">
+                Trouble viewing it here?
+                <a href="{{ path('app_document_view', {id: document.id}) }}" target="_blank" rel="noopener" data-turbo="false"
+                   class="font-semibold text-primary-500 hover:underline">Open in a new tab</a>
+            </p>
+        </div>
 
     </div>
     <div class="lg:col-span-2">
 
-    {# ── signature preview: what the visible stamp will say ─────────────── #}
-    <div class="rounded-lg border border-dashed border-primary-500/30 bg-primary-500/[0.03] px-4 py-3">
-        <div class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary-500">
-            <i class="ti ti-shield-check text-sm leading-none" aria-hidden="true"></i>
-            Your seal
-        </div>
-        <p class="mt-1 text-sm font-bold uppercase tracking-wide text-theme-headings">{{ app.user.fullName|upper }}</p>
-        <p class="text-xs text-theme-secondarytextcolor">Qualified electronic signature · Compliant with eIDAS</p>
-    </div>
-
-    {# ── sign form / empty state ────────────────────────────────────────── #}
-    {% if hasUsableCertificate %}
-        <div class="card mt-5 !mb-0 p-6 relative overflow-hidden" data-controller="signing-form">
-            {{ form_start(form, {action: path('app_document_sign', {id: document.id}), attr: {novalidate: 'novalidate', 'data-action': 'submit->signing-form#start'}}) }}
-            {% set label_class = 'form-label text-sm font-medium' %}
-
-            <div class="mb-4">
-                {{ form_label(form[E_CERTIFICATE], null, {label_attr: {class: label_class}}) }}
-                {{ form_widget(form[E_CERTIFICATE], {attr: {class: 'form-control'}}) }}
-                {{ form_errors(form[E_CERTIFICATE]) }}
-            </div>
-
-            <div class="mb-2">
-                {{ form_label(form[E_PIN], null, {label_attr: {class: label_class}}) }}
-                {{ form_widget(form[E_PIN], {attr: {class: 'form-control font-mono tracking-[0.3em]', placeholder: '••••••', autofocus: 'autofocus'}}) }}
-                {{ form_errors(form[E_PIN]) }}
-            </div>
-
-            <p class="mb-5 flex items-start gap-1.5 text-xs text-theme-secondarytextcolor">
-                <i class="ti ti-shield-lock mt-px text-sm leading-none text-theme-secondarytextcolor" aria-hidden="true"></i>
-                <span>Your PIN opens the secure token to sign and is never stored. 5 wrong attempts within an hour lock the certificate.</span>
-            </p>
-
-            <button type="submit" class="btn btn-primary w-full inline-flex items-center justify-center gap-2" data-no-loader>
-                <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
-                Sign document
-            </button>
-            {{ form_end(form) }}
-
-            {# Signing overlay (S-loader). Shown by signing_form_controller on submit. #}
-            <div data-signing-form-target="overlay"
-                 class="hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/85 backdrop-blur-sm text-center">
-                {{ include('components/s_loader.html.twig', {size: 64, class: 'text-primary-500'}) }}
-                <div>
-                    <p class="text-sm font-bold text-theme-headings">Signing your document…</p>
-                    <p class="text-xs text-theme-secondarytextcolor">Applying the qualified signature and timestamp. This can take a moment.</p>
-                </div>
-            </div>
-        </div>
+    {% if choosing %}
+        {{ include('signing/_purpose_chooser.html.twig', {canRequest: can_request_signatures(document)}) }}
     {% else %}
-        <div class="card mt-5 !mb-0 p-6 text-center">
-            <span class="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-warning-500/10 text-warning-600">
-                <i class="ti ti-shield-off text-xl leading-none" aria-hidden="true"></i>
-            </span>
-            <h2 class="text-base font-bold text-theme-headings">No usable certificate</h2>
-            <p class="mx-auto mt-1 max-w-sm text-sm text-theme-secondarytextcolor">You need an active signing certificate before you can sign. Issue one, then come back to this document.</p>
-            <a href="{{ path('app_certificate_new') }}" class="btn btn-primary mt-4 inline-flex items-center gap-2">
-                <i class="ti ti-certificate text-base leading-none" aria-hidden="true"></i>
-                Issue a certificate
-            </a>
+        {# Asked to sign: the form, the refusal beside it, and the queue. #}
+        <div class="card !mb-0 p-6">
+            {{ include('signing/_sign_panel.html.twig') }}
         </div>
-    {% endif %}
 
-    {# The other half of the seam: this page is "sign yourself". Sending the
-       document to other people is the request workflow, live below. #}
-    {% if signingRequest %}
-        {# Being asked to sign is not being obliged to. The refusal sits next to
-           the signature, not hidden away, and closes the request for everyone. #}
-        <div data-controller="confirm" class="contents">
-            <button type="button" data-action="confirm#open"
-                    class="btn btn-outline-danger mt-3 inline-flex w-full items-center justify-center gap-2">
-                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
-                Decline to sign
-            </button>
+        {% if signingRequest %}
+            {# Being asked to sign is not being obliged to. The refusal sits next
+               to the signature, not hidden away, and closes the request for
+               everyone. #}
+            <div data-controller="confirm" class="contents">
+                <button type="button" data-action="confirm#open"
+                        class="btn btn-outline-danger mt-3 inline-flex w-full items-center justify-center gap-2">
+                    <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
+                    Decline to sign
+                </button>
 
-            <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-                 data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-                 class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
-                <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
-                    <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
-                        <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
-                    </div>
-                    <h2 class="mb-2 text-lg font-semibold text-theme-headings">Decline to sign this document?</h2>
-                    <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
-                        The request closes for everyone - nobody after you is asked to sign - and you lose
-                        access to the document. {{ signingRequest.requester.fullName }} is told.
-                    </p>
-                    {{ form_start(declineForm, {
-                        action: path('app_signing_request_decline', {id: signingRequest.id}),
-                        attr: {class: 'space-y-4'}
-                    }) }}
-                        {{ form_row(declineForm.reason) }}
-                        <div class="flex gap-2.5">
-                            <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
-                            <button type="submit" class="btn btn-danger flex-1">Decline</button>
+                <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+                     data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+                     class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+                    <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+                        <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
+                            <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
                         </div>
-                    {{ form_end(declineForm) }}
+                        <h2 class="mb-2 text-lg font-semibold text-theme-headings">Decline to sign this document?</h2>
+                        <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
+                            The request closes for everyone - nobody after you is asked to sign - and you lose
+                            access to the document. {{ signingRequest.requester.fullName }} is told.
+                        </p>
+                        {{ form_start(declineForm, {
+                            action: path('app_signing_request_decline', {id: signingRequest.id}),
+                            attr: {class: 'space-y-4'}
+                        }) }}
+                            {{ form_row(declineForm.reason) }}
+                            <div class="flex gap-2.5">
+                                <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
+                                <button type="submit" class="btn btn-danger flex-1">Decline</button>
+                            </div>
+                        {{ form_end(declineForm) }}
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h2>
-            {{ signing.signer_queue(signingRequest) }}
-            {{ signing.deadline_note(signingRequest) }}
-        </div>
-    {% elseif document.owner.id == app.user.id %}
-        <p class="mt-4 text-center text-xs text-theme-secondarytextcolor">
-            Not the one who should sign?
-            <a href="{{ path('app_signing_request_new', {id: document.id}) }}" class="font-semibold text-primary-500 hover:underline">Request a signature</a>
-            from someone else instead.
-        </p>
+            <div class="mt-6">
+                <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h2>
+                {{ signing.signer_queue(signingRequest) }}
+                {{ signing.deadline_note(signingRequest) }}
+            </div>
+        {% endif %}
     {% endif %}
 
     </div>

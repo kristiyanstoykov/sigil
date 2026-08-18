@@ -6,11 +6,11 @@ namespace App\Signing\Twig;
 
 use App\Core\Entity\User;
 use App\Document\Entity\Document;
-use App\Document\Enum\DocumentVersionKind;
 use App\Signing\Controller\SigningRequestController;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Form\CancelSigningRequestForm;
 use App\Signing\Repository\SigningRequestRepository;
+use App\Signing\Service\DocumentSignatories;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormView;
@@ -27,6 +27,7 @@ final class SigningRequestExtension extends AbstractExtension
         private readonly SigningRequestRepository $requests,
         private readonly FormFactoryInterface $forms,
         private readonly Security $security,
+        private readonly DocumentSignatories $signatories,
     ) {
     }
 
@@ -54,52 +55,14 @@ final class SigningRequestExtension extends AbstractExtension
 
     /**
      * Everyone who has actually signed this document, oldest signature first.
-     *
-     * A signature made through a request has a SigningRequestSigner row carrying
-     * the exact moment; a document signed by its owner alone has only the version
-     * it produced, so the version's own timestamp stands in.
+     * The logic lives in DocumentSignatories - the send path needs the same
+     * answer to refuse a signer who has already signed.
      *
      * @return list<array{user: User, signedAt: \DateTimeImmutable, versionNumber: int, viaRequest: bool}>
      */
     public function signatures(Document $document): array
     {
-        $rows = [];
-        $claimed = [];
-
-        foreach ($this->requests->findAllForDocument($document) as $request) {
-            foreach ($request->orderedSigners() as $signer) {
-                $version = $signer->getVersion();
-                $signedAt = $signer->getSignedAt();
-                if (null === $version || null === $signedAt) {
-                    continue;
-                }
-                $claimed[$version->getId()->toRfc4122()] = true;
-                $rows[] = [
-                    'user' => $signer->getUser(),
-                    'signedAt' => $signedAt,
-                    'versionNumber' => $version->getVersionNumber(),
-                    'viaRequest' => true,
-                ];
-            }
-        }
-
-        foreach ($document->getVersions() as $version) {
-            if (DocumentVersionKind::Signed !== $version->getKind()
-                || isset($claimed[$version->getId()->toRfc4122()])) {
-                continue;
-            }
-            // Only the owner can sign a document outside a request.
-            $rows[] = [
-                'user' => $document->getOwner(),
-                'signedAt' => $version->getCreatedAt(),
-                'versionNumber' => $version->getVersionNumber(),
-                'viaRequest' => false,
-            ];
-        }
-
-        usort($rows, static fn (array $a, array $b): int => $a['signedAt'] <=> $b['signedAt']);
-
-        return $rows;
+        return $this->signatories->signatures($document);
     }
 
     /**

@@ -48,6 +48,13 @@ class SigningController extends AbstractController
         $document = $this->signableDocument($id, $user);
         $signingRequest = $this->signingRequests->findPendingForDocument($document);
 
+        // Delivered is terminal - there is nothing to decide and nothing to sign.
+        if ($document->isDelivered()) {
+            $this->addFlash('info', 'This document has been delivered, so it is final.');
+
+            return $this->redirectToRoute('app_document_show', ['id' => $id]);
+        }
+
         // Under a request the queue decides who may sign; only a signature that
         // nobody asked for is blocked by sign-once (both verbs, since a GET can
         // arrive from a stale tab and a POST from a replayed form).
@@ -78,14 +85,14 @@ class SigningController extends AbstractController
             if ([] === $usable) {
                 $this->addFlash('danger', 'You need a usable certificate before you can sign.');
 
-                return $this->redirectToRoute('app_document_sign', ['id' => $id]);
+                return $this->redirectToRoute('app_document_sign', ['id' => $id, 'purpose' => 'self']);
             }
 
             // DoS/brute-force shield in front of the ADR-008 Argon2id gate.
             if (!$pinVerificationLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
                 $this->addFlash('danger', 'Too many signing attempts - please try again later.');
 
-                return $this->redirectToRoute('app_document_sign', ['id' => $id]);
+                return $this->redirectToRoute('app_document_sign', ['id' => $id, 'purpose' => 'self']);
             }
 
             /** @var string $certificateId */
@@ -109,7 +116,7 @@ class SigningController extends AbstractController
 
             // Redirect back (PRG) so the flash actually shows: Turbo ignores a
             // 200 response to a form submit, it wants a redirect or a 422.
-            return $this->redirectToRoute('app_document_sign', ['id' => $id]);
+            return $this->redirectToRoute('app_document_sign', ['id' => $id, 'purpose' => 'self']);
         }
 
         $response = $this->render('signing/sign.html.twig', [
@@ -120,6 +127,10 @@ class SigningController extends AbstractController
             // Only reachable here when it is this user's turn: the waiting view
             // returned above covers everyone else.
             'declineForm' => null !== $signingRequest ? $this->declineForms->create($signingRequest)->createView() : null,
+            // Which panel of the purpose chooser to open. The chooser is pure
+            // CSS, so a redirect back after a rejected PIN would otherwise land
+            // on a closed modal with only a flash to explain itself.
+            'openPurpose' => $form->isSubmitted() ? 'self' : $request->query->get('purpose'),
         ]);
 
         // A submitted-but-invalid form re-renders with its field errors; 422 so
@@ -159,9 +170,33 @@ class SigningController extends AbstractController
         ));
     }
 
+    /**
+     * A picker label, not the whole subject. The stored DN is asn1crypto's
+     * human_friendly form ("Common Name: ..., Organization: ..., Country: ...")
+     * and runs to ~100 characters; a native select sizes its popup to the
+     * longest option, so the full DN spilled out past the sign modal. The full
+     * subject stays on the certificate page.
+     */
     private function certificateLabel(Certificate $certificate): string
     {
-        return sprintf('%s — expires %s', $certificate->getSubjectDn(), $certificate->getNotAfter()->format('j M Y'));
+        $dn = $certificate->getSubjectDn();
+        $expires = $certificate->getNotAfter()->format('j M Y');
+
+        $part = static function (string $key) use ($dn): ?string {
+            return preg_match('/\b'.preg_quote($key, '/').': ([^,]+)/', $dn, $m) ? trim($m[1]) : null;
+        };
+
+        $name = $part('Common Name');
+        if (null === $name) {
+            // Unrecognised shape - keep it whole rather than guess at it.
+            return sprintf('%s — expires %s', $dn, $expires);
+        }
+
+        // Organisation only when there is one: it is what separates two
+        // certificates issued to the same person.
+        $org = $part('Organization');
+
+        return sprintf('%s%s · expires %s', $name, null !== $org ? ' ('.$org.')' : '', $expires);
     }
 
     /**

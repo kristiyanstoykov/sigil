@@ -13,6 +13,7 @@ use App\Signing\Entity\SigningRequest;
 use App\Signing\Form\CancelSigningRequestForm;
 use App\Signing\Form\CreateSigningRequestForm;
 use App\Signing\Repository\SigningRequestRepository;
+use App\Signing\Service\DocumentSignatories;
 use App\Signing\Service\SignerEligibility;
 use App\Signing\Service\SigningRequestService;
 use Psr\Clock\ClockInterface;
@@ -40,7 +41,7 @@ class SigningRequestController extends AbstractController
 
     /** The compose page: pick the signers, put them in order, send. */
     #[Route('', name: 'app_signing_request_new', methods: ['GET', 'POST'])]
-    public function new(string $id, Request $request): Response
+    public function new(string $id, Request $request, SignerEligibility $eligibility, DocumentSignatories $signatories): Response
     {
         $document = $this->ownedDocument($id);
 
@@ -73,7 +74,22 @@ class SigningRequestController extends AbstractController
             }
         }
 
-        return $this->renderForm($document, $form, $form->isSubmitted() ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK);
+        // ?include_me=1 comes from the purpose chooser's "Others sign, and I
+        // sign too". It only seeds the list - the owner is an ordinary row from
+        // there on, movable like any other, and create() re-checks eligibility.
+        $preset = [];
+        $me = $this->currentUser();
+        $alreadySigned = $signatories->hasSigned($document, $me);
+        if ($request->query->getBoolean('include_me') && !$form->isSubmitted() && !$alreadySigned) {
+            $preset[] = [
+                'email' => $me->getEmail(),
+                'name' => $me->getFullName(),
+                'ok' => $eligibility->isEligible($me),
+                'reason' => $eligibility->reasonWhyNot($me),
+            ];
+        }
+
+        return $this->renderForm($document, $form, $form->isSubmitted() ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK, $preset, $alreadySigned);
     }
 
     /**
@@ -83,9 +99,9 @@ class SigningRequestController extends AbstractController
      * that silently accepts an unusable signer is worse.
      */
     #[Route('/lookup', name: 'app_signing_request_lookup', methods: ['POST'])]
-    public function lookup(string $id, Request $request, SignerEligibility $eligibility): JsonResponse
+    public function lookup(string $id, Request $request, SignerEligibility $eligibility, DocumentSignatories $signatories): JsonResponse
     {
-        $this->ownedDocument($id);
+        $document = $this->ownedDocument($id);
 
         $email = trim((string) $request->getPayload()->get('email'));
         $user = '' === $email ? null : $this->users->findOneByEmail($email);
@@ -94,12 +110,26 @@ class SigningRequestController extends AbstractController
             return $this->json(['ok' => false, 'reason' => 'No Sigil account uses that email address.']);
         }
 
+        // Document-specific, so it cannot live in SignerEligibility: someone who
+        // already signed this file must not be asked for a second signature.
+        // create() enforces the same rule - this only says so earlier.
+        $reason = $signatories->hasSigned($document, $user)
+            ? $this->alreadySignedReason($user, $this->currentUser())
+            : $eligibility->reasonWhyNot($user);
+
         return $this->json([
-            'ok' => $eligibility->isEligible($user),
+            'ok' => null === $reason,
             'email' => $user->getEmail(),
             'name' => $user->getFullName(),
-            'reason' => $eligibility->reasonWhyNot($user),
+            'reason' => $reason,
         ]);
+    }
+
+    private function alreadySignedReason(User $signer, User $viewer): string
+    {
+        return $signer->getId()->toRfc4122() === $viewer->getId()->toRfc4122()
+            ? 'You have already signed this document.'
+            : sprintf('%s has already signed this document.', $signer->getEmail());
     }
 
     #[Route('/cancel', name: 'app_signing_request_cancel', methods: ['POST'])]
@@ -171,13 +201,16 @@ class SigningRequestController extends AbstractController
     }
 
     /**
-     * @param FormInterface<mixed> $form
+     * @param FormInterface<mixed>                                              $form
+     * @param list<array{email: string, name: string, ok: bool, reason: ?string}> $preset
      */
-    private function renderForm(Document $document, FormInterface $form, int $status): Response
+    private function renderForm(Document $document, FormInterface $form, int $status, array $preset = [], bool $alreadySigned = false): Response
     {
         return $this->render('signing/request_new.html.twig', [
             'document' => $document,
             'form' => $form,
+            'preset' => $preset,
+            'alreadySigned' => $alreadySigned,
         ], new Response(status: $status));
     }
 

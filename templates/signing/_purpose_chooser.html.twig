@@ -1,0 +1,112 @@
+{#
+    What is this document for? Shown to the owner of a document that has no
+    signature request yet - the moment an upload lands here.
+
+    Selection and every reveal are pure CSS: the wrapper is a .group and each
+    state keys off group-has-[#id:checked], which reaches descendants (a peer
+    only reaches siblings, and the option labels are nested).
+
+    Context: document, form, hasUsableCertificate, canRequest, openPurpose.
+#}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% set canSelfSign = hasUsableCertificate %}
+{% set requestBlocked = not canRequest %}
+
+<div class="group">
+
+    {# The radios themselves are never seen; the labels drive them. pp-none is
+       the default, and what the modal's Back and close select - a radio cannot
+       be unchecked by clicking a label, only replaced. #}
+    <input type="radio" name="purpose" id="pp-self" class="sr-only" {{ openPurpose == 'self' ? 'checked' }}>
+    <input type="radio" name="purpose" id="pp-then" class="sr-only" {{ openPurpose == 'then' ? 'checked' }}>
+    <input type="radio" name="purpose" id="pp-only" class="sr-only" {{ openPurpose == 'only' ? 'checked' }}>
+    <input type="radio" name="purpose" id="pp-deliver" class="sr-only" {{ openPurpose == 'deliver' ? 'checked' }}>
+    <input type="radio" name="purpose" id="pp-none" class="sr-only" {{ openPurpose is empty ? 'checked' }}>
+
+    <div class="card !mb-0 !bg-white/90 p-5">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-theme-secondarytextcolor">This document</p>
+                <h2 class="mt-0.5 text-base font-bold text-theme-headings">What is it for?</h2>
+            </div>
+            {{ docs.doc_status_badge(document_status(document)) }}
+        </div>
+        <p class="mt-2 text-sm text-theme-secondarytextcolor">
+            One of these four. A document carries one signature request for its whole life, so this is a decision rather than a menu.
+        </p>
+
+        <div class="mt-4 space-y-2.5">
+            <label for="pp-self"
+                   class="block rounded-lg border border-theme-border p-4 transition-colors group-has-[#pp-self:checked]:border-primary-500 group-has-[#pp-self:checked]:bg-primary-500/[0.04] {{ canSelfSign ? 'cursor-pointer hover:bg-theme-activebg' : 'pointer-events-none opacity-50' }}">
+                <span class="flex items-start gap-3">
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-signature text-xl leading-none" aria-hidden="true"></i></span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold text-theme-headings">I sign it myself</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Certificate and PIN, without leaving this page.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">One step · Nobody else involved</span>
+                    </span>
+                </span>
+            </label>
+            {% if not canSelfSign %}
+                <p class="-mt-1 flex flex-wrap items-center gap-1.5 pl-1 text-xs text-warning-600">
+                    <i class="ti ti-lock text-sm leading-none" aria-hidden="true"></i> Needs a usable certificate.
+                    <a href="{{ path('app_certificate_new') }}" class="font-semibold underline">Add a certificate</a>
+                </p>
+            {% endif %}
+
+            <label for="pp-then"
+                   class="block rounded-lg border border-theme-border p-4 transition-colors group-has-[#pp-then:checked]:border-primary-500 group-has-[#pp-then:checked]:bg-primary-500/[0.04] {{ canSelfSign and not requestBlocked ? 'cursor-pointer hover:bg-theme-activebg' : 'pointer-events-none opacity-50' }}">
+                <span class="flex items-start gap-3">
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-users text-xl leading-none" aria-hidden="true"></i></span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold text-theme-headings">Others sign, and I sign too</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">An ordered queue that includes you. You choose the order.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Ordered · 7-day deadline · Can be declined</span>
+                    </span>
+                </span>
+            </label>
+            {% if canSelfSign is same as(false) and not requestBlocked %}
+                <p class="-mt-1 flex items-center gap-1.5 pl-1 text-xs text-warning-600">
+                    <i class="ti ti-lock text-sm leading-none" aria-hidden="true"></i> Needs a usable certificate, because your signature is in the queue.
+                </p>
+            {% endif %}
+
+            <label for="pp-only"
+                   class="block rounded-lg border border-theme-border p-4 transition-colors group-has-[#pp-only:checked]:border-primary-500 group-has-[#pp-only:checked]:bg-primary-500/[0.04] {{ not requestBlocked ? 'cursor-pointer hover:bg-theme-activebg' : 'pointer-events-none opacity-50' }}">
+                <span class="flex items-start gap-3">
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-send text-xl leading-none" aria-hidden="true"></i></span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold text-theme-headings">Others sign, I don't</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">The same ordered queue, without your signature.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Ordered · 7-day deadline · Can be declined</span>
+                    </span>
+                </span>
+            </label>
+            {% if requestBlocked %}
+                <p class="-mt-1 flex items-center gap-1.5 pl-1 text-xs text-warning-600">
+                    <i class="ti ti-lock text-sm leading-none" aria-hidden="true"></i>
+                    This document has already had its one signature request. To send it again, upload it again.
+                </p>
+            {% endif %}
+
+            <label for="pp-deliver"
+                   class="block cursor-pointer rounded-lg border border-theme-border p-4 transition-colors hover:bg-theme-activebg group-has-[#pp-deliver:checked]:border-primary-500 group-has-[#pp-deliver:checked]:bg-primary-500/[0.04]">
+                <span class="flex items-start gap-3">
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-mail-forward text-xl leading-none" aria-hidden="true"></i></span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold text-theme-headings">Deliver it</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Serve the document on people, registered-mail style.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Nothing asked · Cannot be refused · Final</span>
+                    </span>
+                </span>
+            </label>
+        </div>
+
+        <p class="mt-4 text-center text-xs text-theme-secondarytextcolor group-has-[#pp-self:checked]:hidden group-has-[#pp-then:checked]:hidden group-has-[#pp-only:checked]:hidden group-has-[#pp-deliver:checked]:hidden">
+            Choose what this document is for to continue.
+        </p>
+    </div>
+
+    {{ include('signing/_purpose_modal.html.twig') }}
+</div>

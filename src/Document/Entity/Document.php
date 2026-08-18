@@ -42,6 +42,31 @@ class Document
     #[ORM\OrderBy(['versionNumber' => 'ASC'])]
     private Collection $versions;
 
+    /**
+     * When this document was served on people. Delivery is terminal: once made,
+     * nothing further happens to the document - no second delivery, no
+     * signature request, no signature.
+     *
+     * It lives here rather than in the Delivery module because Signing has to
+     * read it too, and Signing and Delivery may not depend on each other. The
+     * Delivery module is still the only writer.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $deliveredAt = null;
+
+    /**
+     * Set while a signature request is open on this document, cleared when it
+     * closes. Delivery is blocked meanwhile: serving a version that the queue is
+     * about to supersede would attest a document that no longer exists, and
+     * delivery is terminal, so it would strand the signers still to come.
+     *
+     * Here for the same reason as $deliveredAt, mirrored: Delivery must read it
+     * and the two modules may not depend on each other. Signing is its only
+     * writer.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $awaitingSignaturesSince = null;
+
     public function __construct(User $owner, string $title)
     {
         $this->initUuid();
@@ -53,6 +78,38 @@ class Document
     public function getOwner(): User
     {
         return $this->owner;
+    }
+
+    public function getDeliveredAt(): ?\DateTimeImmutable
+    {
+        return $this->deliveredAt;
+    }
+
+    public function isDelivered(): bool
+    {
+        return null !== $this->deliveredAt;
+    }
+
+    /** Called once, by the Delivery module, as the delivery is made. */
+    public function markDelivered(\DateTimeImmutable $at): void
+    {
+        $this->deliveredAt = $at;
+    }
+
+    public function isAwaitingSignatures(): bool
+    {
+        return null !== $this->awaitingSignaturesSince;
+    }
+
+    /** Both called by the Signing module, as a request opens and closes. */
+    public function markAwaitingSignatures(\DateTimeImmutable $at): void
+    {
+        $this->awaitingSignaturesSince = $at;
+    }
+
+    public function clearAwaitingSignatures(): void
+    {
+        $this->awaitingSignaturesSince = null;
     }
 
     public function getTitle(): string

@@ -30,6 +30,14 @@ final class DocumentStatusResolver
 
     private function compute(Document $document): DocumentDisplayStatus
     {
+        // Terminal, and outranks everything: a delivered document is finished,
+        // whatever its signature history says. The fact lives on Document, not
+        // in the Delivery module, precisely so this resolver can read it -
+        // Signing and Delivery may not depend on each other.
+        if ($document->isDelivered()) {
+            return DocumentDisplayStatus::Delivered;
+        }
+
         $request = $this->requests->findLatestForDocument($document);
 
         if (null !== $request) {

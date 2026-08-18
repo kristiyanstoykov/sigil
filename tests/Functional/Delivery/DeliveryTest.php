@@ -107,22 +107,92 @@ class DeliveryTest extends AuthWebTestCase
         $this->service()->deliver($document, $other, [$third]);
     }
 
-    public function testADocumentCanBeDeliveredRepeatedlyAndAlongsideASignatureRequest(): void
+    /**
+     * Delivery is terminal (decided 2026-08-18, reversing ADR-012 §2's
+     * "repeatable"): serving a document finishes it. A second delivery would
+     * need a second receipt over a document the first already called final, and
+     * a signature afterwards would mint a version the recipients never got.
+     */
+    public function testDeliveryIsTerminalAndHappensOnce(): void
     {
         [$sender, $first, $second] = $this->threeUsers();
         $document = $this->upload($sender);
 
-        // A delivery is not a request: it does not consume the one-request rule,
-        // and it can happen again afterwards.
         $this->service()->deliver($document, $sender, [$first]);
+        self::assertTrue($document->isDelivered());
+
+        // No second delivery, to anyone.
+        try {
+            $this->service()->deliver($document, $sender, [$second]);
+            self::fail('a delivered document must not be delivered again');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('already been delivered', $e->getMessage());
+        }
+
+        // And no signature request over it either.
         $this->giveCertificate($second);
-        static::getContainer()->get(SigningRequestService::class)
-            ->create($document, $sender, [$second], (new \DateTimeImmutable())->modify('+7 days'));
-        $this->service()->deliver($document, $sender, [$second]);
+        try {
+            static::getContainer()->get(SigningRequestService::class)
+                ->create($document, $sender, [$second], (new \DateTimeImmutable())->modify('+7 days'));
+            self::fail('a delivered document must not be sent for signature');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('final', $e->getMessage());
+        }
 
         $deliveries = static::getContainer()->get(DeliveryRepository::class)->findForDocument($document);
-        self::assertCount(2, $deliveries);
+        self::assertCount(1, $deliveries);
         self::assertTrue(static::getContainer()->get(DeliveryRepository::class)->wasServed($document, $first));
+    }
+
+    /**
+     * A pending queue holds delivery off: each signature mints a new version, so
+     * serving one mid-queue would attest a document about to be superseded, and
+     * delivery is terminal, so the signers still to come could never sign.
+     */
+    public function testDeliveryWaitsUntilEveryoneHasSigned(): void
+    {
+        [$sender, $first, $second] = $this->threeUsers();
+        $document = $this->upload($sender);
+        $this->giveCertificate($second);
+
+        $requests = static::getContainer()->get(SigningRequestService::class);
+        $request = $requests->create($document, $sender, [$second], (new \DateTimeImmutable())->modify('+7 days'));
+        self::assertTrue($document->isAwaitingSignatures());
+
+        try {
+            $this->service()->deliver($document, $sender, [$first]);
+            self::fail('a document out for signature must not be delivered');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('out for signature', $e->getMessage());
+        }
+
+        // Closing the queue releases it, whatever the outcome.
+        $requests->cancel($request, $sender);
+        self::assertFalse($document->isAwaitingSignatures());
+
+        $this->service()->deliver($document, $sender, [$first]);
+        self::assertTrue($document->isDelivered());
+    }
+
+    /**
+     * The converse does not hold: a signature request never blocks delivery, it
+     * only blocks another request. Serving the signed result is the ordinary
+     * last step.
+     */
+    public function testAClosedSignatureRequestStillAllowsDelivery(): void
+    {
+        [$sender, $first, $second] = $this->threeUsers();
+        $document = $this->upload($sender);
+        $this->giveCertificate($second);
+
+        $requests = static::getContainer()->get(SigningRequestService::class);
+        $request = $requests->create($document, $sender, [$second], (new \DateTimeImmutable())->modify('+7 days'));
+        $requests->cancel($request, $sender);
+
+        $this->service()->deliver($document, $sender, [$first]);
+
+        self::assertTrue($document->isDelivered());
+        self::assertCount(1, static::getContainer()->get(DeliveryRepository::class)->findForDocument($document));
     }
 
     /** @return array{User, User, User} */

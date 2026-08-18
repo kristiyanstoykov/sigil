@@ -127,6 +127,12 @@ final class DocumentSigner
      */
     private function assertMaySign(Document $document, ?SigningRequest $request, User $actor): void
     {
+        // Terminal for everyone, turn-holder included: what was served must stay
+        // the version the delivery receipt attests.
+        if ($document->isDelivered()) {
+            throw new DomainException('This document has been delivered, so it is final and cannot be signed.');
+        }
+
         if (null !== $request) {
             if (!$request->isTurnOf($actor)) {
                 throw new DomainException('It is not your turn to sign this document.');

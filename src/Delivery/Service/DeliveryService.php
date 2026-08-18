@@ -52,6 +52,20 @@ final class DeliveryService
             throw new DomainException('Only the owner can deliver this document.');
         }
 
+        // Delivery is terminal, so there is never a second one: the receipt
+        // sealed for the first names a fixed audience and a finished document,
+        // and serving the same file again would contradict it.
+        if ($document->isDelivered()) {
+            throw new DomainException('This document has already been delivered. Upload it again to serve it on anyone else.');
+        }
+
+        // Not until the queue is finished: each signature mints a new version, so
+        // serving one now would attest a document about to be superseded - and
+        // delivery is terminal, so the signers still to come could never sign.
+        if ($document->isAwaitingSignatures()) {
+            throw new DomainException('This document is out for signature. It can be delivered once everyone has signed.');
+        }
+
         $version = $document->getLatestVersion()
             ?? throw new DomainException('This document has no content to deliver.');
 
@@ -78,6 +92,10 @@ final class DeliveryService
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
         $delivery = new Delivery($document, $sender, $note);
         $this->em->persist($delivery);
+
+        // The document is finished from this moment. Signing reads this flag;
+        // Delivery is its only writer.
+        $document->markDelivered($now);
 
         foreach ($recipients as $recipient) {
             $this->em->persist(new DeliveryRecipient($delivery, $recipient, $version, $now));

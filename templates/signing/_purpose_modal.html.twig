@@ -1,0 +1,89 @@
+{#
+    The chosen path, as a centred modal at every width - same backdrop,
+    glass-card and m-5 as the withdraw/decline dialogs, so they read as one
+    family. The panel used to sit inline under four cards, where a phone user
+    never saw it.
+
+    No JavaScript: the purpose radios drive it, and Back and close are labels
+    that select pp-none. Must live inside the .group wrapper in
+    _purpose_chooser.html.twig.
+
+    Context: document, form, hasUsableCertificate.
+#}
+<div class="hidden group-has-[#pp-self:checked]:flex group-has-[#pp-then:checked]:flex group-has-[#pp-only:checked]:flex group-has-[#pp-deliver:checked]:flex
+            fixed inset-0 z-[1050] h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden
+            bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+
+    {# Click-outside-to-close. #}
+    <label for="pp-none" class="absolute inset-0"><span class="sr-only">Close</span></label>
+
+    <div class="relative m-5 max-h-[90vh] w-full max-w-md overflow-y-auto glass-card !bg-white sm:!bg-white/90 modal-card">
+
+        {# In flow rather than absolute, so no panel heading can run under it.
+           Back and close both select pp-none: from here "back" is back to
+           choosing a purpose, which is the page behind this modal. #}
+        <div class="flex items-center justify-between px-3 pt-3">
+            <label for="pp-none" class="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-theme-secondarytextcolor hover:bg-theme-activebg hover:text-theme-headings">
+                <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i>
+                Back
+            </label>
+            <label for="pp-none" class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-theme-secondarytextcolor hover:bg-theme-activebg hover:text-theme-headings">
+                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i><span class="sr-only">Close</span>
+            </label>
+        </div>
+
+        <div class="px-6 pb-6">
+
+            {# ── I sign it myself: certificate and PIN, no second step ──────── #}
+            <div class="hidden group-has-[#pp-self:checked]:block">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-theme-secondarytextcolor">Step 2 of 2</p>
+                <h3 class="mt-0.5 mb-4 text-base font-bold text-theme-headings">Sign it with your certificate</h3>
+                {{ include('signing/_sign_panel.html.twig') }}
+            </div>
+
+            {# ── The three paths that need other people ─────────────────────── #}
+            <div class="hidden group-has-[#pp-then:checked]:block">
+                <h3 class="mb-3 text-base font-bold text-theme-headings">You are in the queue</h3>
+                <ul class="space-y-2 text-sm text-theme-bodycolor">
+                    <li class="flex items-start gap-2"><i class="ti ti-users mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>You name the signers next and set the order by dragging. You start last, but you can sign at any position.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-clock mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>Strict order: signer 2 cannot sign before signer 1. Deadline 7 days by default, 30 at most.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-circle-check mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>A signer may decline, with an optional reason. That closes the request.</span></li>
+                </ul>
+                <a href="{{ path('app_signing_request_new', {id: document.id, include_me: 1}) }}"
+                   class="btn btn-primary mt-4 w-full inline-flex items-center justify-center gap-2">
+                    Choose the signers <i class="ti ti-chevron-right text-base leading-none" aria-hidden="true"></i>
+                </a>
+                <p class="mt-2 text-center text-xs text-theme-secondarytextcolor">Nothing is sent until you confirm.</p>
+            </div>
+
+            <div class="hidden group-has-[#pp-only:checked]:block">
+                <h3 class="mb-3 text-base font-bold text-theme-headings">The queue will not include you</h3>
+                <ul class="space-y-2 text-sm text-theme-bodycolor">
+                    <li class="flex items-start gap-2"><i class="ti ti-users mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>You name the signers and their order next. You are not in the queue and will not be asked to sign.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-clock mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>Strict order: signer 2 cannot sign before signer 1. Deadline 7 days by default, 30 at most.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-circle-check mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>A signer may decline, with an optional reason. That closes the request.</span></li>
+                </ul>
+                <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
+                   class="btn btn-primary mt-4 w-full inline-flex items-center justify-center gap-2">
+                    Choose the signers <i class="ti ti-chevron-right text-base leading-none" aria-hidden="true"></i>
+                </a>
+                <p class="mt-2 text-center text-xs text-theme-secondarytextcolor">Nothing is sent until you confirm.</p>
+            </div>
+
+            <div class="hidden group-has-[#pp-deliver:checked]:block">
+                <h3 class="mb-3 text-base font-bold text-theme-headings">Delivery asks nothing in return</h3>
+                <ul class="space-y-2 text-sm text-theme-bodycolor">
+                    <li class="flex items-start gap-2"><i class="ti ti-mail-forward mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>You name the recipients next. Everyone is served at the same moment, in no particular order.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-lock mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>A delivery cannot be refused and nothing is asked of a recipient. There is no deadline.</span></li>
+                    <li class="flex items-start gap-2"><i class="ti ti-circle-check mt-0.5 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i><span>Delivery is final: once served, the document is finished.</span></li>
+                </ul>
+                <a href="{{ path('app_delivery_new', {id: document.id}) }}"
+                   class="btn btn-primary mt-4 w-full inline-flex items-center justify-center gap-2">
+                    Choose the recipients <i class="ti ti-chevron-right text-base leading-none" aria-hidden="true"></i>
+                </a>
+                <p class="mt-2 text-center text-xs text-theme-secondarytextcolor">Nothing is served until you confirm.</p>
+            </div>
+
+        </div>
+    </div>
+</div>

@@ -36,6 +36,9 @@ enum DocumentDisplayStatus: string
     /** A signer refused. The request is closed and nobody after them was asked. */
     case Declined = 'declined';
 
+    /** Served on people. Terminal: nothing further happens to the document. */
+    case Delivered = 'delivered';
+
     public function label(): string
     {
         return match ($this) {
@@ -44,6 +47,7 @@ enum DocumentDisplayStatus: string
             self::Signed => 'Signed',
             self::Expired => 'Expired',
             self::Declined => 'Declined',
+            self::Delivered => 'Delivered',
         };
     }
 
@@ -56,6 +60,7 @@ enum DocumentDisplayStatus: string
             self::Signed => 'Signed and sealed. Every version is kept as a tamper-evident record.',
             self::Expired => 'The signing deadline passed before everyone signed. Signed versions are kept.',
             self::Declined => 'A signer declined. Nobody after them was asked, and signed versions are kept.',
+            self::Delivered => 'Served on its recipients. A delivered document is final - nothing further can be done with it.',
         };
     }
 
@@ -68,6 +73,7 @@ enum DocumentDisplayStatus: string
             self::Signed => 'border-success-500/20 bg-success-500/10 text-success-600',
             self::Expired => 'border-danger-500/20 bg-danger-500/10 text-danger-600',
             self::Declined => 'border-danger-500/20 bg-danger-500/10 text-danger-600',
+            self::Delivered => 'border-success-500/20 bg-success-500/10 text-success-600',
         };
     }
 
@@ -80,6 +86,7 @@ enum DocumentDisplayStatus: string
             self::Signed => 'bg-success-500',
             self::Expired => 'bg-danger-500',
             self::Declined => 'bg-danger-500',
+            self::Delivered => 'bg-success-500',
         };
     }
 
@@ -96,6 +103,7 @@ enum DocumentDisplayStatus: string
             self::Signed => 'ti-circle-check',
             self::Expired => 'ti-alert-triangle',
             self::Declined => 'ti-ban',
+            self::Delivered => 'ti-mail-forward',
         };
     }
 
@@ -124,5 +132,10 @@ enum DocumentDisplayStatus: string
     public function isDeclined(): bool
     {
         return self::Declined === $this;
+    }
+
+    public function isDelivered(): bool
+    {
+        return self::Delivered === $this;
     }
 }

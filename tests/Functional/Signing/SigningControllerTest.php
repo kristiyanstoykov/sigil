@@ -165,6 +165,27 @@ final class SigningControllerTest extends AuthWebTestCase
         self::assertGreaterThan(0, $crawler->filter('input[type="password"]')->count());
     }
 
+    /**
+     * The document page's Sign button has always meant "sign it myself", so it
+     * links with ?purpose=self and the chooser opens on that panel - the modal
+     * is pure CSS, so the radio has to arrive pre-checked.
+     */
+    public function testPurposeSelfOpensTheSignPanelDirectly(): void
+    {
+        [$documentId] = $this->seed('purpose-self', withCertificate: true);
+
+        $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign?purpose=self');
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('#pp-self[checked]')->count());
+        self::assertSame(0, $crawler->filter('#pp-none[checked]')->count());
+
+        // Without it the chooser rests on "nothing chosen".
+        $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('#pp-self[checked]')->count());
+        self::assertSame(1, $crawler->filter('#pp-none[checked]')->count());
+    }
+
     public function testWrongPinIsRejectedAtTheGate(): void
     {
         [$documentId, $certificateId] = $this->seed('sign-badpin', withCertificate: true);
@@ -178,7 +199,9 @@ final class SigningControllerTest extends AuthWebTestCase
         $this->client->submit($form);
 
         // Redirects back (PRG) so the flash shows under Turbo; no signed version.
-        self::assertResponseRedirects('/documents/'.$documentId.'/sign');
+        // ?purpose=self reopens the chooser's sign panel, which is pure CSS and
+        // would otherwise be closed on the way back.
+        self::assertResponseRedirects('/documents/'.$documentId.'/sign?purpose=self');
         $crawler = $this->client->followRedirect();
         self::assertStringContainsString('Incorrect PIN', $crawler->html());
 

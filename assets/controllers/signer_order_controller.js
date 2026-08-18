@@ -14,10 +14,13 @@ export default class extends Controller {
     static targets = ['input', 'list', 'hidden', 'empty', 'submit', 'error'];
     static values = {
         lookupUrl: String,
+        // Seeded rows (the owner, when they chose to sign too). Ordinary rows
+        // from here on - movable, removable, re-checked server-side on send.
+        preset: Array,
     };
 
     connect() {
-        this.signers = [];
+        this.signers = this.hasPresetValue ? [...this.presetValue] : [];
         this.drake = window.dragula([this.listTarget], {
             moves: (el, container, handle) => handle.closest('[data-drag-handle]') !== null,
         });

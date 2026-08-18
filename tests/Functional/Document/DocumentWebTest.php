@@ -67,11 +67,12 @@ final class DocumentWebTest extends AuthWebTestCase
         self::assertStringContainsString('Contract.pdf', $show);
         self::assertStringContainsString('Integrity fingerprint', $show);
 
-        // An unsigned document reads as unfinished, and both ways out are shown:
-        // sign yourself, and send it to other people. Requesting signatures has
-        // its own permanent panel rather than living only in the draft callout.
-        self::assertStringContainsString('still a draft', $show);
-        self::assertStringContainsString('Sign it yourself', $show);
+        // An unsigned document reads as unfinished, and every way out is shown
+        // in the "What next" row: decide its purpose on the sign page, send it
+        // for signature, or deliver it. A blocked action stays visible and says
+        // why rather than disappearing.
+        self::assertStringContainsString('What next', $show);
+        self::assertStringContainsString("Decide what it's for", $show);
         self::assertStringContainsString('Request signatures', $show);
         self::assertStringContainsString($showUrl.'/sign', $show);
         self::assertStringContainsString($showUrl.'/request', $show);

@@ -34,6 +34,7 @@ final class SigningRequestService
     public function __construct(
         private readonly SigningRequestRepository $requests,
         private readonly SignerEligibility $eligibility,
+        private readonly DocumentSignatories $signatories,
         private readonly DocumentSharer $sharer,
         private readonly DocumentKeyGrantRepository $grants,
         private readonly SigningRequestNotifier $notifier,
@@ -56,6 +57,12 @@ final class SigningRequestService
     {
         if ($document->getOwner()->getId()->toRfc4122() !== $requester->getId()->toRfc4122()) {
             throw new DomainException('Only the owner can request signatures for this document.');
+        }
+
+        // A delivered document is finished. Signing it now would mint a version
+        // the recipients were never served, contradicting the delivery receipt.
+        if ($document->isDelivered()) {
+            throw new DomainException('This document has been delivered, so it is final and cannot be sent for signature.');
         }
 
         $latest = $document->getLatestVersion()
@@ -83,6 +90,12 @@ final class SigningRequestService
             if (isset($unique[$id])) {
                 throw new DomainException(sprintf('%s is on the list twice.', $signer->getEmail()));
             }
+            // A signature is already on the record; asking for a second one from
+            // the same person would produce a version nobody asked for. The
+            // usual case is an owner who signed alone and is now sending it on.
+            if ($this->signatories->hasSigned($document, $signer)) {
+                throw new DomainException(sprintf('%s has already signed this document.', $signer->getEmail()));
+            }
             $unique[$id] = $signer;
 
             if (null !== $reason = $this->eligibility->reasonWhyNot($signer)) {
@@ -94,6 +107,10 @@ final class SigningRequestService
 
         $request = new SigningRequest($document, $requester, $deadline);
         $this->em->persist($request);
+
+        // Delivery waits until the queue is done: a delivered document is final,
+        // and serving one mid-queue would strand the signers still to come.
+        $document->markAwaitingSignatures(\DateTimeImmutable::createFromInterface($this->clock->now()));
 
         $position = 1;
         foreach ($signers as $signer) {
@@ -143,6 +160,7 @@ final class SigningRequestService
         $next = $request->currentSigner();
         if (null === $next) {
             $request->close(SigningRequestStatus::Completed, $now);
+            $request->getDocument()->clearAwaitingSignatures();
             $this->em->flush();
 
             $this->audit($request, 'signing_request.completed', $signer, []);
@@ -221,6 +239,7 @@ final class SigningRequestService
         $pending = $request->currentSigner();
 
         $request->close($status, $now);
+        $request->getDocument()->clearAwaitingSignatures();
         $this->em->flush();
 
         // Whoever held the turn loses the access that came with it. Signers who

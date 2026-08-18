@@ -6,7 +6,11 @@ namespace App\Tests\Functional\Signing;
 
 use App\Certificate\Entity\Certificate;
 use App\Core\Entity\User;
+use App\Core\Repository\UserRepository;
+use App\Document\Enum\DocumentVersionKind;
+use App\Document\Repository\DocumentRepository;
 use App\Document\Service\DocumentUploader;
+use App\Document\Service\DocumentVersionWriter;
 use App\Signing\Form\CreateSigningRequestForm;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -218,6 +222,78 @@ final class SigningRequestWebTest extends AuthWebTestCase
 
         self::assertResponseStatusCodeSame(422);
         self::assertStringContainsString('no usable certificate', $this->client->getResponse()->getContent() ?: '');
+    }
+
+    /**
+     * "Others sign, and I sign too" on the purpose chooser links here with
+     * ?include_me=1, which seeds the picker with the owner. It is only a seed:
+     * the row is ordinary from there on, and create() re-checks eligibility.
+     */
+    public function testIncludeMeSeedsThePickerWithTheOwner(): void
+    {
+        [$documentId, $owner] = $this->seed('include-me');
+        $ownerUser = static::getContainer()->get(UserRepository::class)->findOneByEmail($owner);
+        self::assertNotNull($ownerUser);
+        $this->giveCertificate($ownerUser);
+        $this->loginFully($owner);
+
+        $this->client->request('GET', '/documents/'.$documentId.'/request?include_me=1');
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString($owner, $html, 'the owner is seeded into the picker');
+
+        // Without the flag the picker starts empty.
+        $this->client->request('GET', '/documents/'.$documentId.'/request');
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString(
+            '"email":"'.$owner.'"',
+            (string) $this->client->getResponse()->getContent(),
+        );
+    }
+
+    /**
+     * You can put yourself in the queue - unless your signature is already on
+     * the document, in which case a second one is not something to ask for.
+     * The lookup says so, and create() refuses it outright.
+     */
+    public function testAnOwnerWhoAlreadySignedCannotBeAddedToTheirOwnRequest(): void
+    {
+        [$documentId, $owner, $first] = $this->seed('self-signed');
+        $ownerUser = static::getContainer()->get(UserRepository::class)->findOneByEmail($owner);
+        self::assertNotNull($ownerUser);
+        $this->giveCertificate($ownerUser);
+
+        $document = static::getContainer()->get(DocumentRepository::class)->find($documentId);
+        self::assertNotNull($document);
+        static::getContainer()->get(DocumentVersionWriter::class)->write(
+            $document,
+            $ownerUser,
+            '%PDF-ALREADY-SIGNED',
+            DocumentVersionKind::Signed,
+            'document.signed',
+        );
+
+        $this->loginFully($owner);
+
+        // The picker refuses the seed, and says why when asked directly.
+        $this->client->request('GET', '/documents/'.$documentId.'/request?include_me=1');
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('"email":"'.$owner.'"', $html, 'not seeded once signed');
+        self::assertStringContainsString('You have already signed this document', $html);
+
+        $this->client->jsonRequest('POST', '/documents/'.$documentId.'/request/lookup', ['email' => $owner]);
+        $payload = json_decode((string) $this->client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertFalse($payload['ok']);
+        self::assertStringContainsString('already signed', (string) $payload['reason']);
+
+        // And the server refuses even if the client is bypassed.
+        $this->sendRequest($documentId, $owner, $first);
+        self::assertStringContainsString(
+            'has already signed this document',
+            (string) $this->client->getResponse()->getContent(),
+        );
     }
 
     public function testLookupReportsWhetherSomeoneCanBeAdded(): void
