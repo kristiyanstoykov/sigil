@@ -92,6 +92,22 @@ final class DocumentKeyGrantRepository extends ServiceEntityRepository
     }
 
     /**
+     * Every grant on any version of a document, whoever holds it. What the
+     * eraser has to destroy alongside the document.
+     *
+     * @return list<DocumentKeyGrant>
+     */
+    public function findForDocument(Document $document): array
+    {
+        return $this->createQueryBuilder('g')
+            ->join('g.version', 'v')
+            ->andWhere('v.document = :document')
+            ->setParameter('document', $document)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Revoke = delete the grant rows. The ciphertext is untouched and no key is
      * re-generated: without a grant there is no wrapped DEK for this user, so
      * there is nothing left to decrypt with.
@@ -100,16 +116,21 @@ final class DocumentKeyGrantRepository extends ServiceEntityRepository
      */
     public function deleteForDocumentAndUser(Document $document, User $user): int
     {
-        return (int) $this->getEntityManager()
-            ->createQuery(
-                'DELETE FROM '.DocumentKeyGrant::class.' g
-                 WHERE g.user = :user
-                   AND g.version IN (
-                       SELECT v.id FROM '.DocumentVersion::class.' v WHERE v.document = :document
-                   )'
-            )
-            ->setParameter('user', $user)
+        $grants = $this->createQueryBuilder('g')
+            ->join('g.version', 'v')
+            ->andWhere('v.document = :document')
+            ->andWhere('g.user = :user')
             ->setParameter('document', $document)
-            ->execute();
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getResult();
+
+        $em = $this->getEntityManager();
+        foreach ($grants as $grant) {
+            $em->remove($grant);
+        }
+        $em->flush();
+
+        return \count($grants);
     }
 }

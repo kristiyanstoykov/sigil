@@ -53,7 +53,7 @@ class SigningRequest
     /**
      * @var Collection<int, SigningRequestSigner>
      */
-    #[ORM\OneToMany(mappedBy: 'request', targetEntity: SigningRequestSigner::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OneToMany(mappedBy: 'request', targetEntity: SigningRequestSigner::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['position' => 'ASC'])]
     private Collection $signers;
 

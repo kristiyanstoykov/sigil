@@ -233,11 +233,13 @@ class SigningRequestTest extends AuthWebTestCase
     {
         $container = static::getContainer();
 
-        // Nobody signed: the document goes with the request.
+        // Nobody signed: the document goes with the request. Its deadline is the
+        // older one on purpose - the sweep walks by deadline, so this pins the
+        // erase-then-close order, which is the one that used to abort the run.
         [$owner, $first] = $this->threeSigners();
         $unsigned = $this->upload($owner);
         $unsignedId = $unsigned->getId()->toRfc4122();
-        $this->overdueRequest($unsigned, $owner, [$first]);
+        $this->overdueRequest($unsigned, $owner, [$first], daysAgo: 2);
 
         // One signature: the document stays, the request is marked Expired.
         [$owner2, $signerA, $signerB] = $this->threeSigners();
@@ -247,7 +249,7 @@ class SigningRequestTest extends AuthWebTestCase
         $this->signer()->sign($partly, $this->makeCertificate($signerA), $signerA, self::PIN);
         $this->makeOverdue($request);
 
-        $this->runCommand('sigil:signing:sweep');
+        self::assertSame(0, $this->runCommand('sigil:signing:sweep'), 'the sweep ran to the end');
 
         $documents = $container->get(DocumentRepository::class);
         $requests = $container->get(SigningRequestRepository::class);
@@ -287,29 +289,33 @@ class SigningRequestTest extends AuthWebTestCase
      *
      * @param list<User> $signers
      */
-    private function overdueRequest(Document $document, User $owner, array $signers): SigningRequest
+    private function overdueRequest(Document $document, User $owner, array $signers, int $daysAgo = 1): SigningRequest
     {
         $request = $this->service()->create($document, $owner, $signers, $this->inDays(1));
-        $this->makeOverdue($request);
+        $this->makeOverdue($request, $daysAgo);
 
         return $request;
     }
 
-    private function makeOverdue(SigningRequest $request): void
+    private function makeOverdue(SigningRequest $request, int $daysAgo = 1): void
     {
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $em->getConnection()->executeStatement(
             'UPDATE signing_request SET deadline = :deadline WHERE id = :id',
-            ['deadline' => (new \DateTimeImmutable('-1 day'))->format('Y-m-d H:i:s'), 'id' => $request->getId()->toRfc4122()],
+            ['deadline' => (new \DateTimeImmutable(sprintf('-%d days', $daysAgo)))->format('Y-m-d H:i:s'), 'id' => $request->getId()->toRfc4122()],
         );
         $em->refresh($request);
     }
 
-    private function runCommand(string $name): void
+    private function runCommand(string $name): int
     {
         $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(static::$kernel);
         $application->setAutoExit(false);
-        $application->run(
+        // Let a command blow up in the test rather than being rendered to output:
+        // the exit code alone says nothing about why the sweep stopped.
+        $application->setCatchExceptions(false);
+
+        return $application->run(
             new \Symfony\Component\Console\Input\ArrayInput(['command' => $name]),
             new \Symfony\Component\Console\Output\NullOutput(),
         );

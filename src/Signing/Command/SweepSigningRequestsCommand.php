@@ -82,7 +82,17 @@ final class SweepSigningRequestsCommand extends Command
                 continue;
             }
 
-            $this->eraser->erase($document, $request->getRequester(), 'signing request expired unsigned');
+            // The request goes first, through the ORM. Its row would vanish with
+            // the document anyway (the FK is onDelete: CASCADE), but a cascade
+            // the database performs is one Doctrine never sees: the request and
+            // its signers would stay managed over deleted rows and abort the
+            // next request's flush, stranding the rest of the run.
+            $requester = $request->getRequester();
+            $this->em->remove($request);
+            $this->em->flush();
+
+            $this->eraser->erase($document, $requester, 'signing request expired unsigned');
+
             ++$erased;
         }
 

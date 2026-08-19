@@ -17,6 +17,15 @@
  * in @layer utilities.
  */
 
+/* ── toggled bits of the toolbar ─────────────────────────────────────────── */
+
+/* The Clear button and the "nothing matches" card are shown and hidden with the
+   `hidden` attribute. Able Pro's `.btn` sets a display, and a class beats the
+   UA's [hidden] rule, so say it here instead. */
+.docs-table [hidden] {
+    display: none !important;
+}
+
 /* ── bottom bar: info · rows · pager ─────────────────────────────────────── */
 
 .docs-table .datatable-bottom {

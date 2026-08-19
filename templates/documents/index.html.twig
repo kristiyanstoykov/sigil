@@ -10,23 +10,17 @@
     theirs is the Role column, not a separate tab - the two used to be split, and
     "Shared with me" quietly meant four different things.
 
-    Role and status filtering happen here rather than in the controller because
-    document_status() lives in the Signing module, which Document must not depend
-    on. Both filters are plain links, so the page still works without JavaScript
-    and the datatable's own search keeps working inside the result.
+    Every row is rendered, always. Role and status filtering happens in the
+    datatable, beside its search and paging, so applying a filter never costs a
+    round trip; the ?role= / ?status= query string only seeds the initial state
+    and is kept in sync afterwards, so a filtered view is still linkable and
+    survives a reload. Filtering could not have moved to the controller anyway -
+    document_status() lives in Signing, which Document must not depend on.
 #}
-{% set role = app.request.query.get('role') in ['mine', 'others'] ? app.request.query.get('role') : 'all' %}
+{% set role = app.request.query.get('role') in ['mine', 'others'] ? app.request.query.get('role') : '' %}
 {% set status = app.request.query.get('status') %}
-
-{% set rows = documents %}
-{% if role == 'mine' %}
-    {% set rows = rows|filter(d => d.owner.id == app.user.id) %}
-{% elseif role == 'others' %}
-    {% set rows = rows|filter(d => d.owner.id != app.user.id) %}
-{% endif %}
-{% if status %}
-    {% set rows = rows|filter(d => document_status(d).value == status) %}
-{% endif %}
+{% set roles = {'mine': 'Mine', 'others': 'From others'} %}
+{% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'delivered': 'Delivered', 'declined': 'Declined', 'expired': 'Expired'} %}
 
 <div class="docs-rise mx-auto max-w-5xl">
 
@@ -43,15 +37,6 @@
         </button>
     </div>
 
-    {#
-        ── toolbar ─────────────────────────────────────────────────────────
-        Search on the left, filters on the right. The filters are Able Pro
-        dropdowns whose items are plain links, so filtering still happens
-        server-side and works without JavaScript - only opening the menu needs
-        the theme's delegated handler. The search box drives the datatable
-        through documents_table_controller, which is why the library's own top
-        bar is switched off.
-    #}
     {% if documents is empty %}
         {# ── empty state: nothing at all ────────────────────────────────── #}
         <div class="card !mb-0 !bg-white/80 p-14 text-center">
@@ -69,107 +54,136 @@
                 Upload document
             </button>
         </div>
-    {% elseif rows is empty %}
-        {# ── empty state: the filters excluded everything ───────────────── #}
-        <div class="card !mb-0 !bg-white/80 p-14 text-center">
-            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
-                <i class="ti ti-filter text-3xl leading-none" aria-hidden="true"></i>
-            </div>
-            <h2 class="text-lg font-extrabold text-theme-headings">Nothing matches those filters</h2>
-            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">You have {{ documents|length }} document{{ documents|length == 1 ? '' : 's' }} in total.</p>
-            <a href="{{ path('app_documents') }}" class="btn btn-outline-secondary mt-5 inline-flex items-center gap-2 mx-auto">
-                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
-                Clear filters
-            </a>
-        </div>
     {% else %}
         {#
             Able Pro's own datatable (simple-datatables) supplies the search box,
-            the rows-per-page selector, sorting and paging - see
-            assets/controllers/documents_table_controller.js. The markup here is
-            just the data: one table, rendered in full, so the list still works
-            without JavaScript.
+            the rows-per-page selector, sorting, paging and now the two filters -
+            see assets/controllers/documents_table_controller.js. The markup here
+            is just the data: one table, rendered in full, so the list still
+            reads without JavaScript (unfiltered, like the search and the paging).
 
-            Below md the same rows restyle themselves as cards (docs-table rules
-            in app.css) - hence data-label on every cell, which becomes the row's
-            field label there. No second copy of the markup, and no sideways
-            scrolling.
+            Below md the same rows restyle themselves as cards (documents-table.css)
+            - hence data-label on every cell, which becomes the row's field label
+            there. No second copy of the markup, and no sideways scrolling.
         #}
         {# The controller sits on this wrapper, not on the <table>: initialising
            the datatable moves the table into a wrapper of its own, and a
            Stimulus controller mounted on a moved element reconnects - which
            would initialise it again, forever. The toolbar is inside it so the
-           search box can be a controller target. #}
+           search box and the filters can be controller targets. #}
         <div class="docs-table"
              data-controller="documents-table"
              data-documents-table-per-page-value="10"
+             data-documents-table-title-column-value="0"
+             data-documents-table-role-column-value="1"
+             data-documents-table-status-column-value="2"
              data-documents-table-size-column-value="3"
              data-documents-table-date-column-value="4"
-             data-documents-table-actions-column-value="5">
+             data-documents-table-actions-column-value="5"
+             data-documents-table-role-value="{{ role }}"
+             data-documents-table-status-value="{{ status }}">
 
-            {# ── toolbar: search left, filters right ────────────────────── #}
-            <div class="mb-4 flex flex-wrap items-stretch gap-3">
-                <div class="relative min-w-0 flex-1 sm:max-w-xs">
+            {#
+                ── toolbar: search left, filters right ─────────────────────
+                One row from sm up. Below it the row stacks - search full
+                width, filters under it - because four controls side by side
+                on a phone left nothing legible.
+
+                The filter items stay <a href> so a middle-click or a
+                JavaScript-less visit still lands on the filtered URL; the
+                controller intercepts the plain click and filters in place.
+            #}
+            <div class="mb-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-stretch sm:gap-3">
+                <div class="relative min-w-0 sm:max-w-xs sm:flex-1">
                     <i class="ti ti-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base leading-none text-theme-secondarytextcolor" aria-hidden="true"></i>
                     <input type="search" data-documents-table-target="search"
-                           class="form-control !pl-9" placeholder="Search documents" aria-label="Search documents">
+                           class="form-control !py-2 !pl-9 text-sm" placeholder="Search documents" aria-label="Search documents">
                 </div>
 
-                <div class="ml-auto flex flex-wrap items-stretch gap-2">
-                    {% set roles = {'all': 'All', 'mine': 'Mine', 'others': 'From others'} %}
+                <div class="flex flex-wrap items-stretch justify-end gap-2 sm:ml-auto">
                     <div class="dropdown">
                         <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                                class="btn btn-outline-secondary inline-flex h-full items-center gap-2">
+                                class="btn btn-outline-secondary inline-flex items-center gap-2 text-sm">
                             <i class="ti ti-user text-base leading-none" aria-hidden="true"></i>
                             <span class="text-theme-secondarytextcolor">Role:</span>
-                            <span class="font-semibold">{{ roles[role] }}</span>
+                            <span class="font-semibold" data-documents-table-target="roleLabel">{{ role ? roles[role] : 'All' }}</span>
                             <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
                         </button>
                         <div class="dropdown-menu dropdown-menu-end">
+                            <a href="{{ path('app_documents', status ? {status: status} : {}) }}"
+                               data-documents-table-target="roleItem" data-value=""
+                               data-action="documents-table#pickRole"
+                               class="dropdown-item {{ role == '' ? '!text-primary-500 font-semibold' }}">
+                                All
+                                <span class="ml-1 text-theme-secondarytextcolor">{{ documents|length }}</span>
+                            </a>
                             {% for key, label in roles %}
-                                <a href="{{ path('app_documents', (key == 'all' ? {} : {role: key})|merge(status ? {status: status} : {})) }}"
-                                   class="dropdown-item {{ role == key ? '!text-primary-500 font-semibold' }}">
-                                    {{ label }}
-                                    {% if key == 'all' %}<span class="ml-1 text-theme-secondarytextcolor">{{ documents|length }}</span>{% endif %}
-                                </a>
+                                <a href="{{ path('app_documents', {role: key}|merge(status ? {status: status} : {})) }}"
+                                   data-documents-table-target="roleItem" data-value="{{ key }}"
+                                   data-action="documents-table#pickRole"
+                                   class="dropdown-item {{ role == key ? '!text-primary-500 font-semibold' }}">{{ label }}</a>
                             {% endfor %}
                         </div>
                     </div>
 
-                    {% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'delivered': 'Delivered', 'declined': 'Declined', 'expired': 'Expired'} %}
                     <div class="dropdown">
                         <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                                class="btn btn-outline-secondary inline-flex h-full items-center gap-2">
+                                class="btn btn-outline-secondary inline-flex items-center gap-2 text-sm">
                             <i class="ti ti-filter text-base leading-none" aria-hidden="true"></i>
                             <span class="text-theme-secondarytextcolor">Status:</span>
-                            <span class="font-semibold">{{ status ? statuses[status]|default(status) : 'Any' }}</span>
+                            <span class="font-semibold" data-documents-table-target="statusLabel">{{ status ? statuses[status]|default(status) : 'Any' }}</span>
                             <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
                         </button>
                         <div class="dropdown-menu dropdown-menu-end">
-                            <a href="{{ path('app_documents', role == 'all' ? {} : {role: role}) }}"
-                               class="dropdown-item {{ status is null ? '!text-primary-500 font-semibold' }}">Any</a>
+                            <a href="{{ path('app_documents', role ? {role: role} : {}) }}"
+                               data-documents-table-target="statusItem" data-value=""
+                               data-action="documents-table#pickStatus"
+                               class="dropdown-item {{ status is empty ? '!text-primary-500 font-semibold' }}">Any</a>
                             {% for key, label in statuses %}
                                 {# Only offer a status some document actually has. #}
                                 {% if documents|filter(d => document_status(d).value == key)|length %}
-                                    <a href="{{ path('app_documents', {status: key}|merge(role == 'all' ? {} : {role: role})) }}"
+                                    <a href="{{ path('app_documents', {status: key}|merge(role ? {role: role} : {})) }}"
+                                       data-documents-table-target="statusItem" data-value="{{ key }}"
+                                       data-action="documents-table#pickStatus"
                                        class="dropdown-item {{ status == key ? '!text-primary-500 font-semibold' }}">{{ label }}</a>
                                 {% endif %}
                             {% endfor %}
                         </div>
                     </div>
 
-                    {% if role != 'all' or status %}
-                        <a href="{{ path('app_documents') }}"
-                           class="btn btn-outline-secondary inline-flex h-full items-center gap-1.5"
-                           title="Clear filters">
-                            <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
-                            Clear
-                        </a>
-                    {% endif %}
+                    {# Icon only on a phone: the word is what made the row overflow. #}
+                    <a href="{{ path('app_documents') }}"
+                       data-documents-table-target="clear"
+                       data-action="documents-table#clear"
+                       class="btn btn-outline-secondary inline-flex items-center gap-1.5 text-sm max-sm:!px-2.5"
+                       title="Clear filters" aria-label="Clear filters" {{ (role or status) ? '' : 'hidden' }}>
+                        <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
+                        <span class="max-sm:hidden">Clear</span>
+                    </a>
                 </div>
             </div>
 
-            <div class="card !mb-0 overflow-hidden !bg-white/90">
+            {#
+                ── empty state: the filters excluded everything ────────────
+                Deliberately not the same card as "no documents yet": one says
+                the library is empty, the other says the view is. The controller
+                swaps it in for the table when a filter or a search matches
+                nothing, in place of the datatable's one-line message.
+            #}
+            <div class="card !mb-0 !bg-white/80 p-14 text-center" data-documents-table-target="empty" hidden>
+                <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                    <i class="ti ti-filter text-3xl leading-none" aria-hidden="true"></i>
+                </div>
+                <h2 class="text-lg font-extrabold text-theme-headings">Nothing matches that</h2>
+                <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">You have {{ documents|length }} document{{ documents|length == 1 ? '' : 's' }} in total.</p>
+                <button type="button" data-action="documents-table#clear"
+                        class="btn btn-outline-secondary mt-5 inline-flex items-center gap-2 mx-auto">
+                    <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
+                    Clear filters
+                </button>
+            </div>
+
+            <div class="card !mb-0 overflow-hidden !bg-white/90" data-documents-table-target="card">
             <div class="table-responsive">
                 <table class="table w-full text-left" data-documents-table-target="table">
                     <thead class="border-b border-theme-border bg-theme-bodybg/70 text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">
@@ -183,15 +197,20 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-theme-border/60">
-                        {% for document in rows %}
+                        {% for document in documents %}
                             {% set v = document.latestVersion %}
                             {% set owned = document.owner.id == app.user.id %}
+                            {% set st = document_status(document) %}
                             <tr class="hover:bg-theme-activebg/60">
                                 <td class="px-5 py-3.5" data-label="Document">
-                                    <a href="{{ path('app_document_show', {id: document.id}) }}" class="flex items-center gap-3">
+                                    <a href="{{ path('app_document_show', {id: document.id}) }}" class="flex items-start gap-3">
                                         {{ docs.pdf_icon('sm') }}
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-sm font-semibold text-theme-headings">{{ document.title }}</span>
+                                        {# A title is a filename and can run long. It wraps
+                                           rather than truncating - the whole name is what
+                                           tells two versions of a contract apart - and the
+                                           cap keeps it from crowding the other columns. #}
+                                        <span class="min-w-0 max-w-[22rem]">
+                                            <span class="block whitespace-normal text-sm font-semibold leading-snug text-theme-headings [overflow-wrap:anywhere]">{{ document.title }}</span>
                                             <span class="mt-0.5 inline-flex items-center gap-1 text-[11.5px] text-theme-secondarytextcolor">
                                                 {% if owned %}
                                                     <i class="ti ti-lock text-xs leading-none" aria-hidden="true"></i>
@@ -206,11 +225,15 @@
                                 </td>
                                 {# Why you can see this row. With no plain sharing left, a
                                    grant on someone else's document means a signature
-                                   request reached you. #}
-                                <td class="px-5 py-3.5" data-label="Role">{{ docs.role_badge(document, owned) }}</td>
+                                   request reached you.
+
+                                   data-filter is what the Role and Status filters match
+                                   on, never the badge's wording: the badges can be
+                                   reworded, and "From others" is two of them anyway. #}
+                                <td class="px-5 py-3.5" data-label="Role" data-filter="{{ owned ? 'mine' : 'others' }}">{{ docs.role_badge(document, owned) }}</td>
                                 {# The document's state, not the latest version's kind:
                                    an unsigned document is a Draft, i.e. unfinished. #}
-                                <td class="px-5 py-3.5" data-label="Status">{{ docs.doc_status_badge(document_status(document)) }}</td>
+                                <td class="px-5 py-3.5" data-label="Status" data-filter="{{ st.value }}">{{ docs.doc_status_badge(st) }}</td>
                                 {# Raw bytes: the datatable sorts on the cell's value and
                                    renders the human-readable size for display. #}
                                 <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Size">{{ v.sizeBytes }}</td>

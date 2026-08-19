@@ -125,13 +125,22 @@ final class DocumentWebTest extends AuthWebTestCase
         self::assertStringContainsString('Owner', $list);
         self::assertSame(1, $crawler->filter('tbody tr')->count());
 
-        // A filter that matches keeps the row; one that does not says so rather
-        // than showing the "no documents at all" state.
-        $crawler = $this->client->request('GET', '/documents?status=draft');
-        self::assertSame(1, $crawler->filter('tbody tr')->count());
+        // Filtering is the datatable's, so the row is always in the markup and
+        // data-filter is what the filter matches - the badge's wording can
+        // change without breaking it.
+        self::assertSame('mine', $crawler->filter('td[data-label="Role"]')->attr('data-filter'));
+        self::assertSame('draft', $crawler->filter('td[data-label="Status"]')->attr('data-filter'));
 
-        $crawler = $this->client->request('GET', '/documents?role=others');
-        self::assertStringContainsString('Nothing matches those filters', $crawler->html());
+        // A query string only seeds the filter, so a link to a filtered view
+        // still opens filtered.
+        $crawler = $this->client->request('GET', '/documents?role=others&status=draft');
+        $table = $crawler->filter('.docs-table');
+        self::assertSame('others', $table->attr('data-documents-table-role-value'));
+        self::assertSame('draft', $table->attr('data-documents-table-status-value'));
+
+        // The two empty states stay distinct: the filtered one ships hidden,
+        // for the controller to swap in, and is not the "nothing at all" one.
+        self::assertSame(1, $crawler->filter('[data-documents-table-target="empty"][hidden]')->count());
         self::assertStringNotContainsString('No documents yet', $crawler->html());
     }
 

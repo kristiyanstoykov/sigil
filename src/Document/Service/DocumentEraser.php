@@ -7,8 +7,7 @@ namespace App\Document\Service;
 use App\AuditLog\AuditLoggerInterface;
 use App\Core\Entity\User;
 use App\Document\Entity\Document;
-use App\Document\Entity\DocumentKeyGrant;
-use App\Document\Entity\DocumentVersion;
+use App\Document\Repository\DocumentKeyGrantRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
@@ -27,16 +26,20 @@ final class DocumentEraser
         private readonly AuditLoggerInterface $auditLogger,
         private readonly LoggerInterface $logger,
         private readonly EntityManagerInterface $em,
+        private readonly DocumentKeyGrantRepository $grants,
     ) {
     }
 
     public function erase(Document $document, ?User $actor = null, string $reason = 'deleted'): void
     {
         $documentId = $document->getId()->toRfc4122();
+        $versions = $document->getVersions()->toArray();
         $storageKeys = [];
-        foreach ($document->getVersions() as $version) {
+        foreach ($versions as $version) {
             $storageKeys[] = $version->getStorageKey();
         }
+
+        $grants = $this->grants->findForDocument($document);
 
         $this->auditLogger->log(
             action: 'document.erased',
@@ -50,24 +53,23 @@ final class DocumentEraser
             subjectId: $documentId,
         );
 
-        $this->em->createQuery(
-            'DELETE FROM '.DocumentKeyGrant::class.' g
-             WHERE g.version IN (SELECT v.id FROM '.DocumentVersion::class.' v WHERE v.document = :document)'
-        )->setParameter('document', $document)->execute();
-
-        $this->em->createQuery('DELETE FROM '.DocumentVersion::class.' v WHERE v.document = :document')
-            ->setParameter('document', $document)
-            ->execute();
+        // Removed through the unit of work, deepest first, so Doctrine drops all
+        // three from the identity map on flush. A bulk DQL DELETE would empty
+        // the tables behind its back and leave the caller - usually mid-sweep,
+        // still holding other entities - with a version pointing at a document
+        // Doctrine no longer knows, which reads as a new entity and aborts the
+        // next flush.
+        foreach ($grants as $grant) {
+            $this->em->remove($grant);
+        }
+        foreach ($versions as $version) {
+            $this->em->remove($version);
+        }
 
         // Signing requests and their signer rows go with it: both cascade from
-        // the document at the database level.
-        $this->em->createQuery('DELETE FROM '.Document::class.' d WHERE d.id = :id')
-            ->setParameter('id', $document->getId())
-            ->execute();
-
-        // Detach rather than clear: the caller is usually mid-sweep and still
-        // holds other entities it needs.
-        $this->em->detach($document);
+        // the document at the database level, so the ORM never sees them.
+        $this->em->remove($document);
+        $this->em->flush();
 
         foreach ($storageKeys as $key) {
             try {

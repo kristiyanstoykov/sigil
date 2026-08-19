@@ -497,6 +497,54 @@ Working backwards from defense window of late September 2026, with documentation
   (delivery receipt)" instead. Deliberately left as-is for now; decide the final
   wording before the defense, since a reviewer will read the stamp.
 
+### The expiry sweep aborted partway (found 2026-08-18, ✅ fixed 2026-08-19)
+
+`sigil:signing:sweep` walked the overdue requests and, once it had erased one
+unsigned document, the *next* iteration's flush threw:
+
+    A new entity was found through the relationship 'DocumentVersion#document'
+    that was not configured to cascade persist operations for entity: Document@…
+
+**Cause: bulk DQL `DELETE`s.** `DocumentEraser::erase()` and
+`DocumentKeyGrantRepository::deleteForDocumentAndUser()` both emptied tables with
+`DELETE FROM ... ` DQL, which never reaches the unit of work. The rows went, the
+entities stayed in the identity map, and the next flush walked one, found it
+pointing at something Doctrine no longer tracked, and treated it as a new entity.
+
+**Impact.** The hourly cron aborted at the first erase-then-close ordering. Every
+overdue request after that point stayed open with its signers still holding their
+turn, and the command exited non-zero. Order-dependent, which is why a
+two-request test passed for months.
+
+**The fix: everything goes through the ORM.** No hand-written DQL and no
+`detach()` anywhere in the path - `remove()` plus a flush, and Doctrine drops the
+entities from the identity map itself.
+
+- `DocumentEraser::erase()` loads the grants (`DocumentKeyGrantRepository::findForDocument()`)
+  and removes grants, versions and the document, deepest first.
+- `DocumentKeyGrantRepository::deleteForDocumentAndUser()` reads its rows with a
+  query builder and removes them.
+- `SweepSigningRequestsCommand` removes the `SigningRequest` **before** erasing
+  the document. Its row would go anyway - the FK is `onDelete: CASCADE` - but a
+  cascade the database performs is one Doctrine never sees, so the request and
+  its signers would stay managed over deleted rows. `SigningRequest::$signers`
+  gained `cascade: ['remove']` so the signer rows follow (`orphanRemoval` alone
+  fires on collection removal, not on removing the owner).
+
+**The regression test is the ordering, not the deletion.** Both requests in
+`testSweepDeletesAnUnsignedDocumentAndKeepsASignedOne` had the same deadline, so
+which one the sweep hit first was down to Postgres; the unsigned one is now a day
+older, which pins the erase-then-close order. The test also asserts the exit code
+and runs the command with `setCatchExceptions(false)`, so a repeat surfaces as the
+ORM exception rather than as "1 is not 0".
+
+**Not done: hoisting the flush out of the per-request path** so one bad row cannot
+strand the rest of a run. It is entangled with **F-08** (`AuditLogger::log()`
+flushes and commits the caller's whole unit of work, including the one inside
+`erase()` itself), so it waits for F-08.
+
+---
+
 ### Information architecture rework (agreed 2026-08-15)
 
 Three surfaces, each answering exactly one question, instead of one document's
