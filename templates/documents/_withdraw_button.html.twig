@@ -1,0 +1,36 @@
+{#
+    Withdrawing the open request, from the document page. The twin of the Sent
+    tab's button - two pages, two return targets, one service underneath.
+
+    Context: document.
+#}
+{% set cancelForm = signing_cancel_form(document) %}
+<div data-controller="confirm" class="contents">
+    <button type="button" data-action="confirm#open"
+            class="btn btn-outline-danger inline-flex items-center gap-2">
+        <i class="ti ti-arrow-back-up text-base leading-none" aria-hidden="true"></i>
+        Withdraw request
+    </button>
+
+    <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
+         data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
+         class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
+        <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
+            <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 mb-4">
+                <i class="ti ti-arrow-back-up text-xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-semibold text-theme-headings mb-2">Withdraw this request?</h2>
+            <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">
+                Nobody else will be asked to sign, and whoever holds the turn loses access to the
+                document. Signatures already collected are kept.
+            </p>
+            {{ form_start(cancelForm, {
+                action: path('app_signing_request_cancel', {id: document.id}),
+                attr: {class: 'flex gap-2.5'}
+            }) }}
+                <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Keep it</button>
+                <button type="submit" class="btn btn-danger flex-1">Withdraw</button>
+            {{ form_end(cancelForm) }}
+        </div>
+    </div>
+</div>

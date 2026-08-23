@@ -1,10 +1,10 @@
-{% import 'documents/_macros.html.twig' as docs %}
 {% import 'signing/_macros.html.twig' as signing %}
 
 {#
-    Settled requests, both roles. A list rather than cards: history is scanned,
-    not acted on. Includes the ones you declined - closing revoked your grant on
-    the document, so this row and its receipt are the only trace left to you.
+    Settled requests, both roles, each one as the whole story rather than a row:
+    who was asked, in what order, what they did, and the outcome it closed with.
+    Includes the ones you declined - closing revoked your grant on the document,
+    so this card and its receipt are the only trace left to you.
 #}
 {% if history is empty %}
     {{ signing.empty(
@@ -13,71 +13,53 @@
         'Completed, declined, expired and withdrawn requests collect here - yours and the ones you were asked to sign.'
     ) }}
 {% else %}
-    <div class="card !mb-0 overflow-hidden !bg-white/90">
-        <ul class="divide-y divide-theme-border/60">
-            {% for request in history %}
-                {% set me = request.signerFor(app.user) %}
-                {% set refuser = request.declinedBy %}
-                {% set receipt = request_receipt(request) %}
-                {% set canOpen = readable[request.id]|default(false) %}
+    <p class="mb-4 max-w-2xl text-sm text-theme-secondarytextcolor">
+        Settled requests, yours and the ones you were asked to sign. Each one is sealed into a receipt at
+        the moment it closed.
+    </p>
 
-                <li class="flex flex-wrap items-start gap-x-4 gap-y-3 p-5 hover:bg-theme-activebg/40">
-                    <div class="mt-0.5 shrink-0">{{ docs.pdf_icon('sm') }}</div>
+    <div class="space-y-5">
+        {% for request in history %}
+            {% set me = request.signerFor(app.user) %}
+            {% set receipt = request_receipt(request) %}
+            {% set canOpen = readable[request.id]|default(false) %}
+            {% set total = request.signers|length %}
 
-                    <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                            <span class="min-w-0 break-words text-sm font-bold text-theme-headings">{{ request.document.title }}</span>
-                            {{ signing.outcome_badge(request.status) }}
-                        </div>
+            <div>
+                {{ signing.request_timeline(request, true, me
+                    ? 'From ' ~ request.requester.fullName ~ ' · you were signer ' ~ me.position ~ ' of ' ~ total
+                    : 'You sent this to ' ~ total ~ ' signer' ~ (total == 1 ? '' : 's')) }}
 
-                        <div class="mt-1 text-xs text-theme-secondarytextcolor">
-                            {% if me %}
-                                From {{ request.requester.fullName }} · you were signer {{ me.position }} of {{ request.signers|length }}
-                            {% else %}
-                                You sent this to {{ request.signers|length }} signer{{ request.signers|length == 1 ? '' : 's' }}
-                            {% endif %}
-                            · {{ request.signedCount }} of {{ request.signers|length }} signed
-                            {%- if request.closedAt %} · closed {{ request.closedAt|date('d M Y') }}{% endif %}
-                        </div>
-
-                        {% if refuser %}
-                            <div class="mt-2 border-l-2 border-danger-500/40 bg-danger-500/5 py-1.5 pl-3 pr-2 text-xs leading-relaxed text-theme-bodycolor">
-                                <span class="font-semibold text-danger-600">
-                                    {{ refuser.isUser(app.user) ? 'You declined' : refuser.user.fullName ~ ' declined' }}
-                                </span>
-                                {% if refuser.declineReason %}
-                                    - "{{ refuser.declineReason }}"
-                                {% else %}
-                                    - no reason given
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <div class="flex shrink-0 flex-wrap items-center gap-2">
-                        {% if receipt %}
-                            <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
-                               class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
-                                <i class="ti ti-receipt text-sm leading-none" aria-hidden="true"></i>
-                                Receipt
-                            </a>
-                        {% endif %}
-                        {% if canOpen %}
-                            <a href="{{ path('app_document_show', {id: request.document.id}) }}"
-                               class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
-                                <i class="ti ti-file-text text-sm leading-none" aria-hidden="true"></i>
-                                Open
-                            </a>
-                        {% endif %}
-                    </div>
-                </li>
-            {% endfor %}
-        </ul>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    {% if receipt %}
+                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+                           class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
+                            <i class="ti ti-receipt text-sm leading-none" aria-hidden="true"></i>
+                            Receipt
+                        </a>
+                    {% endif %}
+                    {% if canOpen %}
+                        <a href="{{ path('app_document_show', {id: request.document.id}) }}"
+                           class="btn btn-sm btn-outline-secondary inline-flex items-center gap-1.5">
+                            <i class="ti ti-file-text text-sm leading-none" aria-hidden="true"></i>
+                            Open document
+                        </a>
+                    {% else %}
+                        {# Never offer a link this user cannot follow: a decliner
+                           lost their grant when the request closed. #}
+                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-theme-activebg px-3 py-1.5 text-xs font-medium text-theme-secondarytextcolor">
+                            <i class="ti ti-lock text-sm leading-none" aria-hidden="true"></i>
+                            You no longer hold this document
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
     </div>
 
     {# A request whose document was erased is erased with it (the FK cascades),
        so the expired-and-never-signed case only survives as a receipt. #}
-    <p class="mt-4 text-xs leading-relaxed text-theme-secondarytextcolor">
+    <p class="mt-5 text-xs leading-relaxed text-theme-secondarytextcolor">
         Requests whose document has since been destroyed are not listed here. Their sealed receipts remain under
         <a href="{{ path('app_receipts') }}" class="font-semibold text-primary-500 hover:underline">Receipts</a>.
     </p>

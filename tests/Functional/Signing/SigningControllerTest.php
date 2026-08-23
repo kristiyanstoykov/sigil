@@ -124,20 +124,23 @@ final class SigningControllerTest extends AuthWebTestCase
         self::assertCount(2, $document->getVersions()); // original + the one signature
     }
 
-    public function testShowPageBlocksTheSignButtonOnceSigned(): void
+    public function testShowPageDropsTheSignActionOnceSigned(): void
     {
         $documentId = $this->seedSignedDocument('sign-once-button');
 
         $crawler = $this->client->request('GET', '/documents/'.$documentId);
 
         self::assertResponseIsSuccessful();
-        // The action stays on the page, but as a disabled button - not a link.
+        $html = (string) $this->client->getResponse()->getContent();
+        // Signing yourself can never happen again, so the row is gone entirely
+        // - no link, and no disabled remnant of one.
         self::assertSame(0, $crawler->filter('a[href$="/sign"]')->count());
-        $button = $crawler->filter('button[disabled]');
-        self::assertGreaterThan(0, $button->count());
-        self::assertStringContainsString('Signed', $button->text());
+        self::assertStringNotContainsString('Sign it yourself', $html);
+        // The state is said once, in the banner, and delivery is what is left.
+        self::assertStringContainsString('Signed', $html);
+        self::assertStringContainsString('Deliver it', $html);
         // And it is no longer a draft, so the "finish this" callout is gone.
-        self::assertStringNotContainsString('still a draft', (string) $this->client->getResponse()->getContent());
+        self::assertStringNotContainsString('still a draft', $html);
     }
 
     public function testSignPageShowsEmptyStateWithoutAUsableCertificate(): void

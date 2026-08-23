@@ -1,13 +1,26 @@
 {% extends 'layout/app.html.twig' %}
 {% import 'documents/_macros.html.twig' as docs %}
-{% import 'signing/_macros.html.twig' as signing %}
 
 {% block title %}{{ document.title }} · Sigil{% endblock %}
 {% block main_class %}docs-gradient{% endblock %}
 
+{#
+    One file's whole life, in four tabs. Overview answers "where is it and what
+    can still happen to it"; the other three are the record - every version, the
+    signature request it had, and the receipts sealed over it.
+
+    Everything from another module arrives through a Twig function, never a
+    controller variable: Document depends on neither Signing, Delivery nor
+    Receipt.
+#}
 {% block content %}
 {% set latest = document.latestVersion %}
 {% set status = document_status(document) %}
+{% set signingRequest = pending_signing_request(document) %}
+{% set closedRequest = document_signing_request(document) %}
+{% set receipts = document_receipts(document) %}
+{% set isTurn = signingRequest and not isOwner and signingRequest.isTurnOf(app.user) %}
+
 <div class="docs-rise mx-auto max-w-4xl">
 
     <a href="{{ path('app_documents', isOwner ? {} : {role: 'others'}) }}" class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-theme-secondarytextcolor hover:text-theme-headings">
@@ -21,7 +34,7 @@
             <div class="flex min-w-0 items-start gap-4">
                 {{ docs.pdf_icon('lg') }}
                 <div class="min-w-0">
-                    <h1 class="truncate text-xl font-extrabold tracking-tight text-theme-headings">{{ document.title }}</h1>
+                    <h1 class="text-xl font-extrabold tracking-tight text-theme-headings [overflow-wrap:anywhere]">{{ document.title }}</h1>
                     <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-theme-secondarytextcolor">
                         <span>Uploaded {{ (latest ? latest.createdAt : document.createdAt)|date('d M Y') }}</span>
                         {% if not isOwner %}
@@ -31,8 +44,14 @@
                                 Sent by {{ document.owner.fullName }}
                             </span>
                         {% endif %}
-                        <span class="text-theme-border">·</span>
+                        {% if latest %}
+                            <span class="text-theme-border">·</span>
+                            <span>{{ docs.filesize(latest.sizeBytes) }} · v{{ latest.versionNumber }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="mt-2.5 flex flex-wrap items-center gap-2">
                         {{ docs.doc_status_badge(status) }}
+                        {{ docs.role_badge(document, isOwner) }}
                         <span class="inline-flex items-center gap-1.5 rounded-full border border-success-500/20 bg-success-500/10 px-2.5 py-0.5 text-xs font-semibold text-success-600">
                             <i class="ti ti-lock text-xs leading-none" aria-hidden="true"></i>
                             Encrypted at rest
@@ -41,6 +60,11 @@
                 </div>
             </div>
 
+            {#
+                Download and View are always there; the third button is whatever
+                this state's one move is - deciding a draft's purpose, withdrawing
+                an open request, delivering a signed file, or nothing at all.
+            #}
             <div class="flex flex-wrap items-center gap-2">
                 <a href="{{ path('app_document_download', {id: document.id}) }}" data-turbo="false"
                    class="btn btn-outline-secondary inline-flex items-center gap-2">
@@ -52,355 +76,68 @@
                     <i class="ti ti-eye text-base leading-none" aria-hidden="true"></i>
                     View
                 </a>
-                {# Signing is the owner's for now. A recipient holds a read grant;
-                   letting them sign is the SigningRequest workflow's job (ADR-007),
-                   which will say who was actually asked to sign. #}
-                {% if isOwner %}
+                {% if isTurn %}
+                    <a href="{{ path('app_document_sign', {id: document.id}) }}"
+                       class="btn btn-primary inline-flex items-center gap-2">
+                        <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
+                        Read &amp; sign
+                    </a>
+                {% elseif isOwner %}
                     {% if status.delivered %}
                         <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
                                 disabled aria-disabled="true" title="This document has been delivered and is final.">
                             <i class="ti ti-mail-forward text-base leading-none" aria-hidden="true"></i>
                             Delivered
                         </button>
-                    {% elseif status.pending %}
-                        {# The queue owns the document while a request is out: the
-                           owner signs only if they are on the list, from the sign
-                           page the panel below links to. #}
-                        <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
-                                disabled aria-disabled="true" title="A signature request is out on this document.">
-                            <i class="ti ti-clock text-base leading-none" aria-hidden="true"></i>
-                            Awaiting signatures
-                        </button>
-                    {% elseif document.isSigned %}
-                        {# Blocked, not removed: the action stays visible so its
-                           unavailability reads as "already done", not "missing". #}
-                        <button type="button" class="btn btn-primary disabled inline-flex items-center gap-2"
-                                disabled aria-disabled="true" title="This document has already been signed.">
-                            <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
-                            Signed
-                        </button>
-                    {% else %}
-                        {# Straight to the certificate + PIN panel: this button
-                           has always meant "sign it myself", so it should not
-                           stop to ask what the document is for. #}
-                        <a href="{{ path('app_document_sign', {id: document.id, purpose: 'self'}) }}"
-                           class="btn btn-primary inline-flex items-center gap-2">
-                            <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
-                            Sign
-                        </a>
-                    {% endif %}
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    {#
-        ── the open signature request ──────────────────────────────────────
-        Who has signed, whose turn it is, and the owner's way out of it. Signers
-        get read access one turn at a time, so this list is also the access list.
-    #}
-    {% set signingRequest = pending_signing_request(document) %}
-    {% if signingRequest %}
-        <div class="mt-6">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signature request</h2>
-                {% if isOwner %}
-                    {% set cancelForm = signing_cancel_form(document) %}
-                    <div data-controller="confirm" class="contents">
-                        <button type="button" data-action="confirm#open"
-                                class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
-                            <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
-                            Withdraw request
-                        </button>
-
-                        <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-                             data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-                             class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
-                            <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
-                                <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600 mb-4">
-                                    <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
-                                </div>
-                                <h2 class="text-lg font-semibold text-theme-headings mb-2">Withdraw this request?</h2>
-                                <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">
-                                    Nobody else will be asked to sign, and whoever holds the turn loses access to the
-                                    document. Signatures already collected are kept.
-                                </p>
-                                {{ form_start(cancelForm, {
-                                    action: path('app_signing_request_cancel', {id: document.id}),
-                                    attr: {class: 'flex gap-2.5'}
-                                }) }}
-                                    <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Keep it</button>
-                                    <button type="submit" class="btn btn-danger flex-1">Withdraw</button>
-                                {{ form_end(cancelForm) }}
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
-            {{ signing.signer_queue(signingRequest) }}
-            {{ signing.deadline_note(signingRequest) }}
-        </div>
-    {% endif %}
-
-    {#
-        ── what next ───────────────────────────────────────────────────────
-        The three things an owner can do with a document, side by side rather
-        than stacked: decide its purpose (the chooser on the sign page), send it
-        for signature, deliver it. Each card states its own constraint, so a
-        blocked action stays visible and says why instead of disappearing.
-    #}
-    {% if isOwner and status.delivered %}
-        <div class="mt-6 rounded-lg border border-success-500/25 bg-success-500/[0.06] p-4 sm:p-5">
-            <div class="flex items-start gap-3">
-                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success-500/15 text-success-600">
-                    <i class="ti ti-mail-forward text-lg leading-none" aria-hidden="true"></i>
-                </span>
-                <div class="min-w-0">
-                    <p class="text-sm font-bold text-theme-headings">This document has been delivered</p>
-                    <p class="mt-0.5 text-sm text-theme-secondarytextcolor">{{ status.hint }} To serve this file on anyone else, upload it again.</p>
-                </div>
-            </div>
-        </div>
-    {% elseif isOwner %}
-        {% set canRequest = can_request_signatures(document) %}
-        {% set decidable = status.draft and not signingRequest %}
-        <div class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">What next</h2>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-                {# Purpose - the chooser lives on the sign page. Unlike the other
-                   two this card goes away once the question is answered: a
-                   decision already made is not a next step. #}
-                {% if decidable %}
-                    <div class="card !mb-0 flex flex-col !bg-white/90 p-5">
-                        <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning-500/15 text-warning-600">
-                            <i class="ti {{ status.iconClass }} text-xl leading-none" aria-hidden="true"></i>
-                        </span>
-                        <p class="mt-3 text-sm font-bold text-theme-headings">Decide what it's for</p>
-                        <p class="mt-1 grow text-sm text-theme-secondarytextcolor">{{ status.hint }}</p>
+                    {% elseif signingRequest %}
+                        {{ include('documents/_withdraw_button.html.twig') }}
+                    {% elseif status.draft %}
                         <a href="{{ path('app_document_sign', {id: document.id}) }}"
-                           class="btn btn-primary mt-4 inline-flex items-center justify-center gap-2">
+                           class="btn btn-primary inline-flex items-center gap-2">
                             <i class="ti ti-signature text-base leading-none" aria-hidden="true"></i>
                             Decide what it's for
                         </a>
-                    </div>
-                {% endif %}
-
-                {# Signature request - one per document, ever. #}
-                <div id="request" class="card !mb-0 flex flex-col !bg-white/90 p-5">
-                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ canRequest and not signingRequest ? 'bg-primary-500/10 text-primary-500' : 'bg-theme-activebg text-theme-secondarytextcolor' }}">
-                        <i class="ti ti-send text-xl leading-none" aria-hidden="true"></i>
-                    </span>
-                    <p class="mt-3 text-sm font-bold text-theme-headings">
-                        {%- if signingRequest %}Out for signature
-                        {%- elseif canRequest %}Ask other people to sign this
-                        {%- else %}Already sent once{% endif -%}
-                    </p>
-                    <p class="mt-1 grow text-sm text-theme-secondarytextcolor">
-                        {%- if signingRequest %}
-                            The queue is live - the panel above tracks whose turn it is.
-                        {%- elseif canRequest %}
-                            Choose the signers and the order they sign in. Each one is handed the document only when their turn comes, and you get a sealed receipt when it closes.
-                        {%- else %}
-                            This document has already been through a signature request. Reopening the queue would sign a different version than the sealed receipt attests - upload the file again to start a new one.
-                        {%- endif -%}
-                    </p>
-                    {% if canRequest and not signingRequest %}
-                        <a href="{{ path('app_signing_request_new', {id: document.id}) }}"
-                           class="btn btn-primary mt-4 inline-flex items-center justify-center gap-2">
-                            <i class="ti ti-send text-base leading-none" aria-hidden="true"></i>
-                            Request signatures
-                        </a>
                     {% else %}
-                        <button type="button" class="btn btn-primary disabled mt-4 inline-flex items-center justify-center gap-2" disabled aria-disabled="true">
-                            <i class="ti ti-check text-base leading-none" aria-hidden="true"></i>
-                            {{ signingRequest ? 'Pending' : 'Sent once' }}
-                        </button>
-                    {% endif %}
-                </div>
-
-                {# Delivery - terminal, and it waits for the queue to finish. #}
-                {% set deliverable = not signingRequest %}
-                <div id="deliver" class="card !mb-0 flex flex-col !bg-white/90 p-5">
-                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ deliverable ? 'bg-primary-500/10 text-primary-500' : 'bg-theme-activebg text-theme-secondarytextcolor' }}">
-                        <i class="ti ti-mail-forward text-xl leading-none" aria-hidden="true"></i>
-                    </span>
-                    <p class="mt-3 text-sm font-bold text-theme-headings">
-                        {{ deliverable ? 'Serve this on someone' : 'Waiting on the signatures' }}
-                    </p>
-                    <p class="mt-1 grow text-sm text-theme-secondarytextcolor">
-                        {% if deliverable %}
-                            Registered mail: they get the document, nothing is asked of them, and you get a sealed receipt naming who was served and when. Delivering is final - nothing follows it.
-                        {% else %}
-                            Each signature makes a new version, so this can only be served once everyone has signed. Delivering is final, and the signers still to come could never sign.
-                        {% endif %}
-                    </p>
-                    {% if deliverable %}
                         <a href="{{ path('app_delivery_new', {id: document.id}) }}"
-                           class="btn btn-outline-secondary mt-4 inline-flex items-center justify-center gap-2">
+                           class="btn btn-primary inline-flex items-center gap-2">
                             <i class="ti ti-mail-forward text-base leading-none" aria-hidden="true"></i>
                             Deliver
                         </a>
-                    {% else %}
-                        <button type="button" class="btn btn-outline-secondary disabled mt-4 inline-flex items-center justify-center gap-2" disabled aria-disabled="true">
-                            <i class="ti ti-clock text-base leading-none" aria-hidden="true"></i>
-                            Not yet
-                        </button>
                     {% endif %}
-                </div>
-
+                {% endif %}
             </div>
         </div>
-    {% endif %}
-
-    {#
-        ── deliveries made ─────────────────────────────────────────────────
-        Reached through a Twig function like every other cross-module panel.
-    #}
-    {% set deliveries = isOwner ? document_deliveries(document) : [] %}
-    {% if deliveries is not empty %}
-        <div id="deliveries" class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Delivered to</h2>
-            <div class="card !mb-0 overflow-hidden !bg-white/90">
-                <ul class="divide-y divide-theme-border/60">
-                    {% for delivery in deliveries %}
-                        {% for recipient in delivery.recipients %}
-                            <li class="flex flex-wrap items-center gap-x-4 gap-y-2 p-5">
-                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
-                                    <i class="ti ti-mail-forward text-base leading-none" aria-hidden="true"></i>
-                                </span>
-                                <span class="min-w-0 flex-1">
-                                    <span class="block truncate text-sm font-semibold text-theme-headings">{{ recipient.user.fullName }}</span>
-                                    <span class="block truncate text-xs text-theme-secondarytextcolor">{{ recipient.user.email }}</span>
-                                </span>
-                                <span class="shrink-0 text-right">
-                                    <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ recipient.deliveredAt|date('d M Y, H:i:s') }}</span>
-                                    <span class="block text-[11px] text-theme-secondarytextcolor">served v{{ recipient.version.versionNumber }}</span>
-                                </span>
-                            </li>
-                        {% endfor %}
-                        {% if delivery.note %}
-                            <li class="bg-theme-activebg/40 px-5 py-3 text-xs italic leading-relaxed text-theme-secondarytextcolor">
-                                "{{ delivery.note }}"
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ul>
-            </div>
-            <p class="mt-3 text-xs text-theme-secondarytextcolor">A delivery cannot be taken back. Each one is attested by a sealed receipt below.</p>
-        </div>
-    {% endif %}
-
-    {#
-        ── signatures ──────────────────────────────────────────────────────
-        Who has signed, to the second. Comes from the Signing module through a
-        Twig function, like the panels above: a signature made through a request
-        carries its own timestamp, a document the owner signed alone is dated by
-        the version it produced.
-    #}
-    {% set signatures = document_signatures(document) %}
-    {% if signatures is not empty %}
-        <div class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">
-                Signatures
-                <span class="ml-1 font-bold normal-case tracking-normal text-theme-headings">{{ signatures|length }}</span>
-            </h2>
-            <div class="card !mb-0 overflow-hidden !bg-white/90">
-                <ol class="divide-y divide-theme-border/60">
-                    {% for signature in signatures %}
-                        <li class="flex flex-wrap items-center gap-x-4 gap-y-2 p-5">
-                            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-500/10 text-success-600">
-                                <i class="ti ti-circle-check text-base leading-none" aria-hidden="true"></i>
-                            </span>
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate text-sm font-semibold text-theme-headings">{{ signature.user.fullName }}</span>
-                                <span class="block truncate text-xs text-theme-secondarytextcolor">{{ signature.user.email }}</span>
-                            </span>
-                            <span class="shrink-0 text-right">
-                                {# Seconds matter: this is the evidentiary record, not a feed. #}
-                                <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ signature.signedAt|date('d M Y, H:i:s') }}</span>
-                                <span class="block text-[11px] text-theme-secondarytextcolor">
-                                    v{{ signature.versionNumber }} · {{ signature.viaRequest ? 'by request' : 'signed by the owner' }}
-                                </span>
-                            </span>
-                        </li>
-                    {% endfor %}
-                </ol>
-            </div>
-        </div>
-    {% endif %}
-
-    {# ── versions timeline ──────────────────────────────────────────────── #}
-    <div class="mt-6">
-        <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Versions</h2>
-        <div class="card !mb-0 overflow-hidden !bg-white/90">
-            <ul class="divide-y divide-theme-border/60">
-                {% for v in document.versions|reverse %}
-                    {# Stacks on mobile (badge row, fingerprint row, then a full-width
-                       download button); from sm: single row with the button at the end. #}
-                    <li class="p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-x-4">
-                        <div class="flex min-w-0 flex-1 items-start gap-3">
-                            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-xs font-bold text-primary-500">v{{ v.versionNumber }}</span>
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                    {{ docs.status_badge(v.kind) }}
-                                    <span class="text-sm text-theme-secondarytextcolor whitespace-nowrap">{{ docs.filesize(v.sizeBytes) }} · {{ v.createdAt|date('d M Y, H:i') }}</span>
-                                </div>
-                                <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" data-controller="clipboard" data-clipboard-text-value="{{ v.contentHash }}">
-                                    <span class="text-[11px] font-medium uppercase tracking-wide text-theme-secondarytextcolor">Integrity fingerprint</span>
-                                    <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor whitespace-nowrap">{{ v.contentHash|slice(0, 10) }}…{{ v.contentHash|slice(-6) }}</code>
-                                    <button type="button" data-action="clipboard#copy"
-                                            class="inline-flex items-center gap-1 text-xs font-medium text-theme-secondarytextcolor hover:text-theme-headings cursor-pointer">
-                                        <i class="ti ti-copy text-sm leading-none" aria-hidden="true"></i>
-                                        Copy
-                                    </button>
-                                    <span data-clipboard-target="feedback" hidden class="text-xs font-medium text-success-600">Copied!</span>
-                                </div>
-                            </div>
-                        </div>
-                        <a href="{{ path('app_document_version_download', {id: document.id, number: v.versionNumber}) }}" data-turbo="false"
-                           class="btn btn-sm btn-primary inline-flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0">
-                            <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
-                            Download
-                        </a>
-                    </li>
-                {% endfor %}
-            </ul>
-        </div>
-        <p class="mt-3 text-xs text-theme-secondarytextcolor">Every version is kept. The original and each future signed copy for a complete, tamper-evident record.</p>
     </div>
 
-    {# ── delivery receipts ──────────────────────────────────────────────── #}
-    {# Reached through a Twig function, like the signing panel above it: the
-       Document module does not depend on Receipt. #}
-    {% set receipts = document_receipts(document) %}
-    {% if receipts is not empty %}
-        <div class="mt-6">
-            <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Delivery receipts</h2>
-            <div class="card !mb-0 overflow-hidden !bg-white/90">
-                <ul class="divide-y divide-theme-border/60">
-                    {% for receipt in receipts %}
-                        <li class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-x-4">
-                            <div class="flex min-w-0 flex-1 items-start gap-3">
-                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
-                                    <i class="ti ti-receipt text-base leading-none" aria-hidden="true"></i>
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-semibold text-theme-headings">Sealed {{ receipt.sealedAt|date('d M Y, H:i') }}</p>
-                                    <p class="mt-0.5 text-xs text-theme-secondarytextcolor">Outcome: {{ receipt.outcome.label }} · {{ docs.filesize(receipt.sizeBytes) }}</p>
-                                </div>
-                            </div>
-                            <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
-                               class="btn btn-sm btn-outline-secondary inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto">
-                                <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
-                                Download
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <p class="mt-3 text-xs text-theme-secondarytextcolor">Sigil's sealed record of who the document reached, when, and what became of it.</p>
-        </div>
+    {# ── tabs ───────────────────────────────────────────────────────────── #}
+    {% set tabs = {
+        'overview': {label: 'Overview', count: 0},
+        'versions': {label: 'Versions', count: document.versions|length},
+        'history':  {label: 'History',  count: closedRequest ? 1 : 0},
+        'receipts': {label: 'Receipts', count: receipts|length},
+    } %}
+    <div class="mb-5 mt-6 flex items-center gap-6 overflow-x-auto border-b border-theme-border">
+        {% for key, meta in tabs %}
+            <a href="{{ path('app_document_show', key == 'overview' ? {id: document.id} : {id: document.id, tab: key}) }}"
+               class="inline-flex shrink-0 items-center gap-2 pb-3 text-sm font-semibold {{ tab == key
+                   ? 'border-b-2 border-primary-500 text-primary-500'
+                   : 'text-theme-secondarytextcolor hover:text-theme-headings' }}">
+                {{ meta.label }}
+                {% if meta.count %}
+                    <span class="rounded-full bg-theme-activebg px-2 py-0.5 text-[11px] font-bold text-theme-secondarytextcolor">{{ meta.count }}</span>
+                {% endif %}
+            </a>
+        {% endfor %}
+    </div>
+
+    {% if tab == 'versions' %}
+        {{ include('documents/_tab_versions.html.twig') }}
+    {% elseif tab == 'history' %}
+        {{ include('documents/_tab_history.html.twig', {request: closedRequest}) }}
+    {% elseif tab == 'receipts' %}
+        {{ include('documents/_tab_receipts.html.twig') }}
+    {% else %}
+        {{ include('documents/_tab_overview.html.twig') }}
     {% endif %}
 </div>
 {% endblock %}

@@ -1,0 +1,50 @@
+{#
+    Sigil's sealed record of what happened to this document and who it reached.
+
+    Reached through a Twig function, like every other cross-module panel: the
+    Document module does not depend on Receipt. The list is already filtered to
+    what this user may read - the grants are the access list.
+
+    Context: document, receipts.
+#}
+{% import 'documents/_macros.html.twig' as docs %}
+{% import 'signing/_macros.html.twig' as signing %}
+
+{% if receipts is empty %}
+    {{ signing.empty('ti-receipt', 'No receipts yet', 'A receipt is sealed when a signature request closes or a delivery is made. Neither has happened to this document yet.') }}
+{% else %}
+    <p class="mb-4 max-w-2xl text-sm text-theme-secondarytextcolor">
+        A receipt outlives the document it describes, including one that was destroyed. It names who the
+        document reached, when, and how it ended, and it is sealed with Sigil's own certificate.
+    </p>
+
+    <div class="card !mb-0 overflow-hidden !bg-white/90">
+        <ul class="divide-y divide-theme-border/60">
+            {% for receipt in receipts %}
+                <li class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-x-4">
+                    <div class="flex min-w-0 flex-1 items-start gap-3">
+                        <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
+                            <i class="ti ti-receipt text-base leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-theme-headings">
+                                {{ receipt.source.isDelivery ? 'Delivery' : 'Signature request' }} · {{ receipt.outcome.label|lower }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                                Sealed {{ receipt.sealedAt|date('d M Y, H:i') }} · {{ docs.filesize(receipt.sizeBytes) }}
+                            </p>
+                        </div>
+                    </div>
+                    <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+                       class="btn btn-sm btn-outline-secondary inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto">
+                        <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
+                        Download
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    <p class="mt-3 text-xs text-theme-secondarytextcolor">
+        All receipts, across every document, are listed under <a href="{{ path('app_receipts') }}" class="font-semibold text-primary-500 hover:underline">Receipts</a>.
+    </p>
+{% endif %}

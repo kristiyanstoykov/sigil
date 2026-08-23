@@ -14,7 +14,7 @@
     {% set style = {
         'completed': {classes: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check'},
         'declined':  {classes: 'bg-danger-500/10 text-danger-600',   icon: 'ti-ban'},
-        'expired':   {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-clock-x'},
+        'expired':   {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-alert-triangle'},
         'cancelled': {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-arrow-back-up'},
         'pending':   {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-clock'},
     }[status.value] %}
@@ -39,19 +39,32 @@
     </div>
 {% endmacro %}
 
-{# Due date with a countdown, coloured by how little time is left. #}
+{#
+    Due date with a countdown, coloured by how little time is left.
+
+    daysLeft counts calendar days between the two dates, not 24-hour blocks: a
+    deadline is minted as "now + N days" and read minutes or hours later, so
+    elapsed-time maths floors a 3-day deadline to "in 2 days" while the date
+    printed right beside it still says the third day. Rounded because a DST
+    change makes one of those days 23 or 25 hours long. (An inline expression
+    rather than a shared macro - a Twig macro returns Markup, which compares as
+    0 against an integer.)
+#}
 {% macro due(deadline, loud) %}
-    {% set daysLeft = ((deadline.timestamp - "now"|date('U')) / 86400)|round(0, 'floor') %}
+    {% set daysLeft = ((deadline|date('Y-m-d')|date('U') - "now"|date('Y-m-d')|date('U')) / 86400)|round %}
+    {# Overdue is the clock, not the calendar: a deadline at 09:00 has passed by
+       lunchtime, while the calendar still calls it today. #}
+    {% set overdue = deadline.timestamp < "now"|date('U') %}
     {% set tone = not loud
         ? 'text-theme-secondarytextcolor'
-        : (daysLeft <= 1 ? 'text-danger-600' : (daysLeft <= 3 ? 'text-warning-600' : 'text-primary-500')) %}
+        : (overdue or daysLeft <= 1 ? 'text-danger-600' : (daysLeft <= 3 ? 'text-warning-600' : 'text-primary-500')) %}
     <div class="min-w-0">
         <div class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Due</div>
         <div class="mt-0.5 text-sm font-bold {{ tone }}">
             {{ deadline|date('d M Y') }}
             {%- if loud %}
                 <span class="font-semibold">
-                    · {% if daysLeft < 0 %}overdue{% elseif daysLeft == 0 %}today{% elseif daysLeft == 1 %}tomorrow{% else %}in {{ daysLeft }} days{% endif %}
+                    · {% if overdue %}overdue{% elseif daysLeft == 0 %}today{% elseif daysLeft == 1 %}tomorrow{% else %}in {{ daysLeft }} days{% endif %}
                 </span>
             {%- endif %}
         </div>
@@ -117,4 +130,130 @@
             {{ request.status.label }}{% if request.closedAt %} on {{ request.closedAt|date('d M Y') }}{% endif %}.
         {% endif %}
     </p>
+{% endmacro %}
+
+{#
+    A closed (or open) request as a vertical timeline: who was asked, what each
+    of them did, and how it ended. Built from the request's own rows rather than
+    the audit log - the signer carries signedAt/declinedAt and the version it
+    produced, which is exactly the story.
+
+    `heading` is false on the document page, where the header card has already
+    said which document this is. `subtitle` carries the viewer's own role, which
+    a macro cannot work out for itself.
+#}
+{% macro request_timeline(request, heading = true, subtitle = null) %}
+    {% import 'signing/_macros.html.twig' as signing %}
+    {% set total = request.signers|length %}
+    {% set declined = request.declinedBy %}
+    {% set ordered = request.orderedSigners %}
+
+    <div class="card !mb-0 overflow-hidden !bg-white/90">
+        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-theme-border/60 p-5">
+            <div class="min-w-0">
+                <p class="text-sm font-bold text-theme-headings">
+                    {{ heading ? request.document.title : 'Signature request' }}
+                </p>
+                <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                    {{ subtitle ?? 'Sent to ' ~ total ~ ' signer' ~ (total == 1 ? '' : 's') }} ·
+                    deadline {{ request.isPending ? '' : 'was ' }}{{ request.deadline|date('d M Y') }}
+                </p>
+            </div>
+            {{ signing.outcome_badge(request.status) }}
+        </div>
+
+        <ol class="divide-y divide-theme-border/60">
+            {# 1. sent #}
+            <li class="flex gap-3 p-5">
+                <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
+                    <i class="ti ti-send text-sm leading-none" aria-hidden="true"></i>
+                </span>
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-theme-headings">Request sent to {{ total }} signer{{ total == 1 ? '' : 's' }}</p>
+                    <p class="mt-0.5 font-mono text-xs text-theme-secondarytextcolor">{{ request.createdAt|date('d M Y, H:i') }}</p>
+                    <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                        {% for signer in ordered %}{{ signer.user.fullName }}{% if not loop.last %}, then {% endif %}{% endfor %}.
+                        {{ total == 1 ? 'They were' : 'Every one of them was' }} checked for a verified account
+                        and a usable certificate at this moment.
+                    </p>
+                </div>
+            </li>
+
+            {# 2. what each signer did, in queue order - which is also time order #}
+            {% for signer in ordered %}
+                {% if signer.hasSigned %}
+                    <li class="flex gap-3 p-5">
+                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success-500/10 text-success-600">
+                            <i class="ti ti-circle-check text-sm leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-theme-headings">{{ signer.user.fullName }} signed</p>
+                            <p class="mt-0.5 font-mono text-xs text-theme-secondarytextcolor">{{ signer.signedAt|date('d M Y, H:i:s') }}</p>
+                            <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                                Signer {{ signer.position }} of {{ total }}{% if signer.version %} · produced v{{ signer.version.versionNumber }}{% endif %}.
+                                {% if not loop.last %}The turn passed on, and only then could the next signer decrypt the document.{% endif %}
+                            </p>
+                        </div>
+                    </li>
+                {% elseif signer.declinedAt %}
+                    <li class="flex gap-3 p-5">
+                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger-500/10 text-danger-600">
+                            <i class="ti ti-ban text-sm leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-theme-headings">{{ signer.user.fullName }} declined</p>
+                            <p class="mt-0.5 font-mono text-xs text-theme-secondarytextcolor">{{ signer.declinedAt|date('d M Y, H:i:s') }}</p>
+                            <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                                Signer {{ signer.position }} of {{ total }}. Nobody after them was asked, and nobody after them ever held a key.
+                            </p>
+                            {% if signer.declineReason %}
+                                <p class="mt-2 rounded-lg bg-danger-500/[0.06] px-3 py-2 text-xs italic leading-relaxed text-theme-bodycolor">
+                                    "{{ signer.declineReason }}"
+                                </p>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {# 3. nobody at all - the expiry that destroys the file #}
+            {% if not request.hasAnySignature and not declined and not request.isPending %}
+                <li class="flex gap-3 p-5">
+                    <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-theme-activebg text-theme-secondarytextcolor">
+                        <i class="ti ti-clock text-sm leading-none" aria-hidden="true"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-theme-headings">Nobody signed</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                            The turn never left signer 1, so nobody behind them was ever handed the document.
+                        </p>
+                    </div>
+                </li>
+            {% endif %}
+
+            {# 4. how it closed #}
+            {% if not request.isPending %}
+                {% set closing = {
+                    'completed': {icon: 'ti-circle-check', classes: 'bg-success-500/10 text-success-600', title: 'Closed as completed · receipt sealed', body: 'Everyone on the list signed. The receipt names the audience as sent, and the request cannot be re-opened or re-sent.'},
+                    'declined':  {icon: 'ti-ban', classes: 'bg-danger-500/10 text-danger-600', title: 'Closed as declined · receipt sealed', body: 'A refusal closes the whole queue. Signatures already collected are kept as versions of the document.'},
+                    'expired':   {icon: 'ti-alert-triangle', classes: 'bg-warning-500/10 text-warning-600', title: 'Deadline passed · request expired', body: 'With at least one signature the document is kept and marked Expired. With none at all it is destroyed, and the receipt is the only surviving record.'},
+                    'cancelled': {icon: 'ti-arrow-back-up', classes: 'bg-theme-activebg text-theme-secondarytextcolor', title: 'Withdrawn · receipt sealed', body: 'The sender closed their own request. Whoever held the turn lost access; signatures already made were kept.'},
+                }[request.status.value] %}
+                {% if closing %}
+                    <li class="flex gap-3 p-5">
+                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full {{ closing.classes }}">
+                            <i class="ti {{ closing.icon }} text-sm leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-theme-headings">{{ closing.title }}</p>
+                            {% if request.closedAt %}
+                                <p class="mt-0.5 font-mono text-xs text-theme-secondarytextcolor">{{ request.closedAt|date('d M Y, H:i:s') }}</p>
+                            {% endif %}
+                            <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">{{ closing.body }}</p>
+                        </div>
+                    </li>
+                {% endif %}
+            {% endif %}
+        </ol>
+    </div>
 {% endmacro %}

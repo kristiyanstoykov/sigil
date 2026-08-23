@@ -9,6 +9,7 @@ use App\Core\Entity\User;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Service\DocumentUploader;
 use App\Document\Service\DocumentVersionWriter;
+use App\Signing\Service\SigningRequestService;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -119,7 +120,7 @@ final class PageSnapshotTest extends AuthWebTestCase
         $this->snapshot('documents_list');
     }
 
-    /** The document page's "What next" row: three cards, side by side. */
+    /** The document page's action list: three rows, spent ones still present. */
     public function testDocumentPageIsSnapshotted(): void
     {
         $email = $this->uniqueEmail('snapshotdoc');
@@ -133,11 +134,11 @@ final class PageSnapshotTest extends AuthWebTestCase
 
         $this->client->request('GET', '/documents/'.$documentId);
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('What next', $this->client->getResponse()->getContent() ?: '');
+        self::assertStringContainsString('What can still happen', $this->client->getResponse()->getContent() ?: '');
         $this->snapshot('document_show');
     }
 
-    /** Once it is signed the purpose card is gone - the question is answered. */
+    /** Once it is signed, self-signing reads as spent and delivery is the way on. */
     public function testSignedDocumentPageDropsThePurposeCard(): void
     {
         $email = $this->uniqueEmail('snapshotsigned');
@@ -160,10 +161,11 @@ final class PageSnapshotTest extends AuthWebTestCase
         self::assertResponseIsSuccessful();
         $html = (string) $this->client->getResponse()->getContent();
         self::assertStringNotContainsString("Decide what it's for", $html);
-        self::assertStringNotContainsString('Its purpose is settled', $html);
-        // The other two stay: a signed document can still be sent on or served.
-        self::assertStringContainsString('Ask other people to sign this', $html);
-        self::assertStringContainsString('Serve this on someone', $html);
+        // Signing yourself is spent for good, so its row is gone entirely.
+        self::assertStringNotContainsString('Sign it yourself', $html);
+        // The other two remain: a signed document can still be sent on or served.
+        self::assertStringContainsString('Ask other people to sign', $html);
+        self::assertStringContainsString('Deliver it', $html);
         $this->snapshot('document_show_signed');
     }
 
@@ -182,6 +184,51 @@ final class PageSnapshotTest extends AuthWebTestCase
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Needs a usable certificate', $this->client->getResponse()->getContent() ?: '');
         $this->snapshot('documents_sign_no_certificate');
+    }
+
+    /**
+     * A document out for signature: the queue on Overview, and every action in
+     * "What can still happen" spent at once - the state the action list exists
+     * for.
+     */
+    public function testDocumentPageWithAnOpenRequestIsSnapshotted(): void
+    {
+        $ownerEmail = $this->uniqueEmail('snapshotpending-owner');
+        $owner = $this->createUser($ownerEmail, verified: true, totpEnabled: true);
+        $signer = $this->createUser($this->uniqueEmail('snapshotpending-signer'), verified: true, totpEnabled: true);
+        $this->makeCertificate($signer);
+
+        $document = static::getContainer()->get(DocumentUploader::class)
+            ->upload($owner, self::MINIMAL_PDF, 'Framework contract.pdf');
+        static::getContainer()->get(SigningRequestService::class)
+            ->create($document, $owner, [$signer], new \DateTimeImmutable('+7 days'));
+
+        $documentId = $document->getId()->toRfc4122();
+        $this->loginFully($ownerEmail);
+
+        $this->client->request('GET', '/documents/'.$documentId);
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Signing order', $html);
+        // Signing and delivery are blocked, not spent - they come back when the
+        // request closes - so both rows stay and say when.
+        self::assertStringContainsString('Signing is the queue', $html);
+        self::assertStringContainsString('Not yet', $html);
+        // The request itself is spent the moment it is sent: one per document.
+        self::assertStringNotContainsString('Ask other people to sign', $html);
+        $this->snapshot('document_show_pending');
+
+        // History is the same request told as a timeline, and it exists from
+        // the moment the request is sent.
+        $this->client->request('GET', '/documents/'.$documentId.'?tab=history');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Request sent to 1 signer', (string) $this->client->getResponse()->getContent());
+        $this->snapshot('document_show_history');
+
+        $this->client->request('GET', '/documents/'.$documentId.'?tab=versions');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Integrity fingerprint', (string) $this->client->getResponse()->getContent());
+        $this->snapshot('document_show_versions');
     }
 
     /** A renderable certificate - nothing here touches a real token. */

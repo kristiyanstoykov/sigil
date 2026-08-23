@@ -33,7 +33,8 @@
             {{ docs.doc_status_badge(document_status(document)) }}
         </div>
         <p class="mt-2 text-sm text-theme-secondarytextcolor">
-            One of these four. A document carries one signature request for its whole life, so this is a decision rather than a menu.
+            Asked once, right after upload: it decides which of the three paths this file takes. A document
+            carries one signature request for its whole life, so this is a decision rather than a menu.
         </p>
 
         <div class="mt-4 space-y-2.5">
@@ -43,8 +44,8 @@
                     <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-signature text-xl leading-none" aria-hidden="true"></i></span>
                     <span class="min-w-0">
                         <span class="block text-sm font-bold text-theme-headings">I sign it myself</span>
-                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Certificate and PIN, without leaving this page.</span>
-                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">One step · Nobody else involved</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Certificate and PIN, now. One signature, one new version.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Ends as Signed · delivery still open</span>
                     </span>
                 </span>
             </label>
@@ -60,9 +61,9 @@
                 <span class="flex items-start gap-3">
                     <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-users text-xl leading-none" aria-hidden="true"></i></span>
                     <span class="min-w-0">
-                        <span class="block text-sm font-bold text-theme-headings">Others sign, and I sign too</span>
-                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">An ordered queue that includes you. You choose the order.</span>
-                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Ordered · 7-day deadline · Can be declined</span>
+                        <span class="block text-sm font-bold text-theme-headings">Others sign it, then I do</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">You go last on the ordered list. Nobody can jump the queue.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">One request per document, ever</span>
                     </span>
                 </span>
             </label>
@@ -77,9 +78,9 @@
                 <span class="flex items-start gap-3">
                     <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-send text-xl leading-none" aria-hidden="true"></i></span>
                     <span class="min-w-0">
-                        <span class="block text-sm font-bold text-theme-headings">Others sign, I don't</span>
-                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">The same ordered queue, without your signature.</span>
-                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Ordered · 7-day deadline · Can be declined</span>
+                        <span class="block text-sm font-bold text-theme-headings">Others sign it, I do not</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">You send it and wait. Your name is not on the list.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">One request per document, ever</span>
                     </span>
                 </span>
             </label>
@@ -93,18 +94,22 @@
             <label for="pp-deliver"
                    class="block cursor-pointer rounded-lg border border-theme-border p-4 transition-colors hover:bg-theme-activebg group-has-[#pp-deliver:checked]:border-primary-500 group-has-[#pp-deliver:checked]:bg-primary-500/[0.04]">
                 <span class="flex items-start gap-3">
-                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-mail-forward text-xl leading-none" aria-hidden="true"></i></span>
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info-500/10 text-info-600"><i class="ti ti-mail-forward text-xl leading-none" aria-hidden="true"></i></span>
                     <span class="min-w-0">
-                        <span class="block text-sm font-bold text-theme-headings">Deliver it</span>
-                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Serve the document on people, registered-mail style.</span>
-                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Nothing asked · Cannot be refused · Final</span>
+                        <span class="block text-sm font-bold text-theme-headings">I deliver it to people</span>
+                        <span class="mt-0.5 block text-sm text-theme-secondarytextcolor">Registered mail. Nothing is asked of them, and nothing follows it.</span>
+                        <span class="mt-1.5 block text-[11px] font-semibold uppercase tracking-wide text-theme-secondarytextcolor">Terminal · cannot be undone</span>
                     </span>
                 </span>
             </label>
         </div>
 
-        <p class="mt-4 text-center text-xs text-theme-secondarytextcolor group-has-[#pp-self:checked]:hidden group-has-[#pp-then:checked]:hidden group-has-[#pp-only:checked]:hidden group-has-[#pp-deliver:checked]:hidden">
-            Choose what this document is for to continue.
+        <p class="mt-4 flex items-start gap-2 text-xs leading-relaxed text-theme-secondarytextcolor group-has-[#pp-self:checked]:hidden group-has-[#pp-then:checked]:hidden group-has-[#pp-only:checked]:hidden group-has-[#pp-deliver:checked]:hidden">
+            <i class="ti ti-info-circle mt-px text-sm leading-none" aria-hidden="true"></i>
+            <span>
+                Choosing opens the next step; you are not committing to anything yet, and you can still leave it.
+                But a signature request, once sent, is the only one this document ever gets.
+            </span>
         </p>
     </div>
 

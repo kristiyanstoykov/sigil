@@ -133,7 +133,7 @@ final class SigningRequestWebTest extends AuthWebTestCase
         $crawler = $this->client->request('GET', '/documents/'.$documentId);
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Declined', $crawler->html());
-        self::assertStringContainsString('already been through a signature request', $crawler->html());
+        self::assertStringNotContainsString('Ask other people to sign', $crawler->html());
         self::assertSame(0, $crawler->filter('a[href$="/request"]')->count());
 
         $this->client->request('GET', '/documents/'.$documentId.'/request');

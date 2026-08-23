@@ -65,17 +65,21 @@ final class DocumentWebTest extends AuthWebTestCase
         self::assertResponseIsSuccessful();
         $show = (string) $this->client->getResponse()->getContent();
         self::assertStringContainsString('Contract.pdf', $show);
-        self::assertStringContainsString('Integrity fingerprint', $show);
 
         // An unsigned document reads as unfinished, and every way out is shown
-        // in the "What next" row: decide its purpose on the sign page, send it
-        // for signature, or deliver it. A blocked action stays visible and says
-        // why rather than disappearing.
-        self::assertStringContainsString('What next', $show);
+        // in "What can still happen": sign it, send it for signature, deliver
+        // it. A blocked action stays visible and says why rather than
+        // disappearing.
+        self::assertStringContainsString('What can still happen', $show);
         self::assertStringContainsString("Decide what it's for", $show);
         self::assertStringContainsString('Request signatures', $show);
         self::assertStringContainsString($showUrl.'/sign', $show);
         self::assertStringContainsString($showUrl.'/request', $show);
+
+        // The record itself lives in the other tabs.
+        $this->client->request('GET', $showUrl.'?tab=versions');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Integrity fingerprint', (string) $this->client->getResponse()->getContent());
 
         // List now shows the document, badged Draft.
         $this->client->request('GET', '/documents');

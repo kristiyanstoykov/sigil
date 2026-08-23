@@ -36,7 +36,7 @@ final class DeliveryWebTest extends AuthWebTestCase
         // of asking for a signature.
         $crawler = $this->client->request('GET', '/documents/'.$id);
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('Serve this on someone', $crawler->html());
+        self::assertStringContainsString('Deliver it', $crawler->html());
 
         $crawler = $this->client->request('GET', '/documents/'.$id.'/deliver');
         self::assertResponseIsSuccessful();

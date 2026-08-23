@@ -58,6 +58,14 @@
                     </span>
                 </label>
                 <p data-documents-upload-target="error" class="mt-2 hidden text-sm font-medium text-danger-500"></p>
+
+                {# Uploading commits to nothing: the purpose question comes next,
+                   and it is the first step that can. #}
+                <p class="mt-4 rounded-lg border border-theme-border bg-theme-activebg/60 px-3 py-2.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                    <strong class="text-theme-headings">What happens next.</strong>
+                    The file is encrypted, stored as v1, and you are asked once what it is for.
+                    Nothing is signed or sent until you answer that.
+                </p>
             </div>
 
             <div class="flex justify-end gap-3 border-t border-theme-border p-5">

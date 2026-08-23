@@ -1,0 +1,63 @@
+{#
+    Every version, newest first. Nothing is ever replaced: a signature appends.
+
+    Context: document.
+#}
+{% import 'documents/_macros.html.twig' as docs %}
+{% set signatures = document_signatures(document) %}
+
+{# Which signer produced which version, so a row can say so by name. #}
+{% set signedBy = {} %}
+{% for signature in signatures %}
+    {% set signedBy = signedBy|merge({(signature.versionNumber): signature}) %}
+{% endfor %}
+
+<p class="mb-4 max-w-2xl text-sm text-theme-secondarytextcolor">
+    Every version is kept: the original, and one per signature. Each is downloadable on its own, and each
+    carries the fingerprint of the exact bytes that were signed.
+</p>
+
+<div class="card !mb-0 overflow-hidden !bg-white/90">
+    <ul class="divide-y divide-theme-border/60">
+        {% for v in document.versions|reverse %}
+            {# Stacks on mobile (badge row, fingerprint row, then a full-width
+               download button); from sm: single row with the button at the end. #}
+            <li class="p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-x-4">
+                <div class="flex min-w-0 flex-1 items-start gap-3">
+                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500/10 text-xs font-bold text-primary-500">v{{ v.versionNumber }}</span>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {{ docs.status_badge(v.kind) }}
+                            <span class="text-sm text-theme-secondarytextcolor whitespace-nowrap">{{ docs.filesize(v.sizeBytes) }} · {{ v.createdAt|date('d M Y, H:i') }}</span>
+                        </div>
+                        <p class="mt-1 text-xs text-theme-secondarytextcolor">
+                            {%- if signedBy[v.versionNumber] is defined -%}
+                                Signed by {{ signedBy[v.versionNumber].user.fullName }}
+                            {%- elseif v.versionNumber == 1 -%}
+                                Uploaded by {{ document.owner.fullName }}
+                            {%- else -%}
+                                Signed version
+                            {%- endif -%}
+                        </p>
+                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" data-controller="clipboard" data-clipboard-text-value="{{ v.contentHash }}">
+                            <span class="text-[11px] font-medium uppercase tracking-wide text-theme-secondarytextcolor">Integrity fingerprint</span>
+                            <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor whitespace-nowrap">{{ v.contentHash|slice(0, 10) }}…{{ v.contentHash|slice(-6) }}</code>
+                            <button type="button" data-action="clipboard#copy"
+                                    class="inline-flex items-center gap-1 text-xs font-medium text-theme-secondarytextcolor hover:text-theme-headings cursor-pointer">
+                                <i class="ti ti-copy text-sm leading-none" aria-hidden="true"></i>
+                                Copy
+                            </button>
+                            <span data-clipboard-target="feedback" hidden class="text-xs font-medium text-success-600">Copied!</span>
+                        </div>
+                    </div>
+                </div>
+                <a href="{{ path('app_document_version_download', {id: document.id, number: v.versionNumber}) }}" data-turbo="false"
+                   class="btn btn-sm btn-primary inline-flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0">
+                    <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
+                    Download
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+<p class="mt-3 text-xs text-theme-secondarytextcolor">Nothing is ever replaced. A signature appends; it does not overwrite.</p>

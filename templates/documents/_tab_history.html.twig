@@ -1,0 +1,36 @@
+{#
+    The signature request this document had, in full. One request per document
+    means there is at most one of these, and it is the whole story of who was
+    asked, what they did, and how it ended.
+
+    Context: document, request (may be null).
+#}
+{% import 'signing/_macros.html.twig' as signing %}
+
+{% if request is null %}
+    {{ signing.empty('ti-clock', 'Nothing has been asked of anyone', 'A document gets one signature request in its life. This one has not had it - so there is no history to show yet.') }}
+{% else %}
+    <p class="mb-4 max-w-2xl text-sm text-theme-secondarytextcolor">
+        {% if request.isPending %}
+            The request is still open. Each turn is added here as it happens.
+        {% else %}
+            Closed, and sealed into a receipt. The order below is the order the queue ran in.
+        {% endif %}
+    </p>
+
+    {{ signing.request_timeline(request, false) }}
+
+    {% set receipt = request_receipt(request) %}
+    {% if receipt %}
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-theme-border bg-theme-bodybg/70 px-4 py-3">
+            <p class="text-xs leading-relaxed text-theme-secondarytextcolor">
+                The sealed extract of this request: who it reached, when, and the outcome it closed with.
+            </p>
+            <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+               class="btn btn-sm btn-outline-secondary inline-flex shrink-0 items-center gap-1.5">
+                <i class="ti ti-receipt text-sm leading-none" aria-hidden="true"></i>
+                Open the receipt
+            </a>
+        </div>
+    {% endif %}
+{% endif %}

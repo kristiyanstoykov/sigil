@@ -1,0 +1,104 @@
+{#
+    The three things an owner can do with a document: sign it, ask others to
+    sign it, deliver it. (Decline belongs to a signer, withdraw to the inbox.)
+
+    Each row is available, blocked or spent, and the three differ:
+
+      available - a button
+      blocked   - the row stays, disabled, saying why. Temporary: an open
+                  request blocks signing and delivery, and closing it opens
+                  them again
+      spent     - the row is gone. Permanent: you have signed it, the document
+                  has had its one signature request, it has been delivered
+
+    A document where all three are spent shows nothing here - the banner above
+    has already said it is finished.
+
+    Context: document, status, isOwner, signingRequest.
+#}
+{% set canRequest = can_request_signatures(document) %}
+{% set delivered = status.delivered %}
+{% set pending = signingRequest is not null %}
+
+{% set actions = [
+    {
+        icon: 'ti-signature',
+        tone: 'primary',
+        title: 'Sign it yourself',
+        spent: delivered or document.isSigned,
+        blocked: pending,
+        body: 'A qualified signature is added as a new version. You can still deliver it afterwards.',
+        blockedBody: 'Not while a request is out. You sign only if you are on the list, and then from the queue.',
+        blockedLabel: 'Signing is the queue',
+        href: path('app_document_sign', {id: document.id, purpose: 'self'}),
+        label: 'Sign',
+    },
+    {
+        icon: 'ti-send',
+        tone: 'primary',
+        title: 'Ask other people to sign',
+        spent: delivered or not canRequest,
+        blocked: false,
+        body: 'An ordered queue with a deadline. One request per document, ever - so this is the only time it is offered.',
+        blockedBody: '',
+        blockedLabel: '',
+        href: path('app_signing_request_new', {id: document.id}),
+        label: 'Request signatures',
+    },
+    {
+        icon: 'ti-mail-forward',
+        tone: 'info',
+        title: 'Deliver it',
+        spent: delivered,
+        blocked: pending,
+        body: 'Registered mail: nothing is asked of the recipients, and nothing follows a delivery.',
+        blockedBody: 'Each signature makes a new version, so delivery waits until the request closes.',
+        blockedLabel: 'Not yet',
+        href: path('app_delivery_new', {id: document.id}),
+        label: 'Deliver',
+    },
+] %}
+
+{% set shown = actions|filter(a => not a.spent) %}
+{% set openCount = shown|filter(a => not a.blocked)|length %}
+
+{% if shown|length %}
+    <div class="mt-6">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">What can still happen</h2>
+        <div class="card !mb-0 overflow-hidden !bg-white/90">
+            <ul class="divide-y divide-theme-border/60">
+                {% for action in shown %}
+                    <li class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
+                        <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ action.blocked
+                            ? 'bg-theme-activebg text-theme-secondarytextcolor'
+                            : (action.tone == 'info' ? 'bg-info-500/10 text-info-600' : 'bg-primary-500/10 text-primary-500') }}">
+                            <i class="ti {{ action.icon }} text-xl leading-none" aria-hidden="true"></i>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-bold text-theme-headings">{{ action.title }}</span>
+                            <span class="block text-sm text-theme-secondarytextcolor">{{ action.blocked ? action.blockedBody : action.body }}</span>
+                        </span>
+                        {% if action.blocked %}
+                            <button type="button" disabled aria-disabled="true" title="{{ action.blockedBody }}"
+                                    class="btn btn-sm btn-primary disabled inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto">
+                                {{ action.blockedLabel }}
+                            </button>
+                        {% else %}
+                            {# Delivery is the quieter button while there is anything
+                               else to do - it ends the document - and the loud one
+                               once it is the only move left. #}
+                            <a href="{{ action.href }}"
+                               class="btn btn-sm inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto {{ action.tone == 'info' and openCount > 1 ? 'btn-outline-secondary' : 'btn-primary' }}">
+                                <i class="ti {{ action.icon }} text-sm leading-none" aria-hidden="true"></i>
+                                {{ action.label }}
+                            </a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <p class="mt-3 text-xs leading-relaxed text-theme-secondarytextcolor">
+            Signatures and deliveries both seal a receipt. Receipts outlive the document they describe.
+        </p>
+    </div>
+{% endif %}

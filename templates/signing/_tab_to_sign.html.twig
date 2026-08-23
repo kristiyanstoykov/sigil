@@ -24,11 +24,13 @@
                     {% set me = request.signerFor(app.user) %}
                     {% set declineForm = declineForms[request.id] %}
                     {% set myTurn = request.isTurnOf(app.user) %}
-                    {% set daysLeft = ((request.deadline.timestamp - "now"|date('U')) / 86400)|round(0, 'floor') %}
+                    {# Calendar days, matching the countdown in signing.due(). #}
+                    {% set daysLeft = ((request.deadline|date('Y-m-d')|date('U') - "now"|date('Y-m-d')|date('U')) / 86400)|round %}
+                    {% set overdue = request.deadline.timestamp < "now"|date('U') %}
                     {# Full class strings, never interpolated: Tailwind scans for literal utilities. #}
                     {% set rail = not myTurn
                         ? 'bg-theme-border'
-                        : (daysLeft <= 1 ? 'bg-danger-500' : (daysLeft <= 3 ? 'bg-warning-500' : 'bg-primary-500')) %}
+                        : (overdue or daysLeft <= 1 ? 'bg-danger-500' : (daysLeft <= 3 ? 'bg-warning-500' : 'bg-primary-500')) %}
 
                     <div class="card !mb-0 flex overflow-hidden {{ myTurn ? '!bg-white/90' : '!bg-white/60' }}">
                         <div class="w-1.5 shrink-0 {{ rail }}"></div>
