@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Signing\Form;
 
 use App\Signing\Entity\SigningRequest;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -24,6 +25,10 @@ class CreateSigningRequestForm extends AbstractType
     public const E_SIGNERS = 'signers';
     public const E_DEADLINE_DAYS = 'deadlineDays';
 
+    public function __construct(private readonly ClockInterface $clock)
+    {
+    }
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -40,7 +45,7 @@ class CreateSigningRequestForm extends AbstractType
                 'label' => 'Sign within',
                 'mapped' => false,
                 'data' => (string) SigningRequest::DEFAULT_DEADLINE_DAYS,
-                'choices' => self::deadlineChoices(),
+                'choices' => $this->deadlineChoices(),
                 'constraints' => [
                     new NotBlank(message: 'Choose how long the signers have.'),
                 ],
@@ -48,13 +53,23 @@ class CreateSigningRequestForm extends AbstractType
     }
 
     /**
+     * Each option carries the date it lands on: "in 7 days" is a duration, and
+     * what the signers are actually given is a deadline.
+     *
      * @return array<string, string>
      */
-    private static function deadlineChoices(): array
+    private function deadlineChoices(): array
     {
+        $now = $this->clock->now();
+
         $choices = [];
         foreach ([3, 7, 14, SigningRequest::MAX_DEADLINE_DAYS] as $days) {
-            $choices[sprintf('%d days', $days)] = (string) $days;
+            $label = sprintf('%d days - %s', $days, $now->modify(sprintf('+%d days', $days))->format('d M Y'));
+            if (SigningRequest::MAX_DEADLINE_DAYS === $days) {
+                $label .= ' (maximum)';
+            }
+
+            $choices[$label] = (string) $days;
         }
 
         return $choices;

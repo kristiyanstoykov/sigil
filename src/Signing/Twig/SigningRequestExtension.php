@@ -35,6 +35,7 @@ final class SigningRequestExtension extends AbstractExtension
     {
         return [
             new TwigFunction('pending_signing_request', $this->pending(...)),
+            new TwigFunction('document_signing_request', $this->latest(...)),
             new TwigFunction('signing_cancel_form', $this->cancelForm(...)),
             new TwigFunction('signing_requests_for_me', $this->forMe(...)),
             new TwigFunction('signing_turns_for_me', $this->turnsForMe(...)),
@@ -95,6 +96,16 @@ final class SigningRequestExtension extends AbstractExtension
     public function pending(Document $document): ?SigningRequest
     {
         return $this->requests->findPendingForDocument($document);
+    }
+
+    /**
+     * The document's signature request whatever its state, for the History tab.
+     * There is at most one in a document's life, so this is the whole story of
+     * who was asked and how it ended.
+     */
+    public function latest(Document $document): ?SigningRequest
+    {
+        return $this->requests->findLatestForDocument($document);
     }
 
     public function cancelForm(Document $document): FormView

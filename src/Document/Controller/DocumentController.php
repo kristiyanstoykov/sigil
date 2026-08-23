@@ -28,6 +28,11 @@ class DocumentController extends AbstractController
     /** Symfony's generated name for UploadDocumentForm - its field prefix. */
     private const FORM_NAME = 'upload_document_form';
 
+    private const TAB_OVERVIEW = 'overview';
+
+    /** The document page's tabs, in the order they are rendered. */
+    private const TABS = [self::TAB_OVERVIEW, 'versions', 'history', 'receipts'];
+
     public function __construct(
         private readonly DocumentRepository $documents,
         private readonly DocumentKeyGrantRepository $grants,
@@ -143,9 +148,9 @@ class DocumentController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_document_show', methods: ['GET'])]
-    public function show(string $id): Response
+    public function show(string $id, Request $request): Response
     {
-        return $this->renderShow($this->readableDocument($id));
+        return $this->renderShow($this->readableDocument($id), $request);
     }
 
     #[Route('/{id}/download', name: 'app_document_download', methods: ['GET'])]
@@ -216,11 +221,17 @@ class DocumentController extends AbstractController
      * pending_signing_request / document_signatures / document_receipts): this
      * module does not depend on either of them.
      */
-    private function renderShow(Document $document): Response
+    private function renderShow(Document $document, Request $request): Response
     {
+        // Tabs by ?tab= rather than client-side toggling, like the documents
+        // list and the signing inbox: each tab is a linkable page of one
+        // document's record.
+        $tab = (string) $request->query->get('tab', self::TAB_OVERVIEW);
+
         return $this->render('documents/show.html.twig', [
             'document' => $document,
             'isOwner' => $this->isOwner($document),
+            'tab' => \in_array($tab, self::TABS, true) ? $tab : self::TAB_OVERVIEW,
         ]);
     }
 
