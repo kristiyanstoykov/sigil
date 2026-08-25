@@ -1,0 +1,19 @@
+# The live half of the notification inbox (ADR-013).
+#
+# The hub is a separate process. It cannot read the session, the database or a
+# User, so authorization has to travel with the request in a form it can verify
+# on its own: a JWT the app signs with a key both sides hold. The app's own
+# publish token is minted from this config; the per-user subscribe token is
+# minted per response by MercureCookieSubscriber.
+mercure:
+    hubs:
+        default:
+            # url is where the app POSTs (container-internal); public_url is what
+            # the browser opens an EventSource to. They differ under Docker.
+            url: '%env(MERCURE_URL)%'
+            public_url: '%env(MERCURE_PUBLIC_URL)%'
+            jwt:
+                secret: '%env(MERCURE_JWT_SECRET)%'
+                # The app may announce on any topic. Subscribers may not - each
+                # gets exactly their own inbox topic and nothing else.
+                publish: ['*']

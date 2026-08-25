@@ -14,23 +14,53 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class AuditLogEntryRepository extends ServiceEntityRepository
 {
+    /**
+     * Advisory lock key for the chain: "SIGAUD" as bytes. Arbitrary but fixed -
+     * every appender has to name the same number or they do not exclude one
+     * another.
+     */
+    public const int CHAIN_LOCK_KEY = 0x534947415544;
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, AuditLogEntry::class);
     }
 
     /**
-     * Last entry in the chain, locked against concurrent appends.
-     * Must be called inside an open transaction.
+     * Serialises appends to the chain. Must be taken before reading the head,
+     * inside the transaction that will write the next entry.
+     *
+     * A row lock on the head cannot do this, which is what the code used to try.
+     * Under READ COMMITTED a second transaction blocks on the locked row, then
+     * continues with the result set it had already computed - so it still
+     * believes the old head is current and inserts a duplicate sequence. The
+     * lock has to cover the *gap* where the next row will go, and there is no
+     * row there to lock, so it is taken on the chain as a whole. It also covers
+     * the empty-table case, where there is no head to lock at all.
+     *
+     * Transaction-scoped: Postgres releases it on commit or rollback, so there
+     * is no unlock path that can leak one. If a caller already had a transaction
+     * open, that is the one it is held to.
      */
-    public function findChainHeadForUpdate(): ?AuditLogEntry
+    public function lockChainForAppend(): void
+    {
+        $this->getEntityManager()->getConnection()->executeStatement(
+            'SELECT pg_advisory_xact_lock(?)',
+            [self::CHAIN_LOCK_KEY],
+        );
+    }
+
+    /**
+     * Last entry in the chain. Call {@see lockChainForAppend()} first when the
+     * answer is about to be used to compute the next sequence.
+     */
+    public function findChainHead(): ?AuditLogEntry
     {
         /** @var AuditLogEntry|null */
         return $this->getEntityManager()->createQuery(
             'SELECT e FROM '.AuditLogEntry::class.' e ORDER BY e.sequence DESC'
         )
             ->setMaxResults(1)
-            ->setLockMode(\Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE)
             ->getOneOrNullResult();
     }
 

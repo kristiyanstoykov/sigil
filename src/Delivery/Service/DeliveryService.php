@@ -29,7 +29,6 @@ final class DeliveryService
     public function __construct(
         private readonly RecipientEligibility $eligibility,
         private readonly DocumentSharer $sharer,
-        private readonly DeliveryNotifier $notifier,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly ClockInterface $clock,
         private readonly EventDispatcherInterface $events,
@@ -121,8 +120,6 @@ final class DeliveryService
                 subjectType: 'Document',
                 subjectId: $document->getId()->toRfc4122(),
             );
-
-            $this->notifier->notifyServed($delivery, $recipient);
         }
 
         $this->events->dispatch(new DocumentDelivered($delivery));

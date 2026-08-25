@@ -28,11 +28,7 @@
             <ul class="inline-flex *:min-h-header-height *:inline-flex *:items-center">
                 {% block header_right %}{% endblock %}
 
-                <li class="pc-h-item">
-                    <span class="pc-head-link me-2 cursor-default" title="Notifications - coming soon">
-                        <i class="ti ti-bell"></i>
-                    </span>
-                </li>
+                {{ include('notification/_bell.html.twig') }}
 
                 <li class="dropdown pc-h-item">
                     <a class="pc-head-link dropdown-toggle me-0" data-pc-toggle="dropdown" href="#"

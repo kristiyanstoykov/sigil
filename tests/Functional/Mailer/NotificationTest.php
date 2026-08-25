@@ -17,7 +17,7 @@ use App\Signing\Service\DocumentSigner;
 use App\Signing\Service\NoTsaProvider;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
-use App\Signing\Service\SigningRequestNotifier;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
 use App\Tests\Functional\AuthWebTestCase;
@@ -108,7 +108,7 @@ final class NotificationTest extends AuthWebTestCase
             $container->get(DocumentVersionWriter::class),
             $container->get(SigningRequestRepository::class),
             $container->get(SigningRequestService::class),
-            $container->get(SigningRequestNotifier::class),
+            $container->get(EventDispatcherInterface::class),
             $caPath,
         ))->sign($document, $this->certificateOf($signer), $signer, '135790');
 

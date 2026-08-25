@@ -17,7 +17,7 @@ use App\Signing\Service\DocumentSigner;
 use App\Signing\Service\NoTsaProvider;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
-use App\Signing\Service\SigningRequestNotifier;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
 use App\Tests\Functional\AuthWebTestCase;
@@ -78,7 +78,7 @@ class DocumentSignerTest extends AuthWebTestCase
             $c->get(DocumentVersionWriter::class),
             $c->get(SigningRequestRepository::class),
             $c->get(SigningRequestService::class),
-            $c->get(SigningRequestNotifier::class),
+            $c->get(EventDispatcherInterface::class),
             $caPath,
         );
     }

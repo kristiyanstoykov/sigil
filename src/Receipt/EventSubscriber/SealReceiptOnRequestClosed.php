@@ -22,8 +22,11 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
  * Failure to seal never fails the close. The request is already closed on the
  * record and the audit chain already holds the evidence; a missing receipt is a
  * rendering problem, and re-running generation later is safe.
+ *
+ * Runs before the mail and notification listeners (priority 100 against their 0):
+ * nothing may announce an outcome before the proof of it exists.
  */
-#[AsEventListener(event: SigningRequestClosed::class)]
+#[AsEventListener(event: SigningRequestClosed::class, priority: 100)]
 final class SealReceiptOnRequestClosed
 {
     public function __construct(

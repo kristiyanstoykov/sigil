@@ -1,0 +1,7 @@
+services:
+    # No hub runs during the suite. Decorate rather than replace, so the
+    # subscriber-cookie path is still the real one and only publishing is cut.
+    App\Tests\Support\RecordingHub:
+        decorates: mercure.hub.default
+        arguments: ['@.inner']
+        public: true

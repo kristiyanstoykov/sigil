@@ -1,0 +1,40 @@
+{#
+  One notification, in the dropdown (compact) or on the page.
+
+  The whole row is the submit button of its own form: following it marks it read
+  and redirects to the stored URL, which is resolved server-side when the
+  notification is made, so it survives what it points at being renamed - and can
+  never be aimed somewhere else by the request.
+#}
+{% set form = notification_open_form(notification) %}
+{% set unread = not notification.isRead %}
+
+{{ form_start(form, {action: path('app_notification_open', {id: notification.id}), attr: {class: 'contents'}}) }}
+    <button type="submit" data-no-loader
+            class="w-full text-left flex items-start gap-3 px-3 py-3 transition-colors hover:bg-theme-activebg {{ unread ? 'bg-primary-500/[0.04]' : '' }}">
+        <span class="shrink-0 w-8 h-8 rounded-full inline-flex items-center justify-center {{ notification.type.toneClass }}">
+            <i class="ti {{ notification.type.icon }} text-base leading-none"></i>
+        </span>
+
+        <span class="min-w-0 grow">
+            <span class="flex items-start gap-2">
+                <span class="text-sm {{ unread ? 'font-medium text-theme-headings' : 'text-theme-bodycolor' }} {{ compact|default(false) ? 'line-clamp-2' : '' }}">
+                    {{ notification.title }}
+                </span>
+                {% if unread %}
+                    <span class="shrink-0 mt-1.5 w-2 h-2 rounded-full bg-primary-500" aria-label="Unread"></span>
+                {% endif %}
+            </span>
+
+            {% if notification.body %}
+                <span class="block text-xs text-theme-secondarytextcolor mt-0.5 {{ compact|default(false) ? 'line-clamp-2' : '' }}">
+                    {{ notification.body }}
+                </span>
+            {% endif %}
+
+            <span class="block text-xs text-theme-secondarytextcolor mt-1">
+                {{ notification.createdAt|date('d M Y, H:i') }}
+            </span>
+        </span>
+    </button>
+{{ form_end(form) }}

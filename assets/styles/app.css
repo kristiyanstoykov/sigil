@@ -404,6 +404,46 @@ button[aria-busy="true"] {
 }
 
 /*
+ * Header bell, rung by assets/controllers/notifications_controller.js when a
+ * live notification lands. Plain CSS for the same reason as the spinner: the
+ * class only ever exists because JS added it, so it must not depend on the
+ * Tailwind content scan.
+ *
+ * Rotation only - Able Pro scales the icon on hover via the separate `scale`
+ * property, so the two never fight.
+ */
+@keyframes sigil-bell-ring {
+    0%, 100% { transform: rotate(0deg); }
+    8%  { transform: rotate(14deg); }
+    20% { transform: rotate(-12deg); }
+    32% { transform: rotate(10deg); }
+    44% { transform: rotate(-8deg); }
+    56% { transform: rotate(5deg); }
+    68% { transform: rotate(-3deg); }
+    80% { transform: rotate(1deg); }
+}
+@keyframes sigil-badge-pop {
+    0%   { transform: scale(0.4); opacity: 0; }
+    60%  { transform: scale(1.18); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.bell-ringing {
+    display: inline-block;
+    /* Pivot at the crown, so it swings like a bell rather than spinning. */
+    transform-origin: 50% 12%;
+    animation: sigil-bell-ring 0.9s ease-in-out;
+}
+.bell-ringing + [data-notifications-target="badge"] > span {
+    animation: sigil-badge-pop 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .bell-ringing,
+    .bell-ringing + [data-notifications-target="badge"] > span {
+        animation: none;
+    }
+}
+
+/*
  * Confirm-dialog open/close animations (assets/controllers/confirm_controller.js
  * toggles the -out classes while closing). Animation only — the dialog surface
  * itself is styled with Able Pro/utility classes in the template.

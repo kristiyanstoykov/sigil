@@ -1,0 +1,37 @@
+{#
+  The header bell. Reads through the Twig seam (unread_notifications /
+  recent_notifications) because the layout renders on every page and no
+  controller could reasonably thread this through.
+
+  Following a row is a POST, not a link: it marks the notification read, and
+  Turbo prefetches links on hover.
+
+  The live half (ADR-013): the notifications controller holds an EventSource on
+  this user's own inbox topic and, when the hub nudges it, re-fetches the two
+  marked regions below. The nudge carries no content - what is displayed always
+  comes from the database over an authenticated request.
+#}
+{% set unread = unread_notifications() %}
+{% set rows = recent_notifications(8) %}
+{% set topic = notification_topic() %}
+
+<li class="dropdown pc-h-item"
+    data-controller="notifications"
+    {% if topic %}data-notifications-hub-url-value="{{ mercure(topic) }}"{% endif %}
+    data-notifications-refresh-url-value="{{ path('app_notifications_bell') }}">
+    <a class="pc-head-link dropdown-toggle me-2 relative" data-pc-toggle="dropdown" href="#"
+       role="button" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
+        <i class="ti ti-bell" data-notifications-target="bell"></i>
+        <span data-notifications-target="badge" aria-live="polite">{{ include('notification/_bell_badge.html.twig') }}</span>
+    </a>
+
+    {#- max-w-none! is load-bearing: Able Pro clamps a header dropdown to
+        max-width:100% of its .dropdown li, which is only as wide as the bell
+        icon, so any width here is clamped away and the component's 12rem
+        min-width is what you actually see. The ! is the documented way past a
+        vendor component layer. -#}
+    <div class="dropdown-menu dropdown-menu-end pc-h-dropdown max-w-none! w-[min(22rem,calc(100vw-2rem))] sm:w-[min(26rem,calc(100vw-2rem))]"
+         data-notifications-target="menu">
+        {{ include('notification/_bell_menu.html.twig') }}
+    </div>
+</li>

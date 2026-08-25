@@ -1,0 +1,68 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Notifications · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+<div class="docs-rise mx-auto max-w-3xl">
+
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Notifications</h1>
+            <p class="mt-1 text-sm text-theme-secondarytextcolor">
+                {% if unread > 0 %}
+                    {{ unread }} unread of {{ total }}.
+                {% else %}
+                    Everything here has been read.
+                {% endif %}
+            </p>
+        </div>
+
+        {% if unread > 0 %}
+            {{ form_start(markAllForm) }}
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="ti ti-circle-check"></i> Mark all read
+                </button>
+            {{ form_end(markAllForm) }}
+        {% endif %}
+    </div>
+
+    {% if notifications is empty %}
+        <div class="card !mb-0 !bg-white/80 p-14 text-center">
+            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                <i class="ti ti-bell text-3xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-extrabold text-theme-headings">Nothing yet</h2>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">
+                You will hear here the moment someone asks you to sign a document or serves one on you.
+            </p>
+        </div>
+    {% else %}
+        <div class="card !mb-0 overflow-hidden !bg-white/90">
+            <div class="divide-y divide-theme-border/60">
+                {% for notification in notifications %}
+                    {{ include('notification/_row.html.twig', {notification: notification}) }}
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if pages > 1 %}
+            <div class="mt-4 flex items-center justify-between text-sm">
+                {% if page > 1 %}
+                    <a href="{{ path('app_notifications', {page: page - 1}) }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="ti ti-chevron-left"></i> Newer
+                    </a>
+                {% else %}<span></span>{% endif %}
+
+                <span class="text-theme-secondarytextcolor">Page {{ page }} of {{ pages }}</span>
+
+                {% if page < pages %}
+                    <a href="{{ path('app_notifications', {page: page + 1}) }}" class="btn btn-outline-secondary btn-sm">
+                        Older <i class="ti ti-chevron-right"></i>
+                    </a>
+                {% else %}<span></span>{% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

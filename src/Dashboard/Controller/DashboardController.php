@@ -12,6 +12,8 @@ use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
 use App\Delivery\Repository\DeliveryRepository;
 use App\Document\Repository\DocumentRepository;
+use App\Notification\Enum\NotificationType;
+use App\Notification\Repository\NotificationRepository;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Repository\SigningRequestRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,6 +50,7 @@ class DashboardController extends AbstractController
         private readonly SigningRequestRepository $requests,
         private readonly DeliveryRepository $deliveries,
         private readonly AuditLogEntryRepository $auditEntries,
+        private readonly NotificationRepository $notifications,
     ) {
     }
 
@@ -65,6 +68,12 @@ class DashboardController extends AbstractController
         $documents = $this->documents->findVisibleTo($user);
         $served = $this->deliveries->findServedTo($user);
 
+        // A delivery asks nothing of its recipient, so it has no state of its own
+        // to clear: what makes it disappear from here is the recipient reading
+        // the notification that announced it. That flag lives in their inbox and
+        // is never visible to the sender, so ADR-012 stays as it is.
+        $deliveredToMe = $this->notifications->findUnreadFor($user, [NotificationType::DocumentDelivered], 4);
+
         $certificates = $this->certificateCards($user, $algorithms);
 
         return $this->render('dashboard/index.html.twig', [
@@ -75,6 +84,7 @@ class DashboardController extends AbstractController
                 'delivered' => \count($served),
                 'documents' => \count($documents),
             ],
+            'deliveredToMe' => $deliveredToMe,
             'myTurn' => \array_slice($myTurn, 0, 4),
             'sent' => \array_slice($sent, 0, 4),
             'recentDocuments' => \array_slice($documents, 0, 5),

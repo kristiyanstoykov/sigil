@@ -2,3 +2,4 @@ services:
   app:
     environment:
       XDEBUG_MODE: "${XDEBUG_MODE:-off}"
+

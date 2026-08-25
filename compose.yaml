@@ -18,6 +18,11 @@ services:
       # so it is provided via .env.local (bind-mounted into the container). A container
       # env var would override .env.local. Falls back to null://null from .env otherwise.
       MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
+      # Live notifications (ADR-013). The app publishes container-internally; the
+      # browser subscribes to the host-exposed address, which .env already holds.
+      # The port is not optional: the hub listens on 3000 inside the network too,
+      # so a portless URL here silently tries 80 and every push fails.
+      MERCURE_URL: "http://mercure:3000/.well-known/mercure"
       SOFTHSM2_CONF: /etc/softhsm2.conf
       PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
       # Object storage (ADR-004/009). Active backend comes from .env (dev=minio)
@@ -36,6 +41,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      mercure:
+        condition: service_started
 
   # Local RFC-3161 timestamp responder (dev). Gives fast, offline PAdES-B-T
   # timestamps so signing does not wait on a public TSA. Reuses the app image
@@ -50,6 +57,31 @@ services:
     depends_on:
       app:
         condition: service_started
+
+  # Mercure hub - the live half of the notification inbox (ADR-013). A separate
+  # Go process because an SSE stream held open in PHP would pin the single
+  # `php -S` worker and stall the whole app. It holds no state worth keeping: the
+  # notification itself is a row in Postgres, and the browser re-reads from there
+  # on every nudge, so restarting the hub loses nothing.
+  mercure:
+    image: dunglas/mercure:latest
+    environment:
+      SERVER_NAME: ":3000"
+      # auto_https off: dev serves plain HTTP on localhost.
+      GLOBAL_OPTIONS: "auto_https off"
+      MERCURE_PUBLISHER_JWT_KEY: "sigil_dev_mercure_jwt_secret_change_in_production"
+      MERCURE_SUBSCRIBER_JWT_KEY: "sigil_dev_mercure_jwt_secret_change_in_production"
+      # No `anonymous` directive on purpose: every subscriber must present the
+      # cookie the app signed, or the inbox topics would be world-readable.
+      MERCURE_EXTRA_DIRECTIVES: |
+        cors_origins http://localhost:8000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   minio:
     image: minio/minio:latest
@@ -79,8 +111,10 @@ services:
       retries: 5
       start_period: 30s
 
+
 volumes:
   db_data:
   softhsm_tokens:
   minio_data:
   tsa_data:
+

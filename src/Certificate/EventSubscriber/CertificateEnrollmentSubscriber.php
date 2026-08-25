@@ -18,7 +18,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  * the dashboard, the document pages (uploading/storing/viewing needs no signing
  * key - only signing does), the signature-request pages (asking someone else to
  * sign needs no key either), the delivery pages (nobody signs anything in a
- * delivery), the receipt pages, and the certificate pages. Everything else
+ * delivery), the receipt pages, the notification inbox, and the certificate
+ * pages. Everything else
  * redirects to the wizard. Mirrors TwoFactorEnrollmentSubscriber, which runs
  * first - this gate stays silent until 2FA enrollment is complete.
  */
@@ -73,7 +74,11 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
             || str_starts_with($route, 'app_delivery')
             // Same reasoning for the receipt that request produced - it is
             // evidence about a delivery, not a signing operation.
-            || str_starts_with($route, 'app_receipt')) {
+            || str_starts_with($route, 'app_receipt')
+            // The inbox is how a delivery reaches someone, and a recipient needs
+            // no certificate to be served. Gating it would hide the notice
+            // behind a wizard for a key they never have to have.
+            || str_starts_with($route, 'app_notification')) {
             return;
         }
 

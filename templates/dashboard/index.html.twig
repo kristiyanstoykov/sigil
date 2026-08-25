@@ -105,6 +105,29 @@
                         <a href="{{ path('app_signing_requests') }}" class="text-sm font-medium text-primary-500 hover:underline">All requests →</a>
                     </div>
                     <ul class="divide-y divide-theme-border/60">
+                        {# Deliveries come first: nothing is asked of the recipient,
+                           so the only thing that clears the row is reading it. #}
+                        {% for notification in deliveredToMe %}
+                            {% set openForm = notification_open_form(notification) %}
+                            <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-info-500/10 text-info-600">
+                                    <i class="ti ti-mail-forward text-lg leading-none" aria-hidden="true"></i>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold text-theme-headings">{{ notification.title }}</span>
+                                    {% if notification.body %}
+                                        <span class="block truncate text-xs text-theme-secondarytextcolor">{{ notification.body }}</span>
+                                    {% endif %}
+                                </span>
+                                {{ form_start(openForm, {action: path('app_notification_open', {id: notification.id}), attr: {class: 'contents'}}) }}
+                                    <button type="submit" class="btn btn-sm btn-primary inline-flex shrink-0 items-center gap-1.5">
+                                        <i class="ti ti-eye text-sm leading-none" aria-hidden="true"></i>
+                                        View
+                                    </button>
+                                {{ form_end(openForm) }}
+                            </li>
+                        {% endfor %}
+
                         {% for request in myTurn %}
                             <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                                 {{ docs.pdf_icon('sm') }}
@@ -119,9 +142,11 @@
                                     Sign
                                 </a>
                             </li>
-                        {% else %}
-                            <li class="px-4 py-8 text-center text-sm text-theme-secondarytextcolor">Nothing is waiting on you.</li>
                         {% endfor %}
+
+                        {% if myTurn is empty and deliveredToMe is empty %}
+                            <li class="px-4 py-8 text-center text-sm text-theme-secondarytextcolor">Nothing is waiting on you.</li>
+                        {% endif %}
                     </ul>
                 </div>
 
@@ -260,7 +285,7 @@
                         'signing_request.created':          {classes: 'bg-info-500/10 text-info-600',       icon: 'ti-send',         label: 'Sent for signature'},
                         'signing_request.completed':        {classes: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check', label: 'A request completed'},
                         'signing_request.declined':         {classes: 'bg-danger-500/10 text-danger-600',   icon: 'ti-ban',          label: 'A request was declined'},
-                        'signing_request.expired':          {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-clock-x',      label: 'A request expired'},
+                        'signing_request.expired':          {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-alert-triangle',      label: 'A request expired'},
                         'signing_request.cancelled':        {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-arrow-back-up', label: 'A request was withdrawn'},
                         'receipt.sealed':                   {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-receipt',      label: 'A receipt was sealed'},
                         'certificate.issued':               {classes: 'bg-success-500/10 text-success-600', icon: 'ti-shield-check', label: 'Certificate issued'},

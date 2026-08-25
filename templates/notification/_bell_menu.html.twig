@@ -1,0 +1,31 @@
+{#- The dropdown's contents: header, list, footer. Re-rendered whole when the
+    hub nudges, which is why the surrounding .dropdown-menu element is not part
+    of it - replacing that would slam the panel shut under the reader. -#}
+<div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-theme-border">
+    <p class="text-sm font-medium text-theme-headings mb-0">Notifications</p>
+    {% if unread > 0 %}
+        {#- The real Form type, not a hand-rolled _csrf_token field: the controller
+            handles this through MarkAllReadForm, which only ever looks under the
+            form's own name. The token gets an explicit id because /notifications
+            renders this form twice - once here in the header, once on the page. -#}
+        {% set mark_all = notification_mark_all_form() %}
+        {{ form_start(mark_all) }}
+            <button type="submit" data-no-loader class="text-xs text-primary-500 hover:underline">Mark all read</button>
+            {{ form_widget(mark_all._token, {id: 'mark_all_read_form_bell__token'}) }}
+        {{ form_end(mark_all, {render_rest: false}) }}
+    {% endif %}
+</div>
+
+<div class="max-h-80 overflow-y-auto">
+    {% for notification in rows %}
+        {{ include('notification/_row.html.twig', {notification: notification, compact: true}) }}
+    {% else %}
+        <p class="px-3 py-6 text-sm text-theme-secondarytextcolor text-center mb-0">
+            Nothing yet. You will hear here when a document reaches you.
+        </p>
+    {% endfor %}
+</div>
+
+<div class="px-3 py-2 border-t border-theme-border">
+    <a href="{{ path('app_notifications') }}" class="text-sm text-primary-500 hover:underline">See all notifications</a>
+</div>

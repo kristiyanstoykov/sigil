@@ -695,6 +695,8 @@ half arrives through another seam.
 
 **3. On the recipient's side a delivery is the first thing in "Needs your
 action"** - above every signature request - and the action is to **view** it.
+✅ BUILT 2026-08-24, as an unread notification rather than as document state. See
+the resolution under point 4.
 
 **4. Open question this raises, settle before building.** ADR-012 §2 says Sigil
 records consignment and deliberately not retrieval ("do not add read receipts
@@ -711,6 +713,115 @@ Decide which of these it is:
 The first keeps the Borica model. The second is closer to Evrotrust, which was
 explicitly rejected once already - so it needs a deliberate reversal, not a
 side effect of a UI change.
+
+**DECIDED 2026-08-23: neither. No read state at all.** The lifecycle design came
+back with an unread dot on the library ("one document reached you... the dot
+clears when you open it"), which is option one, and it was dropped: even a
+UI-only dot needs a per-recipient `openedAt` somewhere, and once that column
+exists the pressure to surface it to the sender never goes away. ADR-012 stands
+untouched.
+
+That had a consequence for point 3: **with no read state a delivery row in "Needs
+your action" can never clear itself.** Three ways out were on the table - drop
+the row, time-bound it, or reopen read tracking.
+
+**RESOLVED 2026-08-24 (ADR-013): a fourth way, and none of those three.** The
+read flag exists but it is not about the document - it is
+`Notification::$readAt`, the recipient's own inbox flag, set when they follow the
+row. `DeliveryRecipient` gets no `openedAt` now or ever, the sender can never see
+it, and it enters neither the audit log nor the receipt. So the row is exactly
+"an unread `DocumentDelivered` notification", it clears itself the moment the
+recipient reads it, and ADR-012's consignment-not-retrieval rule is untouched.
+
+The 2026-08-23 objection was that "once that column exists the pressure to
+surface it to the sender never goes away". The answer is a written invariant
+about which direction the flag may travel (ADR-013), not the absence of the flag
+- an inbox that cannot tell you what you have already seen is not an inbox.
+
+### Document lifecycle - design pass (✅ BUILT 2026-08-23, commits e616f0e + db5bb14)
+
+The eight lifecycle screens were redesigned as one system (brief in
+`design-handoff/PROMPT-document-lifecycle.md`, returned design unpacked from the
+bundled HTML in `~/Downloads`). Everything below is built, tested and committed.
+No custom CSS and no new JavaScript: every class is a Tailwind utility or one
+Able Pro already ships.
+
+**The document page is four tabs.** `/documents/{id}` splits by `?tab=` into
+Overview / Versions / History / Receipts (`documents/_tab_*.html.twig`), server
+rendered like the library and the signing inbox, so every tab is linkable.
+`DocumentController::show()` validates the tab against `self::TABS`.
+
+**"What can still happen" replaces "What next"** (`documents/_actions.html.twig`).
+Three rows, fixed order - sign it yourself, ask other people to sign, deliver it -
+in one of three states:
+
+- *available* - a button;
+- *blocked* - the row stays, disabled, saying why. Temporary only: an open request
+  blocks signing and delivery, and closing it opens them again;
+- *spent* - the row is **removed**. Permanent only: you have signed it, the
+  document has had its one request, it has been delivered.
+
+The returned design kept spent rows on the page in the past tense; that was
+overridden on 2026-08-23 - permanent impossibilities disappear, and when all
+three are spent the whole section goes with them and the banner carries the
+explanation. Note the consequence: **"Ask other people to sign" disappears the
+moment a request is sent**, not when it completes, because one-per-document is
+spent at that point.
+
+**History is a timeline** (`signing/_macros.html.twig::request_timeline()`),
+shared by the document's History tab and the inbox's. Built from the request's
+own rows - `createdAt`, each signer's `signedAt` / `declinedAt` / `version`,
+`closedAt`, `status` - not from the audit log. This closes the "revisit the
+History tab" design question.
+
+**The two composers now read as opposites.** Request: primary accent strip,
+numbered rows, constraints strip, a "before you send" warning. Deliver: info
+accent, "Recipients · unordered", an explicit "no deadline · cannot be refused ·
+nothing follows it", and a sentence naming the version being served. Deadline
+options carry their real dates ("7 days - 30 Aug 2026"), built in
+`CreateSigningRequestForm` from an injected `ClockInterface`.
+
+**Two bugs fixed on the way:**
+
+- The due-date countdown counted elapsed 24-hour blocks and floored them, so a
+  3-day deadline read "in 2 days" beside a date that said the third day. It now
+  counts calendar days between the two dates, with overdue still decided by the
+  clock. Pinned by `tests/Functional/Signing/DeadlineCountdownTest.php`.
+- `outcome_badge` used `ti-clock-x` for Expired, which is not in our Tabler
+  build - it had been rendering an empty box. Now `ti-alert-triangle`, matching
+  `DocumentDisplayStatus::iconClass()`.
+
+**Dropped from the returned design on purpose:** the library's "one document
+reached you" banner and its unread dot (see the delivery rework item above), and
+the History tab's "how this would read if it had gone wrong" panel, which was the
+designer explaining the design rather than UI.
+
+**Still not done from that design:** the composers' confirmation sentence quotes
+no live count ("you are asking **3 people** to sign X"). That needs about five
+lines in the existing `signer_order_controller.js`, which already tracks the list
+to toggle the submit button. Left out because the session's rule was no new JS.
+
+### Making the UI less generic (trial 2026-08-23, ⏸ reverted)
+
+The certificates list was rebuilt as a flat register - hairline rules on the page
+ground, one row per certificate, column labels once at the top, colour spent only
+on rows wanting attention - and **reverted**. Cards are wanted. What came out of
+it, for whoever picks this up:
+
+- **Keep the card.** The objection was to losing it, not to the details.
+- Two changes inside the card were accepted in principle: **status as a dot and a
+  word rather than a coloured top strip or a pastel pill**, and **less colour
+  overall**.
+- **The algorithm must be visible per certificate**, and it should come from
+  `Certificate::$algorithmId` through `SignatureAlgorithmRegistry` (as the detail
+  page already does), not the hardcoded "ECDSA P-384 · SHA-384" string still
+  sitting in `certificate/index.html.twig`. An unknown id should fall back to
+  printing itself rather than throwing the list away.
+- The generic tells identified across the app, worth fixing wherever they appear:
+  everything being a card; the tinted rounded-square icon chip repeated many times
+  per page; a pastel callout box for every state; the interface narrating itself
+  under every heading; and uniform density (`mt-6` between everything).
+- Typography is **out of scope** by instruction, for now.
 
 ### Emails — proper HTML templates (TODO, raised 2026-08-16)
 
@@ -751,7 +862,7 @@ Sources: [Brevo send-transac-email reference](https://developers.brevo.com/refer
 [Anymail's Brevo notes on inline images](https://anymail.dev/en/v10.2/esps/brevo/),
 [Brevo community thread on embedded images](https://community.brevo.com/t/does-transactional-email-support-embedded-image/6665).
 
-### Live notifications (TODO, raised 2026-08-16)
+### Live notifications (✅ DONE - stored inbox 2026-08-24, live push 2026-08-25)
 
 Something happens to a document and the person it concerns should be told **as it
 happens**, not on their next page load: someone sent a document for signature or
@@ -765,11 +876,52 @@ delivery, or someone signed one you requested.
 - **Notifications are stored, with a bell list.** A `Notification` entity plus an
   unread count and dropdown. Push alone loses every notification that arrives
   while the recipient is offline - which is exactly the one that matters.
+  ✅ Built.
 
-**Current state:** nothing exists. The header bell is a dead stub
-(`title="Notifications - coming soon"` in `templates/layout/app.html.twig`), and
-**Mercure is not installed** - no bundle, no hub service - despite being named in
-the stack table and ADR-007.
+**Built 2026-08-24 (commit 1 of 2).** Everything except the live push:
+`src/Notification/` with the `Notification` entity, `NotificationType`,
+repository, `Notifier`, subscribers, `/notifications` and a working header bell
+with an unread badge. Correct on every page load; not yet sooner than that.
+
+The event seam went in with it, which was the real work. Producers no longer call
+their collaborators inline: `SigningTurnReached` and `DocumentSigned` are new,
+`SigningRequestClosed` and `DocumentDelivered` already existed, and mail became a
+subscriber alongside notification (`SendSigningMail`, `SendDeliveryMail`). Audit
+stayed inline on purpose - one consumer, ordering constraints, opposite failure
+policy. Receipt sealers now declare priority 100 against the announcers' 0, which
+also closes F-38. Recorded in ADR-013 and in CLAUDE.md under "Notifications and
+the event seam".
+
+**Built 2026-08-25 (commit 2 of 2) - the live half.** `symfony/mercure-bundle`,
+the `mercure` compose service, `config/packages/mercure.yaml`, the three
+`MERCURE_*` env vars, `MercureCookieSubscriber`, `InboxTopic`, the push inside
+`Notifier`, `app_notifications_bell` and `notifications_controller.js`.
+
+Two shape decisions worth keeping straight, both settled while building:
+
+- **The push carries no content.** It publishes the fixed string
+  `{"event":"notification.created"}` and the browser re-fetches the bell's two
+  regions over its own authenticated session. The hub is a separate process with
+  a shared key and its own logs, so it never learns a document title, and the
+  rendered rows keep their server-minted CSRF tokens. It also makes every refresh
+  a full resync, so a lost nudge is repaired by the next one or by the
+  EventSource reconnect - nothing depends on hub history, which is why the
+  service has no volume.
+- **The subscriber cookie grants exactly one topic**, the holder's own inbox,
+  re-signed on every HTML response because the JWT lives an hour. The hub runs
+  without `anonymous`, so a cookie-less subscription is refused (verified: 401),
+  and one user's token delivers nothing on another's topic (verified: connection
+  accepted, no data).
+
+Tests never open a socket: `config/services_test.yaml` decorates
+`mercure.hub.default` with `App\Tests\Support\RecordingHub`, which records
+updates and can be told to fail. `LivePushTest` pins the topic, the empty
+payload, the private flag, the degraded path, the cookie's single grant and path,
+and the `data-bell-region` contract the Stimulus controller depends on. Suite is
+172 green.
+
+The risk register's Mercure cut is therefore spent - it is in, and the fallback
+it named (a poll) is no longer needed.
 
 **Shape:**
 
@@ -784,8 +936,12 @@ the stack table and ADR-007.
   the app so a subscriber can only ever get its own stream.
 - Bell dropdown with an unread badge, plus a toast on arrival.
 
-**The events do not exist yet, and this is the forcing function for the deferred
-event-model work.** `SigningRequestClosed` and `DocumentDelivered` exist;
+**The events did not exist, and this was the forcing function for the deferred
+event-model work.** ✅ Done 2026-08-24, in the scoped form the "should the inline
+notifier and audit calls become events" item recommended: notifications yes,
+audit no. Original reasoning kept below.
+
+ `SigningRequestClosed` and `DocumentDelivered` exist;
 "request sent", "your turn" and "someone signed your document" do not - those are
 inline `SigningRequestNotifier` calls today. Rather than bolt a second inline
 call next to each, dispatch domain events and let both Mailer and Notification
@@ -1047,11 +1203,17 @@ describe it as a plain SHA-384, which is simply wrong whatever we decide.
 - Does option 2's split - keyed for storage, plain inside the sealed artifact -
   need its own ADR, or is it an amendment to ADR-012 §1?
 
-### DISCUSS - should the inline notifier and audit calls become events? (raised 2026-08-16)
+### DISCUSS - should the inline notifier and audit calls become events? (raised 2026-08-16, ✅ SETTLED 2026-08-24)
 
-Not a decision. Re-raise of the "event-driven audit log" idea already referenced
-in the Live notifications section above; this entry is the place to actually
-settle it.
+**Settled as the "middle position" at the bottom of this entry recommended:
+notifications yes, audit no.** Built with the notification inbox - four events
+(`SigningTurnReached`, `DocumentSigned`, `SigningRequestClosed`,
+`DocumentDelivered`), mail and notification as subscribers, audit calls left
+exactly where they are. Failure policy is opposite per listener class and stated
+in ADR-013; listener priorities are declared (F-38 closed). The F-08 sequencing
+worry does not bite, because no audit call moved into a listener.
+
+The analysis below is kept as the reasoning, not as an open question.
 
 **The observation.** Sigil has 2 domain events for roughly 12 state changes.
 `SigningRequestClosed` and `DocumentDelivered` exist only because a module rule
@@ -1199,6 +1361,19 @@ made yet.
   `git add docs/adr/`. **Two minutes, and everything else here is advice about
   files that currently have no backup.** Note this plan file is tracked; the
   review document is not.
+- ✅ **Fixed 2026-08-24. Concurrent audit appends collided** (found while running
+  two test suites against one database: `duplicate key value violates unique
+  constraint ... Key (sequence)=(353) already exists`). Not in the review's list.
+  `findChainHeadForUpdate()` took `PESSIMISTIC_WRITE` on the head row, which does
+  not serialise appends: under READ COMMITTED the waiting transaction resumes
+  with the result set it had already computed, still sees the stale head, and
+  claims the same next sequence. There is no row at the position being claimed,
+  and an empty table has no head at all, so the lock has to be on the chain
+  rather than on a row - now `pg_advisory_xact_lock`, taken before the head is
+  read. Split into `lockChainForAppend()` + `findChainHead()`, pinned by
+  `AuditChainConcurrencyTest` (verified failing without the fix). Note this is
+  unrelated to F-01: it stops two honest writers colliding, not an attacker
+  rewriting the chain.
 - **Unwrap rate limiting + audit** (F-07). ADR-010 promises per-user and global
   unwrap ceilings and an audit entry; neither exists. Decided: the PIN gate on
   download was never intended (holding access is enough to download), so ADR-010
@@ -1258,8 +1433,10 @@ made yet.
   would have to be applied twice or be silently missing from the most common
   terminal state. Fold the completed case into `close()` and branch the
   notification choice on status inside it.
-- **Declare listener priorities before notifications land** (F-38 and the Live
-  notifications item above). Today each domain event has exactly one listener, so
+- ✅ **Done 2026-08-24. Declare listener priorities before notifications land**
+  (F-38 and the Live notifications item above). Receipt sealers are priority 100,
+  mail and notification 0. The `CertificateEnrollmentSubscriber` docblock half of
+  this finding is still open. Today each domain event has exactly one listener, so
   ordering never matters. The moment a Notification subscriber joins
   `SigningRequestClosed` and `DocumentDelivered`, it does - sealing has to happen
   before any "your receipt is ready" message, and nothing currently expresses

@@ -13,9 +13,9 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 
 /**
- * Appends to the hash chain inside its own transaction. The chain head is
- * read under a pessimistic write lock so concurrent appends serialize and
- * the chain cannot fork.
+ * Appends to the hash chain inside its own transaction. Appends are serialised
+ * by an advisory lock on the chain, taken before the head is read, so two
+ * concurrent writers cannot both compute the same next sequence.
  */
 final class DoctrineAuditLogger implements AuditLoggerInterface
 {
@@ -35,7 +35,10 @@ final class DoctrineAuditLogger implements AuditLoggerInterface
         AuditSeverity $severity = AuditSeverity::Info,
     ): AuditLogEntry {
         return $this->em->wrapInTransaction(function () use ($action, $actor, $payload, $subjectType, $subjectId, $severity): AuditLogEntry {
-            $head = $this->repository->findChainHeadForUpdate();
+            // Before the read, not after: the sequence and the previous hash are
+            // both derived from the head, so the head must not move underneath us.
+            $this->repository->lockChainForAppend();
+            $head = $this->repository->findChainHead();
 
             $entry = new AuditLogEntry(
                 sequence: null === $head ? 1 : $head->getSequence() + 1,

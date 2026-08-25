@@ -15,6 +15,7 @@ use App\Signing\Entity\SigningRequest;
 use App\Signing\Entity\SigningRequestSigner;
 use App\Signing\Enum\SigningRequestStatus;
 use App\Signing\Event\SigningRequestClosed;
+use App\Signing\Event\SigningTurnReached;
 use App\Signing\Repository\SigningRequestRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
@@ -37,7 +38,6 @@ final class SigningRequestService
         private readonly DocumentSignatories $signatories,
         private readonly DocumentSharer $sharer,
         private readonly DocumentKeyGrantRepository $grants,
-        private readonly SigningRequestNotifier $notifier,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly ClockInterface $clock,
         private readonly EventDispatcherInterface $events,
@@ -136,7 +136,7 @@ final class SigningRequestService
             subjectId: $document->getId()->toRfc4122(),
         );
 
-        $this->notifier->notifyTurn($request, $first);
+        $this->events->dispatch(new SigningTurnReached($request, $first));
 
         return $request;
     }
@@ -164,7 +164,6 @@ final class SigningRequestService
             $this->em->flush();
 
             $this->audit($request, 'signing_request.completed', $signer, []);
-            $this->notifier->notifyCompleted($request);
             $this->events->dispatch(new SigningRequestClosed($request));
 
             return;
@@ -175,7 +174,7 @@ final class SigningRequestService
             'nextSigner' => $next->getUser()->getEmail(),
             'position' => $next->getPosition(),
         ]);
-        $this->notifier->notifyTurn($request, $next);
+        $this->events->dispatch(new SigningTurnReached($request, $next));
     }
 
     /**
@@ -255,7 +254,6 @@ final class SigningRequestService
         }
 
         $this->audit($request, 'signing_request.'.$status->value, $actor, $auditPayload);
-        $this->notifier->notifyClosed($request, $status);
         $this->events->dispatch(new SigningRequestClosed($request));
     }
 

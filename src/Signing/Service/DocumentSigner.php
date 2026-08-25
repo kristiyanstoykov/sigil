@@ -14,8 +14,10 @@ use App\Document\Enum\DocumentVersionKind;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentVersionWriter;
 use App\Signing\Entity\SigningRequest;
+use App\Signing\Event\DocumentSigned;
 use App\Signing\Exception\TokenPinRejectedException;
 use App\Signing\Repository\SigningRequestRepository;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
@@ -38,7 +40,7 @@ final class DocumentSigner
         private readonly DocumentVersionWriter $versionWriter,
         private readonly SigningRequestRepository $requests,
         private readonly SigningRequestService $requestService,
-        private readonly SigningRequestNotifier $notifier,
+        private readonly EventDispatcherInterface $events,
         #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
         private readonly string $caCertPath,
     ) {
@@ -114,7 +116,7 @@ final class DocumentSigner
             $remaining = \count($signingRequest->getSigners()) - $signingRequest->signedCount();
         }
 
-        $this->notifier->notifySigned($document, $actor, $remaining);
+        $this->events->dispatch(new DocumentSigned($document, $actor, $version, $remaining));
 
         return $version;
     }

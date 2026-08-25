@@ -1,0 +1,8 @@
+{#- The unread count. Swapped in place by the notifications controller, so it
+    carries its own aria-live rather than relying on a label on the toggle. -#}
+{%- if unread > 0 -%}
+    <span class="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-danger-500 text-white text-[10px] font-semibold leading-4 text-center">
+        {{ unread > 9 ? '9+' : unread }}
+        <span class="sr-only">unread</span>
+    </span>
+{%- endif -%}

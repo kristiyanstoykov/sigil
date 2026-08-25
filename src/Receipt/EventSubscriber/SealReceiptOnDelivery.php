@@ -22,8 +22,11 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
  * Failure to seal never fails the delivery. The document has already reached the
  * recipients and the audit chain already records it; the receipt is a rendering
  * of evidence that is safe to re-produce later.
+ *
+ * Runs before the mail and notification listeners (priority 100 against their 0):
+ * nothing may announce an outcome before the proof of it exists.
  */
-#[AsEventListener(event: DocumentDelivered::class)]
+#[AsEventListener(event: DocumentDelivered::class, priority: 100)]
 final class SealReceiptOnDelivery
 {
     public function __construct(

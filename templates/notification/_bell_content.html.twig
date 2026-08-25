@@ -1,0 +1,12 @@
+{#
+  The fragment the browser fetches when the hub nudges it (app_notifications_bell).
+
+  It is the bell's two variable regions and nothing else - the client picks each
+  out by its marker and swaps that region's contents, so the dropdown element
+  itself, and any open state it holds, survives the update.
+#}
+{% set unread = unread_notifications() %}
+{% set rows = recent_notifications(8) %}
+
+<div data-bell-region="badge">{{ include('notification/_bell_badge.html.twig') }}</div>
+<div data-bell-region="menu">{{ include('notification/_bell_menu.html.twig') }}</div>
