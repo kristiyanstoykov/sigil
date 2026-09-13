@@ -50,6 +50,8 @@ services:
   # SIGIL_TSA_ACTIVE_BACKEND=local_uts. See docker/tsa/.
   tsa:
     image: sigil-app:latest
+    # Built by the app service; never try to pull it from a registry.
+    pull_policy: never
     entrypoint: ["/tsa-src/entrypoint.sh"]
     volumes:
       - ./docker/tsa:/tsa-src:ro
@@ -84,7 +86,7 @@ services:
       start_period: 20s
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"   # S3 API
