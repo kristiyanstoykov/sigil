@@ -45,6 +45,7 @@ from asn1crypto import algos, pem, x509
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields, signers
+from pyhanko.config.pkcs11 import TokenCriteria
 from pyhanko.sign.pkcs11 import PKCS11Signer, open_pkcs11_session
 from pyhanko.sign.timestamps import HTTPTimeStamper
 from pyhanko.pdf_utils import layout
@@ -293,9 +294,10 @@ def main() -> None:
         ),
     )
 
+    # token_criteria, not the token_label= kwarg pyHanko 0.37 removed.
     session = open_pkcs11_session(
         req["module"],
-        token_label=signer_req["token_label"],
+        token_criteria=TokenCriteria(label=signer_req["token_label"]),
         user_pin=signer_req["pin"],
     )
     try:

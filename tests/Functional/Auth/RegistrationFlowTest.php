@@ -65,6 +65,7 @@ final class RegistrationFlowTest extends AuthWebTestCase
 
         $signedUrl = $this->extractSignedUrl();
         $tampered = preg_replace('/signature=[^&]+/', 'signature=forged', $signedUrl);
+        self::assertNotNull($tampered);
 
         $this->client->request('GET', $tampered);
         self::assertResponseRedirects('/register');
@@ -87,7 +88,9 @@ final class RegistrationFlowTest extends AuthWebTestCase
 
         self::assertMatchesRegularExpression('#(https?://[^"\s]*/verify/email[^"\s]*)#', $body, 'Email must contain the signed verification link');
         preg_match('#(https?://[^"\s]*/verify/email[^"\s]*)#', $body, $m);
+        $url = $m[1] ?? null;
+        self::assertNotNull($url);
 
-        return html_entity_decode($m[1]);
+        return html_entity_decode($url);
     }
 }

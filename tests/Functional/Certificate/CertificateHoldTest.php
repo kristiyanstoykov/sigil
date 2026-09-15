@@ -55,7 +55,9 @@ final class CertificateHoldTest extends AuthWebTestCase
         self::assertTrue($certificate->isOnHold($now));
         self::assertFalse($certificate->isUsable($now));
         self::assertSame(CertificateStatus::Active, $certificate->getStatus(), 'DB status stays Active while held');
-        $hours = ($certificate->getHeldUntil()->getTimestamp() - $now->getTimestamp()) / 3600;
+        $heldUntil = $certificate->getHeldUntil();
+        self::assertNotNull($heldUntil);
+        $hours = ($heldUntil->getTimestamp() - $now->getTimestamp()) / 3600;
         self::assertEqualsWithDelta(Certificate::HOLD_HOURS, $hours, 0.1);
         self::assertStringContainsString('On hold', $this->pageContent());
     }
@@ -160,6 +162,7 @@ final class CertificateHoldTest extends AuthWebTestCase
     // -- helpers -------------------------------------------------------------
 
     /** Full login + wizard issue; returns the certificate detail URL. */
+    /** @param non-empty-string $email */
     private function issueCertificate(string $email): string
     {
         $this->createUser($email, verified: true, totpEnabled: true);

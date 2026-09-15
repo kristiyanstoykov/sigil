@@ -6,6 +6,71 @@
 
 ---
 
+## Where things stand (2026-08-25)
+
+**State:** 175 tests green, PHPStan clean, Twig clean, the hub healthy. One
+commit's worth of work sits uncommitted in the tree. `docs/` and `CLAUDE.md` stay
+untracked by choice, so their edits are invisible to git; `.env` is gitignored,
+which is why the three `MERCURE_*` vars also went into `.env.example` - that is
+the file CI copies.
+
+**Shipped this session**
+
+- **Live notifications, commit 2 of 2: the Mercure push.** Bundle, hub service,
+  subscriber cookie, `InboxTopic`, the push in `Notifier`, the bell fragment
+  endpoint and its Stimulus controller. The feature is now done end to end; see
+  "Live notifications" below for the two decisions that hold it together.
+- **The bell rings on arrival.** `.bell-ringing` plus a badge pop, plain CSS in
+  `app.css` beside the spinner, silent under `prefers-reduced-motion`.
+- **Three bugs, all found by using it in a browser and all now pinned by tests.**
+  The app published to a portless internal URL, so every push failed on port 80
+  while the subscribe side looked perfect. The dropdown's "Mark all read"
+  hand-rolled a bare `_csrf_token` field that `MarkAllReadForm` never reads, so
+  it redirected and marked nothing; both places now build it through
+  `MarkAllReadFormFactory`. And mark-all's return-to-referer accepted anything
+  `parse_url` reported hostless, including `/\evil.com`, which browsers
+  normalise to `//evil.com`; it is a same-origin prefix match now.
+- The bell dropdown widens to 26rem at `sm`. `max-w-none!` in that class list is
+  load-bearing: Able Pro clamps a header dropdown to `max-width: 100%` of its
+  `.dropdown` li, which is the width of the bell icon, so any width set there is
+  otherwise thrown away and you see the component's 12rem min-width instead.
+- Earlier in the same session, the audit-chain concurrency fix, recorded under
+  "Review follow-ups".
+
+**Gotchas this session added**
+
+- `MERCURE_URL` must carry `:3000`. The hub listens on 3000 inside the compose
+  network too, and a portless URL silently tries 80. Verifying the hub through
+  the host mapping does not exercise the path the app actually uses.
+- Tailwind must be rebuilt **inside** the container (`var/` is an anonymous
+  volume), and the asset digest does not change when only the Tailwind output
+  does, so a plain reload can serve stale CSS. Editing `app.css` changes it.
+
+**Next steps, in the order I'd take them**
+
+1. **Certificates list, second attempt.** Carried over and unchanged: keep the
+   card, status as a dot and a word rather than a coloured top strip, and the
+   algorithm read from `Certificate::$algorithmId` through
+   `SignatureAlgorithmRegistry` instead of the hardcoded "ECDSA P-384 · SHA-384"
+   string the revert put back. Half an hour, and it settles the card treatment
+   for every other screen.
+2. **Then roll the subtractions outward** to the documents list and the document
+   page, once that card treatment is agreed. Same three moves each time: fewer
+   icon chips, colour only where it means something, stop the interface
+   narrating itself.
+3. **HTML emails** (its own section below). The last piece of the notification
+   story that is still plain text.
+4. **Then triage against thesis writing rather than picking up by default:**
+   audit-chain tamper-evidence, hash/KDF agility, the receipt-digest question,
+   CRL/OCSP. The defense window is late September.
+
+Off the list: point 3 of the delivery rework, resolved by ADR-013 and built.
+Still standing but optional: the live count in the composers' confirmation
+sentence (five lines of JS), and the design-kit debt in `build_kit.py`, which
+matters only if there is another design round.
+
+---
+
 ## Project Overview
 
 Sigil is a Symfony-based web application for digitally signing PDF documents, modeled after services like Evrotrust and Borica. The MVP allows authenticated users to upload PDFs, sign them with a server-stored cryptographic certificate (PIN-protected), choose between attached/detached and visible/invisible signatures, embed RFC 3161 timestamps, and route documents to other registered users for counter-signing. Signed documents produce technically valid PAdES signatures that PDF readers (Adobe Acrobat, etc.) recognize as cryptographically valid, though not as trusted (the issuing CA is self-signed and not in Adobe's AATL).
@@ -918,7 +983,16 @@ Tests never open a socket: `config/services_test.yaml` decorates
 updates and can be told to fail. `LivePushTest` pins the topic, the empty
 payload, the private flag, the degraded path, the cookie's single grant and path,
 and the `data-bell-region` contract the Stimulus controller depends on. Suite is
-172 green.
+175 green.
+
+Three things only browser use found, all fixed and covered: `MERCURE_URL` must
+carry `:3000` (the hub listens on 3000 inside the network too, so a portless URL
+fails on 80 while the subscribe side looks perfect); the bell's "Mark all read"
+hand-rolled a `_csrf_token` field the Form component never reads, and now comes
+from `MarkAllReadFormFactory` like the page's; and mark-all's referer guard
+accepted anything `parse_url` called hostless, so it is a same-origin prefix
+match now. The bell also rings on arrival - `.bell-ringing` in `app.css`, added
+by the controller and dropped on `animationend`.
 
 The risk register's Mercure cut is therefore spent - it is in, and the fallback
 it named (a poll) is no longer needed.

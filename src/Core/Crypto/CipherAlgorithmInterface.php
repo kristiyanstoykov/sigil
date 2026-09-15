@@ -25,10 +25,18 @@ interface CipherAlgorithmInterface
     /** Stable, versioned identifier written into the envelope, e.g. "AES-256-GCM/v1". */
     public function id(): string;
 
-    /** Required key length in bytes (32 for AES-256). */
+    /**
+     * Required key length in bytes (32 for AES-256).
+     *
+     * @return positive-int
+     */
     public function keyLength(): int;
 
-    /** Nonce length in bytes (12 for GCM's 96-bit nonce). */
+    /**
+     * Nonce length in bytes (12 for GCM's 96-bit nonce).
+     *
+     * @return positive-int
+     */
     public function nonceLength(): int;
 
     /**

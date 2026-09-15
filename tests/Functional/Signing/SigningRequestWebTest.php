@@ -113,7 +113,7 @@ final class SigningRequestWebTest extends AuthWebTestCase
         $crawler = $this->client->request('GET', '/signing-requests');
         $form = $crawler->filter('form[action*="/decline"]')->form();
         $field = array_key_first($form->all());
-        self::assertNotNull($field);
+        self::assertIsString($field);
         $form[$field] = 'Wrong counterparty named in clause 4.';
         $this->client->submit($form);
 
@@ -173,7 +173,7 @@ final class SigningRequestWebTest extends AuthWebTestCase
         $crawler = $this->client->request('GET', '/signing-requests');
         $form = $crawler->filter('form[action*="/decline"]')->form();
         $field = array_key_first($form->all());
-        self::assertNotNull($field);
+        self::assertIsString($field);
         $form[$field] = 'Out of scope for my role.';
         $this->client->submit($form);
 
@@ -305,7 +305,7 @@ final class SigningRequestWebTest extends AuthWebTestCase
             'POST',
             '/documents/'.$documentId.'/request/lookup',
             server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['email' => $first]),
+            content: (string) json_encode(['email' => $first]),
         );
         self::assertResponseIsSuccessful();
         $payload = json_decode((string) $this->client->getResponse()->getContent(), true);
@@ -316,7 +316,7 @@ final class SigningRequestWebTest extends AuthWebTestCase
             'POST',
             '/documents/'.$documentId.'/request/lookup',
             server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['email' => 'nobody@test.sigil.local']),
+            content: (string) json_encode(['email' => 'nobody@test.sigil.local']),
         );
         $payload = json_decode((string) $this->client->getResponse()->getContent(), true);
         self::assertFalse($payload['ok']);

@@ -114,6 +114,7 @@ class DocumentSignerTest extends AuthWebTestCase
 
         // The original is untouched (still the uploaded bytes).
         $original = $document->getVersions()->first();
+        self::assertNotFalse($original);
         self::assertSame(DocumentVersionKind::Original, $original->getKind());
         self::assertSame(self::MINIMAL_PDF, static::getContainer()->get(DocumentDownloader::class)->download($original, $user));
 

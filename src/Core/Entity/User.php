@@ -22,6 +22,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     use HasUuid;
     use HasTimestamps;
 
+    /** @var non-empty-string */
     #[ORM\Column(length: 180, unique: true)]
     private string $email;
 
@@ -55,6 +56,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     // ── UserInterface ────────────────────────────────────────────────────────
 
+    /** @return non-empty-string */
     public function getUserIdentifier(): string
     {
         return $this->email;
@@ -66,7 +68,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         $roles = $this->roles;
         $roles[] = 'ROLE_USER';
 
-        return array_unique($roles);
+        return array_values(array_unique($roles));
     }
 
     public function eraseCredentials(): void {}
@@ -102,6 +104,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->email;
     }
 
+    /** @param non-empty-string $email */
     public function setEmail(string $email): static
     {
         $this->email = $email;

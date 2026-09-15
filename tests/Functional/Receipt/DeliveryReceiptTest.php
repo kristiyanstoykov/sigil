@@ -350,6 +350,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
 
     private function runCommand(string $name): void
     {
+        self::assertNotNull(static::$kernel);
         $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(static::$kernel);
         $application->setAutoExit(false);
         $application->run(

@@ -309,6 +309,7 @@ class SigningRequestTest extends AuthWebTestCase
 
     private function runCommand(string $name): int
     {
+        self::assertNotNull(static::$kernel);
         $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(static::$kernel);
         $application->setAutoExit(false);
         // Let a command blow up in the test rather than being rendered to output:

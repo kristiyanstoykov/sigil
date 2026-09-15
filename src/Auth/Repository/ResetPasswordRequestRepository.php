@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Repository;
 
 use App\Auth\Entity\ResetPasswordRequest;
+use App\Core\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use SymfonyCasts\Bundle\ResetPassword\Model\ResetPasswordRequestInterface;
@@ -29,6 +30,8 @@ class ResetPasswordRequestRepository extends ServiceEntityRepository implements 
         string $selector,
         string $hashedToken,
     ): ResetPasswordRequestInterface {
+        \assert($user instanceof User);
+
         return new ResetPasswordRequest($user, $expiresAt, $selector, $hashedToken);
     }
 }

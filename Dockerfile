@@ -27,9 +27,10 @@ ENV SOFTHSM2_CONF=/etc/softhsm2.conf \
 
 # pyHanko (PAdES signing, ADR-007). tzdata is required — pyHanko resolves a
 # ZoneInfo at import time. image-support extra = Pillow, for visible stamps.
+# Pinned: 0.37 dropped open_pkcs11_session(token_label=) and broke every signature.
 RUN apk add --no-cache python3 py3-pip tzdata \
     && pip3 install --break-system-packages --no-cache-dir \
-        "pyhanko[pkcs11,image-support,qr,opentype]" pyhanko-cli \
+        "pyhanko[pkcs11,image-support,qr,opentype]==0.37.0" "pyhanko-cli==0.5.0" \
     && rm -rf /var/cache/apk/*
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

@@ -30,12 +30,17 @@ abstract class AuthWebTestCase extends WebTestCase
         $this->clearRateLimiters();
     }
 
-    /** Unique email per test run so throttling/uniqueness never collide across runs. */
+    /**
+     * Unique email per test run so throttling/uniqueness never collide across runs.
+     *
+     * @return non-empty-string
+     */
     protected function uniqueEmail(string $prefix = 'user'): string
     {
         return sprintf('%s+%s@test.sigil.local', $prefix, bin2hex(random_bytes(6)));
     }
 
+    /** @param non-empty-string $email */
     protected function createUser(
         string $email,
         bool $verified = true,
