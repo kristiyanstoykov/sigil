@@ -2,6 +2,11 @@
    CertificateDisplayStatus enum (label/badgeClass/dotClass/accentClass) -
    templates never hardcode a status string or its color. #}
 
+{# Status as a dot and a word - the only colour a list card spends. #}
+{% macro status_dot(status) %}
+    <span class="inline-flex items-center gap-2 text-sm font-medium text-theme-headings whitespace-nowrap"><span class="w-2 h-2 rounded-full {{ status.dotClass }}" aria-hidden="true"></span>{{ status.label }}</span>
+{% endmacro %}
+
 {% macro badge(status, big = false) %}
     {% set size = big ? 'text-sm px-3 py-1' : 'text-xs px-2.5 py-0.5' %}
     <span class="inline-flex items-center gap-1.5 font-medium rounded-full whitespace-nowrap {{ status.badgeClass }} {{ size }}"><span class="w-1.5 h-1.5 rounded-full {{ status.dotClass }}"></span>{{ status.label }}</span>

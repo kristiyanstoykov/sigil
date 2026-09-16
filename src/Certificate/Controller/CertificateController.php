@@ -46,8 +46,14 @@ class CertificateController extends AbstractController
     #[Route('', name: 'app_certificates', methods: ['GET'])]
     public function index(): Response
     {
+        // Status is partly virtual (hold, expiry), so the order is decided here,
+        // not in SQL: usable first, then by newest.
+        $certificates = $this->certificates->findByUser($this->currentUser());
+        usort($certificates, static fn (Certificate $a, Certificate $b): int => [$a->getDisplayStatus()->sortRank(), $b->getCreatedAt()]
+            <=> [$b->getDisplayStatus()->sortRank(), $a->getCreatedAt()]);
+
         return $this->render('certificate/index.html.twig', [
-            'certificates' => $this->certificates->findByUser($this->currentUser()),
+            'certificates' => $certificates,
             'max_certificates' => Certificate::MAX_PER_USER,
         ]);
     }
@@ -102,7 +108,7 @@ class CertificateController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_certificate_show', methods: ['GET'])]
-    public function show(string $id, \App\Certificate\Algorithm\SignatureAlgorithmRegistry $algorithms): Response
+    public function show(string $id): Response
     {
         $certificate = $this->ownedCertificate($id);
 
@@ -111,7 +117,6 @@ class CertificateController extends AbstractController
         // conditionals it would otherwise duplicate.
         return $this->render('certificate/show.html.twig', [
             'certificate' => $certificate,
-            'algorithm_label' => $algorithms->get($certificate->getAlgorithmId())->label(),
             'holdForm' => $this->actionForm($id, 'hold')->createView(),
             'resumeForm' => $this->actionForm($id, 'resume')->createView(),
             'revokeForm' => $this->actionForm($id, 'revoke', $certificate->getDisplayStatus()->isPinGuarded())->createView(),

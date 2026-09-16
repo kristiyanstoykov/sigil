@@ -74,10 +74,13 @@ class DashboardController extends AbstractController
         // is never visible to the sender, so ADR-012 stays as it is.
         $deliveredToMe = $this->notifications->findUnreadFor($user, [NotificationType::DocumentDelivered], 4);
 
-        $certificates = $this->certificateCards($user, $algorithms);
+        // The rail shows only what can sign right now; a held, locked or
+        // expired certificate is the certificates page's business.
+        $allCards = $this->certificateCards($user, $algorithms);
+        $certificates = array_values(array_filter($allCards, static fn (array $card): bool => \in_array($card['status'], [CertificateDisplayStatus::Active, CertificateDisplayStatus::Expiring], true)));
 
         return $this->render('dashboard/index.html.twig', [
-            'onboarding' => [] === $certificates && [] === $documents,
+            'onboarding' => [] === $allCards && [] === $documents,
             'stats' => [
                 'awaiting_me' => \count($myTurn),
                 'sent_pending' => \count($sent),
@@ -91,6 +94,7 @@ class DashboardController extends AbstractController
             'activity' => $this->auditEntries->findRecentForActor($user, 6),
             'monthly' => $this->monthlyActivity($user),
             'certificates' => $certificates,
+            'hasOtherCertificates' => [] !== $allCards,
         ]);
     }
 

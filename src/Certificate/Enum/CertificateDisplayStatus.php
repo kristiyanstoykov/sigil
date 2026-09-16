@@ -48,7 +48,7 @@ enum CertificateDisplayStatus: string
             self::Active => 'bg-success-500/10 text-success-600',
             self::OnHold => 'bg-info-500/10 text-info-600',
             self::Locked => 'bg-danger-500/10 text-danger-600',
-            self::Revoked => 'bg-secondary-500/10 text-secondary-600',
+            self::Revoked => 'bg-theme-activebg text-theme-secondarytextcolor',
             self::Expired, self::Expiring => 'bg-warning-500/10 text-warning-600',
         };
     }
@@ -60,8 +60,20 @@ enum CertificateDisplayStatus: string
             self::Active => 'bg-success-500',
             self::OnHold => 'bg-info-500',
             self::Locked => 'bg-danger-500',
-            self::Revoked => 'bg-secondary-400',
+            self::Revoked => 'bg-theme-secondarytextcolor',
             self::Expired, self::Expiring => 'bg-warning-500',
+        };
+    }
+
+    /** A list card's left edge - Able Pro's border-l-4 card, in the dot's colour. */
+    public function borderClass(): string
+    {
+        return match ($this) {
+            self::Active => 'border-success-500',
+            self::OnHold => 'border-info-500',
+            self::Locked => 'border-danger-500',
+            self::Revoked => 'border-theme-secondarytextcolor',
+            self::Expired, self::Expiring => 'border-warning-500',
         };
     }
 
@@ -73,7 +85,19 @@ enum CertificateDisplayStatus: string
             self::OnHold => 'bg-info-500',
             self::Locked => 'bg-danger-500',
             self::Expired, self::Expiring => 'bg-warning-500',
-            self::Revoked => 'bg-secondary-300',
+            self::Revoked => 'bg-theme-border',
+        };
+    }
+
+    /** List order: what can sign first, then what could again, then what is finished. */
+    public function sortRank(): int
+    {
+        return match ($this) {
+            self::Active, self::Expiring => 0,
+            self::OnHold => 1,
+            self::Locked => 2,
+            self::Expired => 3,
+            self::Revoked => 4,
         };
     }
 

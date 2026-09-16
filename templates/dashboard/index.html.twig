@@ -230,9 +230,15 @@
 
                     {% if certificates is empty %}
                         <div class="rounded-lg border border-dashed border-theme-inputborder px-5 py-7 text-center">
-                            <p class="mb-1 text-sm font-semibold text-theme-headings">No certificates yet</p>
-                            <p class="mb-3 text-sm text-theme-secondarytextcolor">You need one to sign a document. Receiving one needs nothing.</p>
-                            <a href="{{ path('app_certificate_new') }}" class="btn btn-primary btn-sm">Create your certificate</a>
+                            {% if hasOtherCertificates %}
+                                <p class="mb-1 text-sm font-semibold text-theme-headings">No active certificate</p>
+                                <p class="mb-3 text-sm text-theme-secondarytextcolor">Yours are on hold, locked or expired.</p>
+                                <a href="{{ path('app_certificates') }}" class="btn btn-outline-secondary btn-sm">See your certificates</a>
+                            {% else %}
+                                <p class="mb-1 text-sm font-semibold text-theme-headings">No certificates yet</p>
+                                <p class="mb-3 text-sm text-theme-secondarytextcolor">You need one to sign a document. Receiving one needs nothing.</p>
+                                <a href="{{ path('app_certificate_new') }}" class="btn btn-primary btn-sm">Create your certificate</a>
+                            {% endif %}
                         </div>
                     {% endif %}
 
@@ -242,8 +248,7 @@
                                 {% set expiring = cert.status.expiring %}
                                 <div class="box-border w-full shrink-0">
                                     <div class="overflow-hidden rounded-lg border border-theme-border">
-                                        <div class="h-1 {{ cert.status.accentClass }}"></div>
-                                        <div class="p-4">
+                                        <div class="p-4 border-l-4 {{ cert.status.borderClass }}">
                                             <div class="flex items-center justify-between">
                                                 <span class="text-sm font-semibold text-theme-headings">{{ cert.name }}</span>
                                                 <span class="badge rounded-full {{ cert.status.badgeClass }}">{{ expiring ? 'Expires in ' ~ cert.expires_in : cert.status.label }}</span>
