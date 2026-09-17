@@ -1,15 +1,16 @@
 {% extends 'emails/base.html.twig' %}
 
 {% block heading %}{{ signedBy }} signed your document{% endblock %}
+{% block preheader %}{{ signedBy }} signed {{ title }}.{% endblock %}
 
 {% block body %}
-    <p>
+    <p style="margin:0 0 16px;">
         <strong>{{ title }}</strong> was signed by {{ signedBy }}. The signature was added as a new
         version; every earlier version is kept as part of the record.
     </p>
 
     {% if remaining is defined and remaining > 0 %}
-        <p>{{ remaining }} signer(s) still have to sign before the request is complete.</p>
+        <p style="margin:0 0 16px;">{{ remaining }} signer(s) still have to sign before the request is complete.</p>
     {% endif %}
 {% endblock %}
 

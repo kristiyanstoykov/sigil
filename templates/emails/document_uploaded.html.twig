@@ -1,9 +1,10 @@
 {% extends 'emails/base.html.twig' %}
 
 {% block heading %}Your document is stored and encrypted{% endblock %}
+{% block preheader %}{{ title }} is stored and encrypted. Sign it, or ask others to.{% endblock %}
 
 {% block body %}
-    <p>
+    <p style="margin:0 0 16px;">
         <strong>{{ title }}</strong> was uploaded to Sigil and encrypted at rest. Nothing has been
         signed yet: sign it yourself, or request signatures from other people.
     </p>

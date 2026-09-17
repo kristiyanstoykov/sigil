@@ -1,28 +1,94 @@
-{# Transactional email shell. Inline styles only - mail clients drop <style>. #}
+{#
+    Transactional email shell - docs/design/email/sigil-email-shell.html, made
+    a layout. Tables and inline styles only: mail clients drop <style> and
+    Outlook ignores flex/grid. No mark yet: it needs a public host (Gmail
+    cannot fetch localhost, strips <svg> and blocks data: URIs, and Brevo's API
+    flattens a CID part into a plain attachment). Once deployed, put back
+    <img src="{{ absolute_url(asset('images/sigil-mark-2x.png')) }}"> above
+    the wordmark. block() output is already escaped, so the two blocks read as
+    strings get |raw after |trim.
+#}
 <!DOCTYPE html>
 <html lang="en">
-<body style="font-family: Arial, Helvetica, sans-serif; color: #0A0A0A; line-height: 1.5;">
-    <h1 style="font-size: 20px;">{% block heading %}{% endblock %}</h1>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>{% block heading %}{% endblock %}</title>
+<!--[if mso]>
+<style>body,table,td,a{font-family:Arial,Helvetica,sans-serif !important;}</style>
+<![endif]-->
+<style>
+  @media only screen and (max-width:600px){
+    .sg-pad{padding-left:20px !important;padding-right:20px !important;}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#F5F7FB;">
+{% if block('preheader') is defined and block('preheader')|trim %}
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all;">{{ block('preheader')|trim|raw }}</span>
+{% endif %}
 
-    {% block body %}{% endblock %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F5F7FB;">
+  <tr>
+    <td align="center" style="padding:32px 12px;">
 
-    {% if block('action_url') is defined and block('action_url')|trim %}
-        <p style="margin: 24px 0;">
-            <a href="{{ block('action_url')|trim }}"
-               style="display: inline-block; background: #1E3A8A; color: #ffffff; text-decoration: none;
-                      padding: 12px 20px; border-radius: 8px; font-weight: 600;">
-                {% block action_label %}Open in Sigil{% endblock %}
-            </a>
-        </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:600px;">
 
-        <p style="color: #6B7280; font-size: 13px;">
-            If the button does not work, copy and paste this URL into your browser:<br>
-            <span style="word-break: break-all;">{{ block('action_url')|trim }}</span>
-        </p>
-    {% endif %}
+        {# header #}
+        <tr>
+          <td class="sg-pad" align="center" style="padding:8px 32px 24px;">
+            <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:26px;mso-line-height-rule:exactly;color:#1E3A8A;letter-spacing:.5px;">Sigil</div>
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:16px;mso-line-height-rule:exactly;color:#64748B;letter-spacing:2px;text-transform:uppercase;padding-top:4px;">Signum Veritatis</div>
+          </td>
+        </tr>
 
-    <p style="color: #6B7280; font-size: 13px;">
-        Sigil - Signum Veritatis. You are receiving this because of activity on your Sigil account.
-    </p>
+        {# card #}
+        <tr>
+          <td style="background-color:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td class="sg-pad" style="padding:32px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#0F172A;">
+
+                  <h1 style="margin:0 0 14px;font-family:Arial,Helvetica,sans-serif;font-size:19px;line-height:26px;mso-line-height-rule:exactly;font-weight:bold;color:#0F172A;">{{ block('heading') }}</h1>
+
+                  {% block body %}{% endblock %}
+
+                  {% if block('action_url') is defined and block('action_url')|trim %}
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">
+                    <tr>
+                      <td align="center" bgcolor="#1E3A8A" style="border-radius:8px;">
+                        <a href="{{ block('action_url')|trim|raw }}" style="display:block;padding:13px 26px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;">{% block action_label %}Open in Sigil{% endblock %}</a>
+                      </td>
+                    </tr>
+                  </table>
+                  {% endif %}
+
+                  {% if block('note') is defined and block('note')|trim %}
+                  <p style="margin:20px 0 0;font-size:13px;line-height:20px;color:#64748B;">{{ block('note')|trim|raw }}</p>
+                  {% endif %}
+
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {# footer #}
+        <tr>
+          <td class="sg-pad" align="center" style="padding:20px 32px 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;mso-line-height-rule:exactly;color:#64748B;">
+            <p style="margin:0 0 6px;">Sent by Sigil because of activity on your account.</p>
+            <p style="margin:0;">
+              <a href="{{ url('app_dashboard') }}" style="color:#1E3A8A;text-decoration:underline;">Open Sigil</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
 </body>
 </html>

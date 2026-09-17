@@ -9,9 +9,10 @@
         A signature request was cancelled
     {% endif %}
 {% endblock %}
+{% block preheader %}The request to sign {{ title }} is closed.{% endblock %}
 
 {% block body %}
-    <p>
+    <p style="margin:0 0 16px;">
         The request to sign <strong>{{ title }}</strong> is closed
         {% if status == 'declined' %}
             because {{ declinedBy }} declined to sign it.
@@ -24,15 +25,15 @@
 
     {% if status == 'declined' %}
         {% if declineReason %}
-            <p>They gave this reason:</p>
-            <p><em>{{ declineReason }}</em></p>
+            <p style="margin:0 0 16px;">They gave this reason:</p>
+            <p style="margin:0 0 16px;"><em>{{ declineReason }}</em></p>
         {% else %}
-            <p>They did not give a reason.</p>
+            <p style="margin:0 0 16px;">They did not give a reason.</p>
         {% endif %}
-        <p>Nobody further down the list was asked to sign.</p>
+        <p style="margin:0 0 16px;">Nobody further down the list was asked to sign.</p>
     {% endif %}
 
     {% if signed > 0 %}
-        <p>{{ signed }} signature(s) were collected and are kept with the document.</p>
+        <p style="margin:0 0 16px;">{{ signed }} signature(s) were collected and are kept with the document.</p>
     {% endif %}
 {% endblock %}

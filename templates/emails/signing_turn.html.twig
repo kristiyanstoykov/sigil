@@ -1,14 +1,15 @@
 {% extends 'emails/base.html.twig' %}
 
 {% block heading %}It is your turn to sign{% endblock %}
+{% block preheader %}{{ requester }} is waiting on your signature for {{ title }}.{% endblock %}
 
 {% block body %}
-    <p>
+    <p style="margin:0 0 16px;">
         {{ requester }} asked you to sign <strong>{{ title }}</strong>. You are signer
         {{ position }} of {{ total }}, and the document is waiting on you.
     </p>
 
-    <p>
+    <p style="margin:0 0 16px;">
         The request expires on <strong>{{ deadline|date('j M Y, H:i') }}</strong>. You will need your
         certificate PIN to sign.
     </p>

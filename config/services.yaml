@@ -73,6 +73,15 @@ services:
             $secretKey: '%env(AWS_SECRET_ACCESS_KEY)%'
             $pathStyleEndpoint: false
 
+
+    # The plain-text part of every email is derived from the HTML - see
+    # Mailer\Service\HtmlToTextConverter for what it corrects.
+    twig.mime_body_renderer:
+        class: Symfony\Bridge\Twig\Mime\BodyRenderer
+        arguments:
+            $twig: '@twig'
+            $converter: '@App\Mailer\Service\HtmlToTextConverter'
+
 when@test:
     services:
         _defaults:

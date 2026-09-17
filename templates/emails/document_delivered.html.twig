@@ -1,19 +1,20 @@
 {% extends 'emails/base.html.twig' %}
 
 {% block heading %}A document has been delivered to you{% endblock %}
+{% block preheader %}{{ sender }} delivered {{ title }} to you.{% endblock %}
 
 {% block body %}
-    <p>
+    <p style="margin:0 0 16px;">
         {{ sender }} has delivered <strong>{{ title }}</strong> to you. It is in your Sigil
         account now, encrypted so that only you and the sender can open it.
     </p>
 
     {% if note %}
-        <p><em>"{{ note }}"</em></p>
+        <p style="margin:0 0 16px;"><em>"{{ note }}"</em></p>
     {% endif %}
 
     {# Notice, not request: nothing is being asked, and nothing can be refused. #}
-    <p>
+    <p style="margin:0 0 16px;">
         Nothing is being asked of you - this is a record that the document reached you,
         the way a registered letter is. {{ sender }} has been given a sealed receipt
         confirming the delivery and the moment it happened.
