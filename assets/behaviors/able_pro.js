@@ -194,14 +194,20 @@ function bindOnce() {
             event.preventDefault();
             const panel = targetOf(trigger);
             if (!panel) return;
+            // Panels start as .hidden (the theme's markup). slideUp/slideDown
+            // end by clearing inline styles, so the class has to move too.
             if (panel.classList.contains('show')) {
                 slideUp(panel, 300);
+                window.setTimeout(() => panel.classList.add('hidden'), 300);
                 panel.classList.remove('show');
                 trigger.classList.remove('show');
+                trigger.setAttribute('aria-expanded', 'false');
             } else {
+                panel.classList.remove('hidden');
                 slideDown(panel, 300);
                 panel.classList.add('show');
                 trigger.classList.add('show');
+                trigger.setAttribute('aria-expanded', 'true');
             }
             return;
         }
