@@ -66,12 +66,12 @@ class CertificateIssuer
             throw new DomainException('The certificate authority is not initialized (run sigil:ca:init).');
         }
 
-        $algorithm = $this->algorithms->default();
+        $algorithm = $this->algorithms->active();
         $tokenLabel = 'crt-'.Uuid::v7()->toBase32();
 
         try {
             $this->tokens->initToken($tokenLabel, $pin);
-            $this->tokens->generateKeyPair($tokenLabel, $algorithm->pkcs11KeyType(), self::KEY_LABEL, self::KEY_ID, $pin);
+            $this->tokens->generateKeyPair($tokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $pin);
 
             $result = $this->runDriver([
                 'mode' => 'issue',
@@ -88,6 +88,10 @@ class CertificateIssuer
                     'token_label' => $tokenLabel,
                     'key_label' => self::KEY_LABEL,
                 ],
+                // The suite travels to the driver (ADR-014): the subject's key
+                // and the CA's signature each follow their own spec.
+                'subject_algorithm' => $algorithm->toDriverSpec(),
+                'issuer_algorithm' => $algorithm->toDriverSpec(),
             ]);
 
             $this->tokens->writeCertificate(
@@ -206,9 +210,9 @@ class CertificateIssuer
             return $this->caCertPath;
         }
 
-        $algorithm = $this->algorithms->default();
+        $algorithm = $this->algorithms->active();
         $this->tokens->initToken($this->caTokenLabel, $this->caPin);
-        $this->tokens->generateKeyPair($this->caTokenLabel, $algorithm->pkcs11KeyType(), self::KEY_LABEL, self::KEY_ID, $this->caPin);
+        $this->tokens->generateKeyPair($this->caTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->caPin);
 
         $result = $this->runDriver([
             'mode' => 'ca-selfsign',
@@ -224,6 +228,8 @@ class CertificateIssuer
                 'common_name' => 'Sigil Signum Veritatis CA',
             ],
             'validity_days' => self::CA_CERT_DAYS,
+            'subject_algorithm' => $algorithm->toDriverSpec(),
+            'issuer_algorithm' => $algorithm->toDriverSpec(),
         ]);
 
         // store the cert in the token too, so the PEM file can always be
@@ -270,9 +276,9 @@ class CertificateIssuer
             return $this->sealCertPath;
         }
 
-        $algorithm = $this->algorithms->default();
+        $algorithm = $this->algorithms->active();
         $this->tokens->initToken($this->sealTokenLabel, $this->sealPin);
-        $this->tokens->generateKeyPair($this->sealTokenLabel, $algorithm->pkcs11KeyType(), self::KEY_LABEL, self::KEY_ID, $this->sealPin);
+        $this->tokens->generateKeyPair($this->sealTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->sealPin);
 
         $result = $this->runDriver([
             'mode' => 'issue',
@@ -294,6 +300,8 @@ class CertificateIssuer
                 'token_label' => $this->sealTokenLabel,
                 'key_label' => self::KEY_LABEL,
             ],
+            'subject_algorithm' => $algorithm->toDriverSpec(),
+            'issuer_algorithm' => $algorithm->toDriverSpec(),
         ]);
 
         $this->tokens->writeCertificate(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Receipt\Service;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Core\Exception\DomainException;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
@@ -26,6 +27,7 @@ final class ReceiptSealer
     public function __construct(
         private readonly PadesSignerInterface $signer,
         private readonly TsaProviderRegistry $tsa,
+        private readonly SignatureAlgorithmRegistry $algorithms,
         #[Autowire(env: 'SIGIL_SEAL_PIN')]
         private readonly string $sealPin,
         #[Autowire('%kernel.project_dir%/var/ca/seal.crt')]
@@ -61,6 +63,9 @@ final class ReceiptSealer
             signingCertPem: $sealPem,
             caChainPem: (string) file_get_contents($this->caCertPath),
             signerName: 'SIGIL SIGNUM VERITATIS',
+            // The seal is issued with the active suite (sigil:seal:init); a
+            // per-suite seal file that pins this is B4 of the 2026-09-20 plan.
+            algorithmId: $this->algorithms->active()->id(),
             tsaUrl: $this->tsa->activeUrl(),
             reason: sprintf('Delivery receipt for "%s"', $documentTitle),
             fieldName: 'SigilSeal-'.bin2hex(random_bytes(4)),

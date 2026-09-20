@@ -85,6 +85,7 @@ final class DocumentSigner
             signingCertPem: $certificate->getCertificatePem(),
             caChainPem: (string) file_get_contents($this->caCertPath),
             signerName: mb_strtoupper($actor->getFullName()),
+            algorithmId: $certificate->getAlgorithmId(),
             tsaUrl: $this->tsa->activeUrl(),
             // A Sigil-namespaced, unique field name. It must not collide with a
             // field already in the PDF - externally-signed documents (Borica,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Certificate\Service;
 
+use App\Certificate\Algorithm\SignatureAlgorithmInterface;
 use App\Core\Exception\DomainException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
@@ -52,17 +53,22 @@ class Pkcs11TokenManager
     }
 
     /**
-     * Generates a keypair inside the token (never exportable).
-     *
-     * @param string $keyType pkcs11-tool key spec, e.g. "EC:secp384r1"
+     * Generates the suite's keypair inside the token (never exportable).
+     * pkcs11-tool knows only the classical families; ML-DSA key generation
+     * arrives with bin/keygen.py.
      */
     public function generateKeyPair(
         string $tokenLabel,
-        string $keyType,
+        SignatureAlgorithmInterface $algorithm,
         string $keyLabel,
         string $keyId,
         #[\SensitiveParameter] string $userPin,
     ): void {
+        $keyType = match ($algorithm->family()) {
+            'ecdsa' => 'EC:'.$algorithm->parameterSet(),
+            default => throw new DomainException(sprintf('Key generation for %s is not available yet.', $algorithm->label())),
+        };
+
         $this->run([
             'pkcs11-tool', '--module', $this->modulePath,
             '--token-label', $tokenLabel,

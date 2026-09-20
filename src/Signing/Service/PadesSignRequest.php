@@ -21,6 +21,8 @@ final readonly class PadesSignRequest
         public string $signingCertPem,
         public string $caChainPem,
         public string $signerName,
+        /** The signing certificate's suite (Certificate::algorithmId); the adapter resolves it to a driver spec. */
+        public string $algorithmId,
         public ?string $tsaUrl = null,
         public ?string $reason = null,
         public ?string $location = null,

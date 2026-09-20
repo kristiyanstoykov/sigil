@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace App\Certificate\Algorithm;
 
 /**
- * Classical suite (ADR-006): ECDSA P-384 + SHA-384. Prehash: the token exposes
- * raw CKM_ECDSA, so the digest is computed in the driver and signed as is.
+ * Post-quantum suite (ADR-014): ML-DSA-65 (FIPS 204), X.509 per RFC 9881, CMS
+ * per RFC 9882. Pure mode: the token signs the full message; SHA-384 is only
+ * the CMS content digest, which RFC 9882 allows for ML-DSA-65.
  */
-final class EcdsaP384Sha384 implements SignatureAlgorithmInterface
+final class MlDsa65 implements SignatureAlgorithmInterface
 {
     use DriverSpecTrait;
 
-    public const string ID = 'ECDSA-P384-SHA384/v1';
+    public const string ID = 'ML-DSA-65/v1';
 
     public function id(): string
     {
@@ -21,12 +22,12 @@ final class EcdsaP384Sha384 implements SignatureAlgorithmInterface
 
     public function family(): string
     {
-        return 'ecdsa';
+        return 'ml-dsa';
     }
 
     public function parameterSet(): string
     {
-        return 'secp384r1';
+        return 'ML-DSA-65';
     }
 
     public function digest(): string
@@ -36,21 +37,21 @@ final class EcdsaP384Sha384 implements SignatureAlgorithmInterface
 
     public function signingMode(): SigningMode
     {
-        return SigningMode::Prehash;
+        return SigningMode::Pure;
     }
 
     public function signatureAlgorithm(): string
     {
-        return 'sha384_ecdsa';
+        return 'mldsa65';
     }
 
     public function label(): string
     {
-        return 'ECDSA P-384 with SHA-384';
+        return 'ML-DSA-65 (post-quantum, FIPS 204)';
     }
 
     public function slug(): string
     {
-        return 'ecdsa-p384';
+        return 'ml-dsa-65';
     }
 }

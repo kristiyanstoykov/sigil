@@ -6,6 +6,7 @@ namespace App\Tests\Functional\Receipt;
 
 use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\PinGate;
@@ -265,6 +266,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $sealer = new ReceiptSealer(
             $this->fakePadesSigner(),
             new TsaProviderRegistry([new NoTsaProvider()], 'none'),
+            $c->get(SignatureAlgorithmRegistry::class),
             'unused-pin',
             $projectDir.'/var/ca/seal.crt',
             $projectDir.'/var/ca/ca.crt',

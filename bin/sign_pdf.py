@@ -253,6 +253,13 @@ def place_stamp(writer: IncrementalPdfFileWriter, page: int, signer_name: str) -
 
 def main() -> None:
     req = json.load(sys.stdin)
+
+    # The certificate's suite travels from PHP (ADR-014). Until this driver
+    # dispatches on it, refuse anything but the classical suite outright.
+    spec = req.get("algorithm")
+    if spec is not None and (spec.get("spec") != "v1" or spec.get("family") != "ecdsa"):
+        fail("UnsupportedAlgorithm")
+
     signer_req = req["signer"]
     appearance = req.get("appearance") or {}
 

@@ -105,6 +105,13 @@ def main() -> None:
     if profile not in KEY_USAGE:
         fail(f"unknown profile {profile!r}")
 
+    # The suite travels from PHP (ADR-014). Until this driver dispatches on it,
+    # refuse anything but the classical suite rather than silently issuing ECDSA.
+    for key in ("issuer_algorithm", "subject_algorithm"):
+        spec = req.get(key)
+        if spec is not None and (spec.get("spec") != "v1" or spec.get("family") != "ecdsa"):
+            fail("UnsupportedAlgorithm")
+
     lib = pkcs11.lib(req["module"])
     signer = req["signer"]
     token = lib.get_token(token_label=signer["token_label"])

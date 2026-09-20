@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Signing\Service;
 
 use App\AuditLog\AuditLoggerInterface;
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\AuditLog\Enum\AuditSeverity;
 use App\Signing\Exception\SigningException;
 use App\Signing\Exception\TokenPinRejectedException;
@@ -35,10 +36,12 @@ final class PyHankoAdapter implements PadesSignerInterface
      */
     private const array EXPLAINED = [
         'EncryptedPdf' => 'This PDF is password-protected, so it cannot be signed. Remove the password and upload it again.',
+        'UnsupportedAlgorithm' => 'This certificate\'s signature suite is not supported by the signing driver.',
     ];
 
     public function __construct(
         private readonly AuditLoggerInterface $auditLogger,
+        private readonly SignatureAlgorithmRegistry $algorithms,
         #[Autowire(env: 'PKCS11_MODULE')]
         private readonly string $modulePath,
         #[Autowire('%kernel.project_dir%/bin/sign_pdf.py')]
@@ -58,6 +61,9 @@ final class PyHankoAdapter implements PadesSignerInterface
                 'pin' => $pin,
             ],
             'ca_chain_pem' => $request->caChainPem,
+            // The certificate's suite decides digest, CMS algorithm and how the
+            // token is fed (prehash vs pure) - the driver dispatches on this.
+            'algorithm' => $this->algorithms->get($request->algorithmId)->toDriverSpec(),
             'field_name' => $request->fieldName,
             'reason' => $request->reason,
             'location' => $request->location,
