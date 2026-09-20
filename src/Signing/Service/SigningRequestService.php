@@ -17,6 +17,7 @@ use App\Signing\Enum\SigningRequestStatus;
 use App\Signing\Event\SigningRequestClosed;
 use App\Signing\Event\SigningTurnReached;
 use App\Signing\Repository\SigningRequestRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -105,38 +106,49 @@ final class SigningRequestService
 
         $this->assertDeadline($deadline);
 
-        $request = new SigningRequest($document, $requester, $deadline);
-        $this->em->persist($request);
+        // The request, its signers, the flag, the first grant and the audit entry
+        // commit together: a request on the record whose first signer holds no
+        // key would be a queue nobody can move.
+        try {
+            $request = $this->em->wrapInTransaction(function () use ($document, $requester, $signers, $deadline, $latest): SigningRequest {
+                $request = new SigningRequest($document, $requester, $deadline);
+                $this->em->persist($request);
 
-        // Delivery waits until the queue is done: a delivered document is final,
-        // and serving one mid-queue would strand the signers still to come.
-        $document->markAwaitingSignatures(\DateTimeImmutable::createFromInterface($this->clock->now()));
+                // Delivery waits until the queue is done: a delivered document is final,
+                // and serving one mid-queue would strand the signers still to come.
+                $document->markAwaitingSignatures(\DateTimeImmutable::createFromInterface($this->clock->now()));
 
-        $position = 1;
-        foreach ($signers as $signer) {
-            $this->em->persist(new SigningRequestSigner($request, $signer, $position));
-            ++$position;
+                $position = 1;
+                foreach ($signers as $signer) {
+                    $this->em->persist(new SigningRequestSigner($request, $signer, $position));
+                    ++$position;
+                }
+
+                $this->em->flush();
+
+                // The turn is the access: only the first signer can read the document now.
+                $this->sharer->grantVersion($latest, $requester, $request->orderedSigners()[0]->getUser());
+
+                $this->auditLogger->log(
+                    action: 'signing_request.created',
+                    actor: $requester,
+                    payload: [
+                        'requestId' => $request->getId()->toRfc4122(),
+                        'signers' => implode(', ', array_map(static fn (User $u): string => $u->getEmail(), $signers)),
+                        'deadline' => $deadline->format(\DATE_ATOM),
+                    ],
+                    subjectType: 'Document',
+                    subjectId: $document->getId()->toRfc4122(),
+                );
+
+                return $request;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Two sends raced past findLatestForDocument(); the index decided.
+            throw new DomainException('This document already has a signature request out.');
         }
 
-        $this->em->flush();
-
-        // The turn is the access: only the first signer can read the document now.
-        $first = $request->orderedSigners()[0];
-        $this->sharer->grantVersion($latest, $requester, $first->getUser());
-
-        $this->auditLogger->log(
-            action: 'signing_request.created',
-            actor: $requester,
-            payload: [
-                'requestId' => $request->getId()->toRfc4122(),
-                'signers' => implode(', ', array_map(static fn (User $u): string => $u->getEmail(), $signers)),
-                'deadline' => $deadline->format(\DATE_ATOM),
-            ],
-            subjectType: 'Document',
-            subjectId: $document->getId()->toRfc4122(),
-        );
-
-        $this->events->dispatch(new SigningTurnReached($request, $first));
+        $this->events->dispatch(new SigningTurnReached($request, $request->orderedSigners()[0]));
 
         return $request;
     }
@@ -153,27 +165,36 @@ final class SigningRequestService
             ?? throw new DomainException('It is not your turn to sign this document.');
 
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
-        $entry->markSigned($version, $now);
-        $this->em->flush();
 
-        $next = $request->currentSigner();
-        if (null === $next) {
-            $request->close(SigningRequestStatus::Completed, $now);
-            $request->getDocument()->clearAwaitingSignatures();
+        // The signature on the record and the turn moving on commit together.
+        $next = $this->em->wrapInTransaction(function () use ($request, $signer, $entry, $version, $now): ?SigningRequestSigner {
+            $entry->markSigned($version, $now);
             $this->em->flush();
 
-            $this->audit($request, 'signing_request.completed', $signer, []);
-            $this->events->dispatch(new SigningRequestClosed($request));
+            $next = $request->currentSigner();
+            if (null === $next) {
+                $request->close(SigningRequestStatus::Completed, $now);
+                $request->getDocument()->clearAwaitingSignatures();
+                $this->em->flush();
+                $this->audit($request, 'signing_request.completed', $signer, []);
 
-            return;
-        }
+                return null;
+            }
 
-        $this->sharer->grantVersion($version, $signer, $next->getUser());
-        $this->audit($request, 'signing_request.turn_advanced', $signer, [
-            'nextSigner' => $next->getUser()->getEmail(),
-            'position' => $next->getPosition(),
-        ]);
-        $this->events->dispatch(new SigningTurnReached($request, $next));
+            $this->sharer->grantVersion($version, $signer, $next->getUser());
+            $this->audit($request, 'signing_request.turn_advanced', $signer, [
+                'nextSigner' => $next->getUser()->getEmail(),
+                'position' => $next->getPosition(),
+            ]);
+
+            return $next;
+        });
+
+        // After the commit: the receipt sealer and the notifiers must see
+        // committed state.
+        $this->events->dispatch(null === $next
+            ? new SigningRequestClosed($request)
+            : new SigningTurnReached($request, $next));
     }
 
     /**
@@ -209,8 +230,8 @@ final class SigningRequestService
         $entry = $request->signerFor($signer)
             ?? throw new DomainException('It is not your turn to sign this document.');
 
+        // Not flushed here: close() commits the refusal together with the closing.
         $entry->markDeclined($reason, \DateTimeImmutable::createFromInterface($this->clock->now()));
-        $this->em->flush();
 
         // close() revokes the turn-holder's grants, which is this signer: they
         // refused, so they keep no access to what they refused.
@@ -254,25 +275,32 @@ final class SigningRequestService
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
         $pending = $request->currentSigner();
 
-        $request->close($status, $now);
-        $request->getDocument()->clearAwaitingSignatures();
-        $this->em->flush();
+        // Closing and taking the turn-holder's key back commit together: a closed
+        // request whose signer can still read the document is the leak the
+        // revocation exists to prevent.
+        $this->em->wrapInTransaction(function () use ($request, $status, $actor, $auditPayload, $pending, $now): void {
+            $request->close($status, $now);
+            $request->getDocument()->clearAwaitingSignatures();
+            $this->em->flush();
 
-        // Whoever held the turn loses the access that came with it. Signers who
-        // already signed keep theirs: they are on the record as having signed.
-        // The owner may queue themselves, but their access predates the turn and
-        // is not the turn's to take back.
-        if (null !== $pending && !$pending->isUser($request->getDocument()->getOwner())) {
-            $deleted = $this->grants->deleteForDocumentAndUser($request->getDocument(), $pending->getUser());
-            if ($deleted > 0) {
-                $this->audit($request, 'signing_request.access_revoked', $actor, [
-                    'signer' => $pending->getUser()->getEmail(),
-                    'grantsDeleted' => $deleted,
-                ]);
+            // Whoever held the turn loses the access that came with it. Signers who
+            // already signed keep theirs: they are on the record as having signed.
+            // The owner may queue themselves, but their access predates the turn and
+            // is not the turn's to take back.
+            if (null !== $pending && !$pending->isUser($request->getDocument()->getOwner())) {
+                $deleted = $this->grants->deleteForDocumentAndUser($request->getDocument(), $pending->getUser());
+                if ($deleted > 0) {
+                    $this->audit($request, 'signing_request.access_revoked', $actor, [
+                        'signer' => $pending->getUser()->getEmail(),
+                        'grantsDeleted' => $deleted,
+                    ]);
+                }
             }
-        }
 
-        $this->audit($request, 'signing_request.'.$status->value, $actor, $auditPayload);
+            $this->audit($request, 'signing_request.'.$status->value, $actor, $auditPayload);
+        });
+
+        // After the commit: the receipt is sealed over committed evidence.
         $this->events->dispatch(new SigningRequestClosed($request));
     }
 

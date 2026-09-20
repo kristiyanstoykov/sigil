@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Delivery;
 
+use App\AuditLog\AuditLoggerInterface;
+use App\AuditLog\Entity\AuditLogEntry;
+use App\AuditLog\Enum\AuditSeverity;
 use App\Certificate\Entity\Certificate;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Delivery\Entity\Delivery;
 use App\Delivery\Repository\DeliveryRepository;
 use App\Delivery\Service\DeliveryService;
+use App\Delivery\Service\RecipientEligibility;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentKeyGrantRepository;
 use App\Document\Repository\DocumentRepository;
 use App\Document\Service\DocumentDownloader;
+use App\Document\Service\DocumentSharer;
 use App\Document\Service\DocumentUploader;
 use App\Receipt\Enum\ReceiptOutcome;
 use App\Receipt\Enum\ReceiptSource;
@@ -20,7 +26,10 @@ use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Receipt\Service\ReceiptSealer;
 use App\Signing\Service\SigningRequestService;
 use App\Tests\Functional\AuthWebTestCase;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Clock\ClockInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Delivery: being served a document (ADR-012). Nothing is asked of a recipient,
@@ -52,6 +61,78 @@ class DeliveryTest extends AuthWebTestCase
         self::assertNotNull($version);
         $bytes = static::getContainer()->get(DocumentDownloader::class)->download($version, $second);
         self::assertSame(self::MINIMAL_PDF, $bytes);
+    }
+
+    /**
+     * All or nothing has to hold against a failure halfway through, not only
+     * against a bad list: if the second recipient cannot be recorded, the first
+     * is not served either and the document is not marked delivered.
+     */
+    public function testAFailureHalfwayThroughServesNobody(): void
+    {
+        [$sender, $first, $second] = $this->threeUsers();
+        $document = $this->upload($sender);
+        $documentId = $document->getId()->toRfc4122();
+        $c = static::getContainer();
+
+        // An audit entry that cannot be written must never be swallowed - so it
+        // is the natural place to make the second recipient's step fail.
+        $failingAudit = new class($c->get(AuditLoggerInterface::class)) implements AuditLoggerInterface {
+            private int $served = 0;
+
+            public function __construct(private readonly AuditLoggerInterface $inner)
+            {
+            }
+
+            public function log(string $action, ?User $actor = null, array $payload = [], ?string $subjectType = null, ?string $subjectId = null, AuditSeverity $severity = AuditSeverity::Info): AuditLogEntry
+            {
+                if ('delivery.served' === $action && ++$this->served === 2) {
+                    throw new \RuntimeException('audit store unavailable');
+                }
+
+                return $this->inner->log($action, $actor, $payload, $subjectType, $subjectId, $severity);
+            }
+        };
+
+        $service = new DeliveryService(
+            $c->get(RecipientEligibility::class),
+            $c->get(DocumentSharer::class),
+            $failingAudit,
+            $c->get(ClockInterface::class),
+            $c->get(EventDispatcherInterface::class),
+            $c->get(EntityManagerInterface::class),
+        );
+
+        try {
+            $service->deliver($document, $sender, [$first, $second]);
+            self::fail('the failure must surface');
+        } catch (\RuntimeException $e) {
+            self::assertSame('audit store unavailable', $e->getMessage());
+        }
+
+        // The rollback closed the entity manager; read back through a fresh one.
+        $c->get('doctrine')->resetManager();
+        $reloaded = $c->get(DocumentRepository::class)->find($documentId);
+        self::assertNotNull($reloaded);
+        self::assertFalse($reloaded->isDelivered(), 'a delivery that failed halfway is no delivery');
+        self::assertSame([], $c->get(DeliveryRepository::class)->findForDocument($reloaded));
+        $grants = $c->get(DocumentKeyGrantRepository::class);
+        self::assertFalse($grants->hasGrantForDocument($reloaded, $first), 'the first recipient was not served either');
+        self::assertFalse($grants->hasGrantForDocument($reloaded, $second));
+    }
+
+    /** The service checks first; the index is what decides a race it did not see. */
+    public function testTheDatabaseRefusesASecondDeliveryOfTheSameDocument(): void
+    {
+        [$sender, $first, $second] = $this->threeUsers();
+        $document = $this->upload($sender);
+        $this->service()->deliver($document, $sender, [$first]);
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $em->persist(new Delivery($document, $sender, null));
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $em->flush();
     }
 
     public function testDeliveryIsAttestedByASealedReceiptAddressedToEveryone(): void

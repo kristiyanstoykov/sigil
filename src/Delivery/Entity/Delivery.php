@@ -25,6 +25,8 @@ use Doctrine\ORM\Mapping as ORM;
  */
 #[ORM\Entity(repositoryClass: DeliveryRepository::class)]
 #[ORM\Table(name: 'delivery')]
+// Delivery is terminal and once-only - the database backs what deliver() checks.
+#[ORM\UniqueConstraint(name: 'uniq_delivery_document', columns: ['document_id'])]
 #[ORM\HasLifecycleCallbacks]
 class Delivery
 {

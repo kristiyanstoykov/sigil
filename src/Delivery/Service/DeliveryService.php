@@ -12,6 +12,7 @@ use App\Delivery\Entity\DeliveryRecipient;
 use App\Delivery\Event\DocumentDelivered;
 use App\Document\Entity\Document;
 use App\Document\Service\DocumentSharer;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -89,39 +90,53 @@ final class DeliveryService
         }
 
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
-        $delivery = new Delivery($document, $sender, $note);
-        $this->em->persist($delivery);
 
-        // The document is finished from this moment. Signing reads this flag;
-        // Delivery is its only writer.
-        $document->markDelivered($now);
+        // One transaction: the delivery row, the flag, every grant and every audit
+        // entry commit together or not at all - "all or nothing" has to hold
+        // against a failure halfway through, not only against a bad list.
+        try {
+            $delivery = $this->em->wrapInTransaction(function () use ($document, $sender, $recipients, $note, $version, $now): Delivery {
+                $delivery = new Delivery($document, $sender, $note);
+                $this->em->persist($delivery);
 
-        foreach ($recipients as $recipient) {
-            $this->em->persist(new DeliveryRecipient($delivery, $recipient, $version, $now));
+                // The document is finished from this moment. Signing reads this flag;
+                // Delivery is its only writer.
+                $document->markDelivered($now);
+
+                foreach ($recipients as $recipient) {
+                    $this->em->persist(new DeliveryRecipient($delivery, $recipient, $version, $now));
+                }
+
+                $this->em->flush();
+
+                // The grant IS the consignment: re-wrap this version's DEK for each
+                // recipient, exactly as a signing turn does (ADR-004, re-wrap never
+                // re-encrypt). Only this version - a later one is not served retroactively.
+                foreach ($recipients as $recipient) {
+                    $this->sharer->grantVersion($version, $sender, $recipient);
+
+                    $this->auditLogger->log(
+                        action: 'delivery.served',
+                        actor: $sender,
+                        payload: [
+                            'deliveryId' => $delivery->getId()->toRfc4122(),
+                            'recipient' => $recipient->getEmail(),
+                            'versionNumber' => $version->getVersionNumber(),
+                            'deliveredAt' => $now->format(\DATE_ATOM),
+                        ],
+                        subjectType: 'Document',
+                        subjectId: $document->getId()->toRfc4122(),
+                    );
+                }
+
+                return $delivery;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Two deliveries raced past isDelivered(); the index decided.
+            throw new DomainException('This document has already been delivered. Upload it again to serve it on anyone else.');
         }
 
-        $this->em->flush();
-
-        // The grant IS the consignment: re-wrap this version's DEK for each
-        // recipient, exactly as a signing turn does (ADR-004, re-wrap never
-        // re-encrypt). Only this version - a later one is not served retroactively.
-        foreach ($recipients as $recipient) {
-            $this->sharer->grantVersion($version, $sender, $recipient);
-
-            $this->auditLogger->log(
-                action: 'delivery.served',
-                actor: $sender,
-                payload: [
-                    'deliveryId' => $delivery->getId()->toRfc4122(),
-                    'recipient' => $recipient->getEmail(),
-                    'versionNumber' => $version->getVersionNumber(),
-                    'deliveredAt' => $now->format(\DATE_ATOM),
-                ],
-                subjectType: 'Document',
-                subjectId: $document->getId()->toRfc4122(),
-            );
-        }
-
+        // After the commit: the receipt sealer must see committed evidence.
         $this->events->dispatch(new DocumentDelivered($delivery));
 
         return $delivery;

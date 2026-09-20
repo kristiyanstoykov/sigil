@@ -109,6 +109,7 @@ final class NotificationTest extends AuthWebTestCase
             $container->get(SigningRequestRepository::class),
             $container->get(SigningRequestService::class),
             $container->get(EventDispatcherInterface::class),
+            $container->get(EntityManagerInterface::class),
             $caPath,
         ))->sign($document, $this->certificateOf($signer), $signer, '135790');
 

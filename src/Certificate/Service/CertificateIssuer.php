@@ -146,18 +146,36 @@ class CertificateIssuer
             throw new DomainException('This certificate is already revoked.');
         }
 
-        $certificate->revoke($this->now(), $reason);
-        $this->em->flush();
-        $this->tokens->deleteToken($certificate->getTokenLabel());
+        // The decision and its audit entry commit together, before the token is
+        // touched: revocation is effective from here whatever happens below.
+        $this->em->wrapInTransaction(function () use ($certificate, $actor, $reason): void {
+            $certificate->revoke($this->now(), $reason);
+            $this->em->flush();
 
-        $this->auditLogger->log(
-            action: 'certificate.revoked',
-            actor: $actor,
-            payload: ['serialNumber' => $certificate->getSerialNumber(), 'reason' => $reason],
-            subjectType: 'Certificate',
-            subjectId: $certificate->getId()->toRfc4122(),
-            severity: AuditSeverity::Warning,
-        );
+            $this->auditLogger->log(
+                action: 'certificate.revoked',
+                actor: $actor,
+                payload: ['serialNumber' => $certificate->getSerialNumber(), 'reason' => $reason],
+                subjectType: 'Certificate',
+                subjectId: $certificate->getId()->toRfc4122(),
+                severity: AuditSeverity::Warning,
+            );
+        });
+
+        // Destroying the key is housekeeping: the signing gate already refuses a
+        // revoked certificate, so a failure here is recorded, not raised.
+        try {
+            $this->tokens->deleteToken($certificate->getTokenLabel());
+        } catch (\Throwable $e) {
+            $this->auditLogger->log(
+                action: 'certificate.token_cleanup_failed',
+                actor: $actor,
+                payload: ['serialNumber' => $certificate->getSerialNumber(), 'tokenLabel' => $certificate->getTokenLabel(), 'error' => $e::class],
+                subjectType: 'Certificate',
+                subjectId: $certificate->getId()->toRfc4122(),
+                severity: AuditSeverity::Warning,
+            );
+        }
     }
 
     public function hasCa(): bool

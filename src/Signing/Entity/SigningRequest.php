@@ -23,6 +23,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: SigningRequestRepository::class)]
 #[ORM\Table(name: 'signing_request')]
 #[ORM\Index(name: 'idx_signing_request_status', columns: ['status'])]
+// One request per document, ever - the database backs what create() checks.
+#[ORM\UniqueConstraint(name: 'uniq_signing_request_document', columns: ['document_id'])]
 #[ORM\HasLifecycleCallbacks]
 class SigningRequest
 {

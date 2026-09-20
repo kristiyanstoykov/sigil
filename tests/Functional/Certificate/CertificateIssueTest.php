@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Certificate;
 
+use App\AuditLog\AuditLoggerInterface;
+use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Service\CertificateIssuer;
+use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Tests\Functional\AuthWebTestCase;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\Process\Process;
 
 /**
@@ -70,6 +76,61 @@ class CertificateIssueTest extends AuthWebTestCase
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('PIN must be 6 to 8 digits');
         $issuer->issueForUser($user, 'abc123');
+    }
+
+    /**
+     * Revocation is a decision, token deletion is housekeeping. If the token
+     * cannot be destroyed the certificate is revoked all the same, the decision
+     * is on the audit log, and the cleanup failure is on it too.
+     */
+    public function testRevocationHoldsAndIsAuditedEvenWhenTheTokenCannotBeDeleted(): void
+    {
+        $c = static::getContainer();
+        $user = $this->createUser($this->uniqueEmail('cert'));
+        $certificate = $c->get(CertificateIssuer::class)->issueForUser($user, '654321');
+        $this->tokensToCleanUp[] = $certificate->getTokenLabel();
+
+        $brokenTokens = new class((string) getenv('PKCS11_MODULE')) extends Pkcs11TokenManager {
+            public function deleteToken(string $tokenLabel): void
+            {
+                throw new DomainException('PKCS#11 operation "softhsm2-util --delete-token" failed (exit 1).');
+            }
+        };
+        $issuer = new CertificateIssuer(
+            $brokenTokens,
+            $c->get(SignatureAlgorithmRegistry::class),
+            $c->get(CertificateRepository::class),
+            $c->get(EntityManagerInterface::class),
+            $c->get(AuditLoggerInterface::class),
+            $c->get(ClockInterface::class),
+            (string) getenv('PKCS11_MODULE'),
+            (string) getenv('SIGIL_CA_PIN'),
+            (string) getenv('SIGIL_SEAL_PIN'),
+            $c->getParameter('kernel.project_dir').'/bin/issue_cert.py',
+            $c->getParameter('kernel.project_dir').'/var/ca/ca.crt',
+            $c->getParameter('kernel.project_dir').'/var/ca/seal.crt',
+        );
+
+        $issuer->revoke($certificate, $user, 'user requested');
+
+        self::assertSame(CertificateStatus::Revoked, $certificate->getStatus());
+        self::assertTrue($c->get(Pkcs11TokenManager::class)->tokenExists($certificate->getTokenLabel()), 'the token is still there');
+
+        $actions = array_map(
+            static fn ($entry) => $entry->getAction(),
+            $c->get(AuditLogEntryRepository::class)->findForSubject('Certificate', $certificate->getId()->toRfc4122()),
+        );
+        self::assertContains('certificate.revoked', $actions);
+        self::assertContains('certificate.token_cleanup_failed', $actions);
+    }
+
+    public function testDeletingATokenTwiceIsNotAnError(): void
+    {
+        $manager = static::getContainer()->get(Pkcs11TokenManager::class);
+        $label = 'test-gone-'.bin2hex(random_bytes(4));
+
+        $manager->deleteToken($label);
+        self::assertFalse($manager->tokenExists($label));
     }
 
     public function testRevokeDeletesTheToken(): void

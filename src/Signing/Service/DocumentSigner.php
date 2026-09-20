@@ -17,6 +17,7 @@ use App\Signing\Entity\SigningRequest;
 use App\Signing\Event\DocumentSigned;
 use App\Signing\Exception\TokenPinRejectedException;
 use App\Signing\Repository\SigningRequestRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -41,6 +42,7 @@ final class DocumentSigner
         private readonly SigningRequestRepository $requests,
         private readonly SigningRequestService $requestService,
         private readonly EventDispatcherInterface $events,
+        private readonly EntityManagerInterface $em,
         #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
         private readonly string $caCertPath,
     ) {
@@ -101,21 +103,34 @@ final class DocumentSigner
             throw $e;
         }
 
-        $version = $this->versionWriter->write(
-            $document,
-            $actor,
-            $signedPdf,
-            DocumentVersionKind::Signed,
-            'document.signed',
-            ['certificateSerial' => $certificate->getSerialNumber()],
-        );
+        // The signed version and the turn moving on commit together. The token
+        // step above is done and cannot be undone; the stored ciphertext cannot
+        // join the transaction, so a rollback takes it back by hand.
+        $version = null;
+        try {
+            $this->em->wrapInTransaction(function () use ($document, $actor, $signedPdf, $certificate, $signingRequest, &$version): void {
+                $version = $this->versionWriter->write(
+                    $document,
+                    $actor,
+                    $signedPdf,
+                    DocumentVersionKind::Signed,
+                    'document.signed',
+                    ['certificateSerial' => $certificate->getSerialNumber()],
+                );
 
-        $remaining = 0;
-        if (null !== $signingRequest) {
-            $this->requestService->recordSignature($signingRequest, $actor, $version);
-            $remaining = \count($signingRequest->getSigners()) - $signingRequest->signedCount();
+                if (null !== $signingRequest) {
+                    $this->requestService->recordSignature($signingRequest, $actor, $version);
+                }
+            });
+        } catch (\Throwable $e) {
+            if (null !== $version) {
+                $this->versionWriter->discard($version);
+            }
+            throw $e;
         }
+        \assert($version instanceof DocumentVersion);
 
+        $remaining = null !== $signingRequest ? \count($signingRequest->getSigners()) - $signingRequest->signedCount() : 0;
         $this->events->dispatch(new DocumentSigned($document, $actor, $version, $remaining));
 
         return $version;

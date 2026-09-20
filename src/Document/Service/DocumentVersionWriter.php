@@ -13,6 +13,7 @@ use App\Document\Entity\DocumentVersion;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentKeyGrantRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * Mints one new {@see DocumentVersion} for an existing {@see Document}: fresh
@@ -35,6 +36,7 @@ final class DocumentVersionWriter
         private readonly DocumentKeyGrantRepository $grants,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $em,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -85,19 +87,44 @@ final class DocumentVersionWriter
             }
 
             $this->em->flush();
+
+            $this->auditLogger->log(
+                action: $auditAction,
+                actor: $actor,
+                payload: array_merge(['versionNumber' => $version->getVersionNumber(), 'sizeBytes' => \strlen($bytes)], $auditPayload),
+                subjectType: 'Document',
+                subjectId: $document->getId()->toRfc4122(),
+            );
+        } catch (\Throwable $e) {
+            // The object store cannot join the transaction: take the orphan back.
+            $this->discard($version);
+            throw $e;
         } finally {
             sodium_memzero($dek);
         }
 
-        $this->auditLogger->log(
-            action: $auditAction,
-            actor: $actor,
-            payload: array_merge(['versionNumber' => $version->getVersionNumber(), 'sizeBytes' => \strlen($bytes)], $auditPayload),
-            subjectType: 'Document',
-            subjectId: $document->getId()->toRfc4122(),
-        );
-
         return $version;
+    }
+
+    /**
+     * Remove a version's ciphertext after the row it belonged to was rolled back.
+     * Best effort - an orphaned ciphertext is unreadable without its DEK, so a
+     * failure here is logged, not raised.
+     */
+    public function discard(DocumentVersion $version): void
+    {
+        if ('' === $version->getStorageKey()) {
+            return;
+        }
+
+        try {
+            $this->storage->delete($version->getStorageKey());
+        } catch (\Throwable $e) {
+            $this->logger->warning('Orphaned ciphertext could not be deleted after rollback.', [
+                'storageKey' => $version->getStorageKey(),
+                'exception' => $e,
+            ]);
+        }
     }
 
     /**

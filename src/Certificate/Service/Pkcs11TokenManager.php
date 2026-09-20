@@ -150,9 +150,14 @@ class Pkcs11TokenManager
 
     /**
      * Destroys the token and every key in it (revoke / re-issue path).
+     * Idempotent: a token that is already gone is the outcome wanted.
      */
     public function deleteToken(string $tokenLabel): void
     {
+        if (!$this->tokenExists($tokenLabel)) {
+            return;
+        }
+
         $this->run(['softhsm2-util', '--delete-token', '--token', $tokenLabel]);
     }
 

@@ -26,6 +26,7 @@ use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
 use App\Signing\Twig\SigningRequestExtension;
 use App\Tests\Functional\AuthWebTestCase;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -172,6 +173,20 @@ class SigningRequestTest extends AuthWebTestCase
         $this->expectExceptionMessage('already been through a signature request');
 
         $this->service()->create($document, $owner, [$second], $this->inDays(7));
+    }
+
+    /** The service checks first; the index is what decides a race it did not see. */
+    public function testTheDatabaseRefusesASecondRequestForTheSameDocument(): void
+    {
+        [$owner, $first] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $this->service()->create($document, $owner, [$first], $this->inDays(7));
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $em->persist(new SigningRequest($document, $owner, $this->inDays(7)));
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $em->flush();
     }
 
     public function testCancellingTakesTheCurrentSignersAccessAway(): void
@@ -409,6 +424,7 @@ class SigningRequestTest extends AuthWebTestCase
             $c->get(SigningRequestRepository::class),
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
+            $c->get(EntityManagerInterface::class),
             $caPath,
         );
     }

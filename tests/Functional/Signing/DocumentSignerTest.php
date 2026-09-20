@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Signing;
 
+use App\AuditLog\AuditLoggerInterface;
+use App\AuditLog\Entity\AuditLogEntry;
+use App\AuditLog\Enum\AuditSeverity;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Service\PinGate;
 use App\Core\Entity\User;
 use App\Document\Enum\DocumentVersionKind;
+use App\Core\Crypto\EncryptionServiceInterface;
+use App\Document\Repository\DocumentKeyGrantRepository;
+use App\Document\Repository\DocumentRepository;
+use App\Document\Service\ContentHasher;
 use App\Document\Service\DocumentDownloader;
+use App\Document\Service\DocumentStorageInterface;
 use App\Document\Service\DocumentUploader;
 use App\Document\Service\DocumentVersionWriter;
+use App\Document\Service\KeyManagementService;
 use App\Signing\Exception\TokenPinRejectedException;
 use App\Signing\Repository\SigningRequestRepository;
 use App\Signing\Service\DocumentSigner;
@@ -22,6 +31,7 @@ use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * DocumentSigner over the REAL collaborators (PinGate, downloader, version
@@ -79,6 +89,7 @@ class DocumentSignerTest extends AuthWebTestCase
             $c->get(SigningRequestRepository::class),
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
+            $c->get(EntityManagerInterface::class),
             $caPath,
         );
     }
@@ -127,6 +138,103 @@ class DocumentSignerTest extends AuthWebTestCase
         // already-signed PDFs). Never a bare "SignatureN".
         self::assertMatchesRegularExpression('/^SigilSignature-v2-[0-9a-f]{8}$/', $fake->seen->fieldName);
         self::assertNull($fake->seen->tsaUrl); // .env.test => SIGIL_TSA_ACTIVE_BACKEND=none
+    }
+
+    /**
+     * The token has signed, the ciphertext is stored, and then the database
+     * step fails: nothing may be left behind - no version row, no grant, and no
+     * orphaned ciphertext in the object store.
+     */
+    public function testADatabaseFailureAfterStoringTheCiphertextLeavesNothingBehind(): void
+    {
+        $c = static::getContainer();
+        $user = $this->createUser($this->uniqueEmail('rollback'));
+        $document = $c->get(DocumentUploader::class)->upload($user, self::MINIMAL_PDF, 'Contract.pdf');
+        $documentId = $document->getId()->toRfc4122();
+        $certificate = $this->makeCertificate($user);
+
+        $storage = new class($c->get(DocumentStorageInterface::class)) implements DocumentStorageInterface {
+            /** @var list<string> */
+            public array $stored = [];
+
+            public function __construct(private readonly DocumentStorageInterface $inner)
+            {
+            }
+
+            public function store(string $ciphertext): string
+            {
+                return $this->stored[] = $this->inner->store($ciphertext);
+            }
+
+            public function retrieve(string $storageKey): string
+            {
+                return $this->inner->retrieve($storageKey);
+            }
+
+            public function delete(string $storageKey): void
+            {
+                $this->inner->delete($storageKey);
+            }
+
+            public function exists(string $storageKey): bool
+            {
+                return $this->inner->exists($storageKey);
+            }
+        };
+
+        // The audit entry for the signed version is the last DB step of the
+        // write; failing it is the failure the transaction has to absorb.
+        $failingAudit = new class implements AuditLoggerInterface {
+            public function log(string $action, ?User $actor = null, array $payload = [], ?string $subjectType = null, ?string $subjectId = null, AuditSeverity $severity = AuditSeverity::Info): AuditLogEntry
+            {
+                throw new \RuntimeException('audit store unavailable');
+            }
+        };
+
+        $writer = new DocumentVersionWriter(
+            $c->get(EncryptionServiceInterface::class),
+            $c->get(ContentHasher::class),
+            $c->get(KeyManagementService::class),
+            $storage,
+            $c->get(DocumentKeyGrantRepository::class),
+            $failingAudit,
+            $c->get(EntityManagerInterface::class),
+            new NullLogger(),
+        );
+        $caPath = sys_get_temp_dir().'/sigil-signer-test-ca.crt';
+        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        $signer = new DocumentSigner(
+            $c->get(PinGate::class),
+            $c->get(DocumentDownloader::class),
+            new class implements PadesSignerInterface {
+                public function sign(PadesSignRequest $request, #[\SensitiveParameter] string $pin): string
+                {
+                    return '%PDF-SIGNED-BYTES';
+                }
+            },
+            new TsaProviderRegistry([new NoTsaProvider()], 'none'),
+            $writer,
+            $c->get(SigningRequestRepository::class),
+            $c->get(SigningRequestService::class),
+            $c->get(EventDispatcherInterface::class),
+            $c->get(EntityManagerInterface::class),
+            $caPath,
+        );
+
+        try {
+            $signer->sign($document, $certificate, $user, self::PIN);
+            self::fail('the failure must surface');
+        } catch (\RuntimeException $e) {
+            self::assertSame('audit store unavailable', $e->getMessage());
+        }
+
+        self::assertCount(1, $storage->stored, 'the signed ciphertext was stored before the failure');
+        self::assertFalse($storage->exists($storage->stored[0]), 'and taken back after it');
+
+        $c->get('doctrine')->resetManager();
+        $reloaded = $c->get(DocumentRepository::class)->find($documentId);
+        self::assertNotNull($reloaded);
+        self::assertCount(1, $reloaded->getVersions(), 'only the original remains');
     }
 
     public function testTokenPinRejectionLocksTheCertificateAndAddsNoVersion(): void

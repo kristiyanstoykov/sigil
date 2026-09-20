@@ -310,6 +310,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
             $c->get(SigningRequestRepository::class),
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
+            $c->get(EntityManagerInterface::class),
             $caPath,
         );
 
