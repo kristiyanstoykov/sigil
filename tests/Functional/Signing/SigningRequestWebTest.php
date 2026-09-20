@@ -102,6 +102,25 @@ final class SigningRequestWebTest extends AuthWebTestCase
         self::assertStringContainsString('Not your turn yet', $crawler->html());
     }
 
+    public function testTheSignPageTurnsAnOverdueTurnHolderAway(): void
+    {
+        [$documentId, $owner, $first] = $this->seed('web-overdue');
+        $this->loginFully($owner);
+        $this->sendRequest($documentId, $first);
+
+        // Overdue but not yet swept: the row says it is still their turn.
+        static::getContainer()->get(EntityManagerInterface::class)->getConnection()->executeStatement(
+            'UPDATE signing_request SET deadline = :deadline WHERE document_id = :id',
+            ['deadline' => (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s'), 'id' => $documentId],
+        );
+
+        $this->switchUser($first);
+        $this->client->request('GET', '/documents/'.$documentId.'/sign');
+        self::assertResponseRedirects('/documents/'.$documentId);
+        $crawler = $this->client->followRedirect();
+        self::assertStringContainsString('deadline for this signature request has passed', $crawler->html());
+    }
+
     public function testASignerCanDeclineWithAReasonAndTheRequestClosesForEveryone(): void
     {
         [$documentId, $owner, $first, $second] = $this->seed('web-decline');

@@ -71,6 +71,15 @@ class SigningController extends AbstractController
             ]);
         }
 
+        // Past the deadline the turn is closed even for its holder; the sweep
+        // will expire the request. DocumentSigner refuses too - this only spares
+        // the user a PIN prompt that cannot succeed.
+        if (null !== $signingRequest && $signingRequest->isOverdue(\DateTimeImmutable::createFromInterface($this->clock->now()))) {
+            $this->addFlash('info', 'The deadline for this signature request has passed, so it can no longer be signed.');
+
+            return $this->redirectToRoute('app_document_show', ['id' => $id]);
+        }
+
         $usable = $this->usableCertificates($user);
 
         $choices = [];

@@ -9,6 +9,7 @@ use App\Core\Entity\Trait\HasUuid;
 use App\Core\Exception\DomainException;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Repository\DocumentVersionRepository;
+use App\Document\Service\ContentHasher;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -18,8 +19,9 @@ use Doctrine\ORM\Mapping as ORM;
  * ciphertext under $storageKey via DocumentStorageInterface; object storage
  * only ever holds ciphertext (ADR-004).
  *
- * $contentHash is the SHA-384 of the *plaintext*, kept for the evidentiary
- * story (integrity check independent of the ciphertext).
+ * $contentHash is a keyed HMAC-SHA-384 of the *plaintext* ({@see ContentHasher}),
+ * kept for the evidentiary story: an integrity fingerprint independent of the
+ * ciphertext that is not a confirmation oracle if the row leaks.
  */
 #[ORM\Entity(repositoryClass: DocumentVersionRepository::class)]
 #[ORM\Table(name: 'document_version')]
@@ -51,7 +53,7 @@ class DocumentVersion
     #[ORM\Column]
     private int $sizeBytes;
 
-    /** SHA-384 hex of the plaintext bytes. */
+    /** HMAC-SHA-384 hex of the plaintext bytes, keyed under the root key ({@see ContentHasher}). */
     #[ORM\Column(length: 96)]
     private string $contentHash;
 

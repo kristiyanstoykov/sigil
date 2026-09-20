@@ -160,6 +160,16 @@ class CertificateIssuer
         );
     }
 
+    public function hasCa(): bool
+    {
+        return is_file($this->caCertPath);
+    }
+
+    public function hasSeal(): bool
+    {
+        return is_file($this->sealCertPath);
+    }
+
     /**
      * CA bootstrap (sigil:ca:init). Refuses to touch an existing CA.
      */

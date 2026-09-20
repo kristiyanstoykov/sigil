@@ -136,9 +136,7 @@ final class DocumentSigner
         }
 
         if (null !== $request) {
-            if (!$request->isTurnOf($actor)) {
-                throw new DomainException('It is not your turn to sign this document.');
-            }
+            $this->requestService->assertTurnOpen($request, $actor);
 
             return;
         }

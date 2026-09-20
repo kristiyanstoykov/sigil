@@ -148,10 +148,9 @@ final class SigningRequestService
      */
     public function recordSignature(SigningRequest $request, User $signer, DocumentVersion $version): void
     {
-        $entry = $request->signerFor($signer);
-        if (!$request->isTurnOf($signer) || null === $entry) {
-            throw new DomainException('It is not your turn to sign this document.');
-        }
+        $this->assertTurnOpen($request, $signer);
+        $entry = $request->signerFor($signer)
+            ?? throw new DomainException('It is not your turn to sign this document.');
 
         $now = \DateTimeImmutable::createFromInterface($this->clock->now());
         $entry->markSigned($version, $now);
@@ -206,10 +205,9 @@ final class SigningRequestService
      */
     public function decline(SigningRequest $request, User $signer, ?string $reason = null): void
     {
-        $entry = $request->signerFor($signer);
-        if (!$request->isTurnOf($signer) || null === $entry) {
-            throw new DomainException('It is not your turn to sign this document.');
-        }
+        $this->assertTurnOpen($request, $signer);
+        $entry = $request->signerFor($signer)
+            ?? throw new DomainException('It is not your turn to sign this document.');
 
         $entry->markDeclined($reason, \DateTimeImmutable::createFromInterface($this->clock->now()));
         $this->em->flush();
@@ -221,6 +219,25 @@ final class SigningRequestService
             'position' => $entry->getPosition(),
             'reason' => $entry->getDeclineReason() ?? '(none given)',
         ]);
+    }
+
+    /**
+     * Whether this signer may act on the request right now: it is pending, it is
+     * their turn, and the deadline has not passed. An overdue request is left to
+     * the sweep - a signature or refusal after the deadline would contradict the
+     * receipt that names that deadline.
+     *
+     * @throws DomainException when it is not this user's turn, or the request is overdue
+     */
+    public function assertTurnOpen(SigningRequest $request, User $signer): void
+    {
+        if (!$request->isTurnOf($signer)) {
+            throw new DomainException('It is not your turn to sign this document.');
+        }
+
+        if ($request->isOverdue(\DateTimeImmutable::createFromInterface($this->clock->now()))) {
+            throw new DomainException('The deadline for this request has passed, so it can no longer be signed.');
+        }
     }
 
     /** Close an overdue request. Called by the sweep, so the actor is the requester. */
@@ -243,7 +260,9 @@ final class SigningRequestService
 
         // Whoever held the turn loses the access that came with it. Signers who
         // already signed keep theirs: they are on the record as having signed.
-        if (null !== $pending) {
+        // The owner may queue themselves, but their access predates the turn and
+        // is not the turn's to take back.
+        if (null !== $pending && !$pending->isUser($request->getDocument()->getOwner())) {
             $deleted = $this->grants->deleteForDocumentAndUser($request->getDocument(), $pending->getUser());
             if ($deleted > 0) {
                 $this->audit($request, 'signing_request.access_revoked', $actor, [

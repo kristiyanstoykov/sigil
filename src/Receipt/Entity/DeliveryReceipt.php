@@ -55,7 +55,7 @@ class DeliveryReceipt
     #[ORM\Column(length: 255)]
     private string $documentTitle;
 
-    /** SHA-384 of the delivered document version, hex. */
+    /** The delivered version's contentHash: keyed HMAC-SHA-384, hex (see DocumentVersion). */
     #[ORM\Column(length: 96)]
     private string $documentHash;
 
@@ -66,7 +66,7 @@ class DeliveryReceipt
     #[ORM\Column(length: 255, unique: true)]
     private string $storageKey = '';
 
-    /** SHA-384 of the sealed PDF itself, hex. */
+    /** Keyed HMAC-SHA-384 of the sealed PDF itself, hex - same ContentHasher as a document. */
     #[ORM\Column(length: 96)]
     private string $contentHash;
 

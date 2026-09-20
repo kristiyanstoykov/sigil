@@ -187,6 +187,41 @@ class SigningRequestTest extends AuthWebTestCase
         self::assertFalse($grants->hasGrantForDocument($document, $first));
     }
 
+    /**
+     * The owner can queue themselves. Their access predates the turn, so closing
+     * the request on their turn must not take it away - however it closes.
+     *
+     * @param \Closure(SigningRequestService, SigningRequest, User): void $close
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('ownerOnTurnClosures')]
+    public function testClosingOnTheOwnersTurnLeavesTheOwnersAccessIntact(\Closure $close): void
+    {
+        [$owner, $first] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $request = $this->service()->create($document, $owner, [$first, $owner], $this->inDays(7));
+        $this->signer()->sign($document, $this->makeCertificate($first), $first, self::PIN);
+        self::assertTrue($request->isTurnOf($owner));
+
+        $close($this->service(), $request, $owner);
+
+        self::assertFalse($request->isPending());
+        $downloader = static::getContainer()->get(DocumentDownloader::class);
+        foreach ($document->getVersions() as $version) {
+            self::assertNotSame('', $downloader->download($version, $owner), sprintf('owner can still open version %d', $version->getVersionNumber()));
+        }
+        // The signer who already signed is on the record and keeps theirs too.
+        $grants = static::getContainer()->get(DocumentKeyGrantRepository::class);
+        self::assertTrue($grants->hasGrantForDocument($document, $first));
+    }
+
+    /** @return iterable<string, array{\Closure(SigningRequestService, SigningRequest, User): void}> */
+    public static function ownerOnTurnClosures(): iterable
+    {
+        yield 'withdrawn' => [static fn (SigningRequestService $s, SigningRequest $r, User $owner) => $s->cancel($r, $owner)];
+        yield 'declined' => [static fn (SigningRequestService $s, SigningRequest $r, User $owner) => $s->decline($r, $owner, 'Changed my mind.')];
+        yield 'expired' => [static fn (SigningRequestService $s, SigningRequest $r, User $owner) => $s->expire($r)];
+    }
+
     public function testDecliningClosesTheQueueAndTakesTheDeclinersAccessAway(): void
     {
         [$owner, $first, $second] = $this->threeSigners();
@@ -227,6 +262,31 @@ class SigningRequestTest extends AuthWebTestCase
         $this->expectExceptionMessage('not your turn');
 
         $this->service()->decline($request, $second, 'I would rather not.');
+    }
+
+    /**
+     * The deadline is enforced where the signature happens, not only by the
+     * sweep's schedule: a request that is overdue but not yet swept is closed to
+     * its turn-holder for signing and for declining alike.
+     */
+    public function testAnOverdueRequestCannotBeSignedBeforeTheSweepCatchesIt(): void
+    {
+        [$owner, $first] = $this->threeSigners();
+        $document = $this->upload($owner);
+        $request = $this->overdueRequest($document, $owner, [$first]);
+        self::assertTrue($request->isTurnOf($first), 'still their turn on paper');
+
+        try {
+            $this->signer()->sign($document, $this->makeCertificate($first), $first, self::PIN);
+            self::fail('an overdue request must not be signable');
+        } catch (DomainException $e) {
+            self::assertStringContainsString('deadline', $e->getMessage());
+        }
+        self::assertCount(1, $document->getVersions(), 'no signed version was minted');
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('deadline');
+        $this->service()->decline($request, $first, 'Too late anyway.');
     }
 
     public function testSweepDeletesAnUnsignedDocumentAndKeepsASignedOne(): void

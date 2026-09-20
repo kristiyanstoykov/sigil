@@ -9,6 +9,7 @@ use App\Core\Exception\DomainException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -23,9 +24,21 @@ final class SealInitCommand extends Command
         parent::__construct();
     }
 
+    protected function configure(): void
+    {
+        // For the bootstrap: an initialised Seal is success, not a refusal.
+        $this->addOption('if-missing', null, InputOption::VALUE_NONE, 'Do nothing (successfully) when already initialized');
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+
+        if ($input->getOption('if-missing') && $this->issuer->hasSeal()) {
+            $io->note('Seal already initialized; nothing to do.');
+
+            return Command::SUCCESS;
+        }
 
         try {
             $path = $this->issuer->bootstrapSeal();

@@ -46,7 +46,7 @@
     <tr><td class="k">Reference</td><td class="hash">{{ reference }}</td></tr>
     <tr><td class="k">Attests</td><td>{{ source.label }}</td></tr>
     <tr><td class="k">Document</td><td><strong>{{ documentTitle }}</strong></td></tr>
-    <tr><td class="k">Document digest</td><td class="hash">{{ documentHash|default('—') }} <span class="muted">(SHA-384)</span></td></tr>
+    <tr><td class="k">Document fingerprint</td><td class="hash">{{ documentHash|default('—') }} <span class="muted">(HMAC-SHA-384, keyed &mdash; see below)</span></td></tr>
     <tr><td class="k">Sender</td><td>{{ sender.fullName }} &lt;{{ sender.email }}&gt;</td></tr>
     {% if delivered %}
         <tr><td class="k">Delivered</td><td>{{ delivery.createdAt|date('d.m.Y H:i:s') }}</td></tr>
@@ -154,7 +154,11 @@
     The <em>Evidence</em> rows are entries from Sigil's append-only audit log. Each
     entry hash is <em>SHA-256(previous entry hash ‖ entry payload)</em>, so the rows
     form a chain: recomputing it over the log reproduces these values, and altering
-    any earlier record breaks every hash after it. Delivery here means the document
+    any earlier record breaks every hash after it. The <em>Document fingerprint</em>
+    is a keyed HMAC-SHA-384 of the document's bytes under a key only Sigil holds, so
+    it cannot be recomputed with an ordinary checksum tool: it identifies the exact
+    bytes this receipt is about, and Sigil can confirm whether a given file matches
+    it. Delivery here means the document
     was made available to the recipient (the consignment event of ETSI EN&nbsp;319&nbsp;522);
     Sigil does not record whether a recipient subsequently opened it.
     {% if delivered %}
