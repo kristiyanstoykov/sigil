@@ -14,7 +14,7 @@ on the chosen page.
 
 Request:
 {
-  "module": "/usr/lib/softhsm/libsofthsm2.so",
+  "module": "/usr/lib/libkryoptic_pkcs11.so",
   "pdf_b64": "<base64 of the PDF bytes>",
   "signer": {"token_label": "...", "key_label": "sign",
              "signing_cert_pem": "-----BEGIN CERTIFICATE-----...", "pin": "..."},
@@ -65,7 +65,7 @@ from sigil_stamp import (
     ink_dimensions,
 )
 
-# The MVP suite is ECDSA P-384 + SHA-384 (ADR-006). SoftHSM exposes ECDSA as the
+# The MVP suite is ECDSA P-384 + SHA-384 (ADR-006). Soft tokens expose ECDSA as the
 # raw CKM_ECDSA mechanism, so we name the digest+curve pairing explicitly rather
 # than letting pyHanko probe the token.
 MD_ALGORITHM = "sha384"
@@ -318,7 +318,7 @@ def main() -> None:
             key_label=signer_req["key_label"],
             ca_chain=ca_chain,
             signature_mechanism=ECDSA_SIG_MECHANISM,
-            # SoftHSM (and most tokens) expose only the raw CKM_ECDSA mechanism,
+            # kryoptic (and most tokens) expose the raw CKM_ECDSA mechanism,
             # which signs a pre-computed digest - not CKM_ECDSA_SHA384. Hash here
             # and hand the token raw bytes, exactly as bin/issue_cert.py does.
             use_raw_mechanism=True,

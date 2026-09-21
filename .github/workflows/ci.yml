@@ -23,14 +23,14 @@ jobs:
                   echo "SIGIL_ROOT_KEY=$(openssl rand -base64 32)" >> .env
 
             # Build and run everything inside the same image dev uses (Dockerfile:
-            # PHP + SoftHSM2 + opensc + pyHanko/fontTools + composer). This keeps
+            # PHP + kryoptic (built from source, ADR-014) + opensc + pyHanko + composer). This keeps
             # CI in lockstep with the image by construction - no re-installing the
             # stack on the runner, so a Dockerfile/CI drift can't silently break
             # signing again.
             #
             # Built via Buildx with a GitHub Actions layer cache: the expensive
-            # layers (apk, the pyHanko pip install) are restored across runs and
-            # only rebuild when the Dockerfile changes. `load: true` puts the
+            # layers (apk, the kryoptic cargo build, the pyHanko pip install) are
+            # restored across runs and only rebuild when the Dockerfile changes. `load: true` puts the
             # sigil-app:latest tag into the daemon so `docker compose run` (below)
             # reuses it instead of rebuilding.
             - name: Set up Buildx
@@ -51,7 +51,7 @@ jobs:
               run: docker compose up -d --wait db
 
             # One container, one shell: the app entrypoint (composer install +
-            # php -S) is overridden so CI drives each step itself. SoftHSM tokens
+            # php -S) is overridden so CI drives each step itself. kryoptic tokens
             # and var/ come from the app service's volumes, exactly like local.
             - name: Checks and tests
               run: |

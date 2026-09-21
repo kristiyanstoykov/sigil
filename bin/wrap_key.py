@@ -10,7 +10,7 @@ as base64 - never argv (world-readable in /proc), never disk.
 
 Request:
   {"mode": "init" | "wrap" | "unwrap",
-   "module": "/usr/lib/softhsm/libsofthsm2.so",
+   "module": "/usr/lib/libkryoptic_pkcs11.so",
    "token_label": "sigil-root", "key_label": "root-kek-wrap", "pin": "...",
    "aad":  "<base64>",   # wrap/unwrap only - context bound into AES-GCM AAD
    "data": "<base64>"}   # wrap: raw KEK ; unwrap: nonce || ciphertext‖tag
@@ -36,6 +36,8 @@ from pkcs11 import Attribute, KeyType, Mechanism, ObjectClass
 from pkcs11.exceptions import NoSuchKey
 from pkcs11.mechanisms import GCMParams
 
+from sigil_pkcs11 import find_token
+
 NONCE_LEN = 12   # 96-bit GCM nonce (ADR-004)
 TAG_BITS = 128   # 128-bit GCM tag
 
@@ -57,7 +59,7 @@ def main() -> None:
         fail(f"unknown mode {mode!r}")
 
     lib = pkcs11.lib(req["module"])
-    token = lib.get_token(token_label=req["token_label"])
+    token = find_token(lib, req["token_label"])
     label = req["key_label"]
 
     with token.open(user_pin=req["pin"], rw=True) as session:

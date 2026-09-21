@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 /**
  * Root-key wrapper backed by a PKCS#11 token (ADR-010). The root wrapping key
  * is a non-exportable AES-256 secret key that lives INSIDE the token
- * (SoftHSM in dev, a real HSM/KMS in prod - same interface). It never enters
+ * (kryoptic in dev, a real HSM/KMS in prod - same interface). It never enters
  * application memory; the app only ever asks the token to wrap/unwrap a single
  * KEK per call. An attacker with app-code execution can therefore only use the
  * token as an online oracle (auditable, rate-limitable) - they cannot exfiltrate

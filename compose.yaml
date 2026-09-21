@@ -9,7 +9,7 @@ services:
     volumes:
       - .:/app
       - /app/var
-      - softhsm_tokens:/var/lib/softhsm/tokens
+      - kryoptic_tokens:/var/lib/kryoptic
     environment:
       APP_ENV: dev
       APP_SECRET: "${APP_SECRET:-sigil_dev_secret_change_in_production}"
@@ -23,8 +23,8 @@ services:
       # The port is not optional: the hub listens on 3000 inside the network too,
       # so a portless URL here silently tries 80 and every push fails.
       MERCURE_URL: "http://mercure:3000/.well-known/mercure"
-      SOFTHSM2_CONF: /etc/softhsm2.conf
-      PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
+      KRYOPTIC_CONF: /var/lib/kryoptic/token.conf
+      PKCS11_MODULE: /usr/lib/libkryoptic_pkcs11.so
       # Object storage (ADR-004/009). Active backend comes from .env (dev=minio)
       # / .env.test (test=local) - NOT overridden here, so tests inside the
       # container still use the local backend. Only the endpoint must point at
@@ -116,6 +116,9 @@ services:
 
 volumes:
   db_data:
+  kryoptic_tokens:
+  # Pre-ADR-014 SoftHSM tokens. Kept only so docker/migrate-softhsm.sh can read
+  # them; nothing mounts it any more. Remove once every environment has migrated.
   softhsm_tokens:
   minio_data:
   tsa_data:

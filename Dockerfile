@@ -1,4 +1,18 @@
-FROM php:8.4-cli-alpine
+FROM php:8.4-cli-alpine AS base
+
+# kryoptic (PKCS#11 3.2 soft token, ADR-014) - built from source because Alpine
+# has no package. Built on the runtime image itself so musl and libcrypto.so.3
+# match exactly; `pqc` is what brings CKM_ML_DSA. Pinned to a release tag.
+FROM base AS kryoptic
+ARG KRYOPTIC_VERSION=v1.5.2
+RUN apk add --no-cache rust cargo clang20-dev llvm20-dev sqlite-dev openssl-dev pkgconf musl-dev curl \
+    && mkdir -p /build && cd /build \
+    && curl -fsSL --retry 5 --retry-delay 5 "https://github.com/latchset/kryoptic/archive/refs/tags/${KRYOPTIC_VERSION}.tar.gz" \
+        | tar xz --strip-components=1 \
+    && CONFDIR=/etc cargo build --release --no-default-features --features standard,dynamic,pqc,profiles \
+    && ls -la target/release/libkryoptic_pkcs11.so
+
+FROM base
 
 RUN apk add --no-cache \
     bash \
@@ -11,19 +25,21 @@ RUN apk add --no-cache \
     freetype-dev \
     libjpeg-turbo-dev \
     libpng-dev \
-    softhsm \
+    sqlite-libs \
     opensc \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_pgsql intl opcache gd \
     && rm -rf /var/cache/apk/*
 
-# SoftHSM2 (PKCS#11 token) — keys live in the token, never exported (ADR-005).
-# pyHanko loads the module in-process; swap PKCS11_MODULE for a hardware HSM
-# client library later with no code changes. Token store is a mounted volume.
-COPY docker/softhsm2.conf /etc/softhsm2.conf
-RUN mkdir -p /var/lib/softhsm/tokens
-ENV SOFTHSM2_CONF=/etc/softhsm2.conf \
-    PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so
+# kryoptic PKCS#11 token (ADR-005, ADR-014) - keys live in the token, never
+# exported. pyHanko loads the module in-process; swap PKCS11_MODULE for a
+# hardware HSM client library later with no code changes. The slot list and the
+# per-token SQLite files live together on a mounted volume; bin/kryoptic_slots.py
+# writes the config, nothing else does.
+COPY --from=kryoptic /build/target/release/libkryoptic_pkcs11.so /usr/lib/libkryoptic_pkcs11.so
+RUN mkdir -p /var/lib/kryoptic/tokens
+ENV KRYOPTIC_CONF=/var/lib/kryoptic/token.conf \
+    PKCS11_MODULE=/usr/lib/libkryoptic_pkcs11.so
 
 # pyHanko (PAdES signing, ADR-007). tzdata is required — pyHanko resolves a
 # ZoneInfo at import time. image-support extra = Pillow, for visible stamps.

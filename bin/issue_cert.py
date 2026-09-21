@@ -11,7 +11,7 @@ Request:
 {
   "mode": "ca-selfsign" | "issue",
   "profile": "ca" | "signer" | "seal",   // optional, defaults from mode
-  "module": "/usr/lib/softhsm/libsofthsm2.so",
+  "module": "/usr/lib/libkryoptic_pkcs11.so",
   "signer": {"token_label": "...", "key_label": "...", "pin": "..."},
   "subject": {"common_name": "...", "organization_name": "...",
               "organizational_unit_name": "...", "country_name": "BG"},
@@ -26,7 +26,7 @@ Response: {"ok": true, "certificate_pem": "...", "serial_number": "...",
 or        {"ok": false, "error": "..."}
 
 The signing digest/algorithm follows the SIGNER key type (ECDSA P-384 +
-SHA-384 for the default suite). SoftHSM exposes only raw CKM_ECDSA, so the
+SHA-384 for the default suite). Soft tokens expose raw CKM_ECDSA, so the
 TBS digest is computed here and signed in-token (same shape as ADR-007).
 """
 import datetime
@@ -39,6 +39,8 @@ import pkcs11
 from pkcs11 import Attribute, KeyType, Mechanism, ObjectClass
 from pkcs11.util.ec import encode_ecdsa_signature
 from asn1crypto import algos, core, keys, pem, x509
+
+from sigil_pkcs11 import find_token
 
 DIGEST = "sha384"
 SIG_ALGO = algos.SignedDigestAlgorithm({"algorithm": "sha384_ecdsa"})
@@ -114,7 +116,7 @@ def main() -> None:
 
     lib = pkcs11.lib(req["module"])
     signer = req["signer"]
-    token = lib.get_token(token_label=signer["token_label"])
+    token = find_token(lib, signer["token_label"])
 
     now = datetime.datetime.now(datetime.timezone.utc)
     not_after = now + datetime.timedelta(days=int(req["validity_days"]))
@@ -130,8 +132,7 @@ def main() -> None:
             issuer_cert = x509.Certificate.load(issuer_der)
             issuer_name = issuer_cert["tbs_certificate"]["subject"]
 
-            sub_token = lib.get_token(
-                token_label=req["subject_pubkey"]["token_label"])
+            sub_token = find_token(lib, req["subject_pubkey"]["token_label"])
             # public objects only — no PIN for the subject's token
             with sub_token.open() as sub_session:
                 spki = spki_from_token(

@@ -10,13 +10,15 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
 
 /**
- * Thin shell-out wrapper around pkcs11-tool / softhsm2-util (ADR-005).
+ * Thin shell-out wrapper around pkcs11-tool and the bin/ drivers (ADR-005,
+ * ADR-014). The module is kryoptic: one PKCS#11 token per certificate, each a
+ * `[[slots]]` block in KRYOPTIC_CONF managed by bin/kryoptic_slots.py.
  *
- * One PKCS#11 token per certificate. PINs are passed to child processes via
- * environment references (pkcs11-tool's `env:` syntax) - NEVER as argv,
- * which is world-readable in /proc. The SO PIN is random and discarded at
- * init time on purpose: a server-held SO PIN could reset User PINs, which
- * ADR-008 explicitly rejects. Locked/forgotten PIN ⇒ delete token, re-issue.
+ * PINs are passed to child processes via environment references (pkcs11-tool's
+ * `env:` syntax) or stdin JSON - NEVER as argv, which is world-readable in
+ * /proc. The SO PIN is random and discarded at init time on purpose: a
+ * server-held SO PIN could reset User PINs, which ADR-008 explicitly rejects.
+ * Locked/forgotten PIN ⇒ delete token, re-issue.
  */
 class Pkcs11TokenManager
 {
@@ -25,37 +27,47 @@ class Pkcs11TokenManager
     public function __construct(
         #[Autowire(env: 'PKCS11_MODULE')]
         private readonly string $modulePath,
+        #[Autowire('%kernel.project_dir%/bin')]
+        private readonly string $binDir = __DIR__.'/../../../bin',
     ) {
     }
 
     /**
-     * Initializes a fresh token with the given User PIN.
+     * Initializes a fresh token with the given User PIN: a slot is allocated in
+     * the module config first, then initialised. A failure takes the slot back
+     * so the config never lists a token that does not exist.
      * The generated SO PIN is intentionally thrown away.
      */
     public function initToken(string $tokenLabel, #[\SensitiveParameter] string $userPin): void
     {
         $soPin = bin2hex(random_bytes(16));
+        $slot = $this->slots('add', $tokenLabel);
 
-        $this->run([
-            'pkcs11-tool', '--module', $this->modulePath,
-            '--init-token', '--slot', (string) $this->findFreeSlotId(),
-            '--label', $tokenLabel,
-            '--so-pin', 'env:SIGIL_SO_PIN',
-        ], ['SIGIL_SO_PIN' => $soPin]);
+        try {
+            $this->run([
+                'pkcs11-tool', '--module', $this->modulePath,
+                '--init-token', '--slot', $slot,
+                '--label', $tokenLabel,
+                '--so-pin', 'env:SIGIL_SO_PIN',
+            ], ['SIGIL_SO_PIN' => $soPin]);
 
-        $this->run([
-            'pkcs11-tool', '--module', $this->modulePath,
-            '--token-label', $tokenLabel,
-            '--init-pin', '--login', '--login-type', 'so',
-            '--so-pin', 'env:SIGIL_SO_PIN',
-            '--new-pin', 'env:SIGIL_USER_PIN',
-        ], ['SIGIL_SO_PIN' => $soPin, 'SIGIL_USER_PIN' => $userPin]);
+            $this->run([
+                'pkcs11-tool', '--module', $this->modulePath,
+                '--token-label', $tokenLabel,
+                '--init-pin', '--login', '--login-type', 'so',
+                '--so-pin', 'env:SIGIL_SO_PIN',
+                '--new-pin', 'env:SIGIL_USER_PIN',
+            ], ['SIGIL_SO_PIN' => $soPin, 'SIGIL_USER_PIN' => $userPin]);
+        } catch (\Throwable $e) {
+            $this->slots('remove', $tokenLabel);
+            throw $e;
+        }
     }
 
     /**
-     * Generates the suite's keypair inside the token (never exportable).
-     * pkcs11-tool knows only the classical families; ML-DSA key generation
-     * arrives with bin/keygen.py.
+     * Generates the suite's keypair inside the token (never exportable), via
+     * bin/keygen.py - one path for every family, since pkcs11-tool cannot
+     * generate ML-DSA keys.
      */
     public function generateKeyPair(
         string $tokenLabel,
@@ -64,18 +76,26 @@ class Pkcs11TokenManager
         string $keyId,
         #[\SensitiveParameter] string $userPin,
     ): void {
-        $keyType = match ($algorithm->family()) {
-            'ecdsa' => 'EC:'.$algorithm->parameterSet(),
-            default => throw new DomainException(sprintf('Key generation for %s is not available yet.', $algorithm->label())),
-        };
+        $process = new Process(['python3', $this->binDir.'/keygen.py']);
+        $process->setInput(json_encode([
+            'module' => $this->modulePath,
+            'token_label' => $tokenLabel,
+            'key_label' => $keyLabel,
+            'key_id' => $keyId,
+            'pin' => $userPin,
+            'algorithm' => $algorithm->toDriverSpec(),
+        ], \JSON_THROW_ON_ERROR));
+        $process->setTimeout(self::TIMEOUT_SECONDS);
+        $process->run();
 
-        $this->run([
-            'pkcs11-tool', '--module', $this->modulePath,
-            '--token-label', $tokenLabel,
-            '--login', '--pin', 'env:SIGIL_USER_PIN',
-            '--keypairgen', '--key-type', $keyType,
-            '--label', $keyLabel, '--id', $keyId,
-        ], ['SIGIL_USER_PIN' => $userPin]);
+        /** @var mixed $decoded */
+        $decoded = json_decode($process->getOutput(), true);
+        if (!\is_array($decoded) || true !== ($decoded['ok'] ?? false)) {
+            $error = \is_array($decoded) && \is_string($decoded['error'] ?? null) ? $decoded['error'] : 'no output';
+            throw new DomainException('UnsupportedAlgorithm' === $error
+                ? sprintf('The token does not support %s.', $algorithm->label())
+                : sprintf('Key generation failed (%s).', $error));
+        }
     }
 
     /**
@@ -155,16 +175,13 @@ class Pkcs11TokenManager
     }
 
     /**
-     * Destroys the token and every key in it (revoke / re-issue path).
+     * Destroys the token and every key in it (revoke / re-issue path): the
+     * slot leaves the config and its database is deleted.
      * Idempotent: a token that is already gone is the outcome wanted.
      */
     public function deleteToken(string $tokenLabel): void
     {
-        if (!$this->tokenExists($tokenLabel)) {
-            return;
-        }
-
-        $this->run(['softhsm2-util', '--delete-token', '--token', $tokenLabel]);
+        $this->slots('remove', $tokenLabel);
     }
 
     public function tokenExists(string $tokenLabel): bool
@@ -179,26 +196,21 @@ class Pkcs11TokenManager
     }
 
     /**
-     * SoftHSM always exposes exactly one uninitialized slot; find its id.
+     * bin/kryoptic_slots.py: the one editor of the module's slot list.
+     *
+     * @return string the slot id for "add"; empty otherwise
      */
-    private function findFreeSlotId(): int
+    private function slots(string $command, string $tokenLabel): string
     {
-        $process = new Process([
-            'pkcs11-tool', '--module', $this->modulePath, '--list-slots',
-        ]);
+        $process = new Process(['python3', $this->binDir.'/kryoptic_slots.py', $command, $tokenLabel]);
         $process->setTimeout(self::TIMEOUT_SECONDS);
-        $process->mustRun();
+        $process->run();
 
-        $slot = null;
-        foreach (explode("\n", $process->getOutput()) as $line) {
-            if (1 === preg_match('/^Slot \d+ \((0x[0-9a-f]+)\)/', $line, $m)) {
-                $slot = hexdec($m[1]);
-            } elseif (null !== $slot && str_contains($line, 'uninitialized')) {
-                return (int) $slot;
-            }
+        if (!$process->isSuccessful()) {
+            throw new DomainException(sprintf('PKCS#11 slot registry "%s" failed (exit %d).', $command, $process->getExitCode() ?? -1));
         }
 
-        throw new DomainException('No free PKCS#11 slot available.');
+        return trim($process->getOutput());
     }
 
     /**

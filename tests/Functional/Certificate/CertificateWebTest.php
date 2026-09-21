@@ -10,7 +10,7 @@ use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * End-to-end web flow: wizard issues a real cert (SoftHSM + CA), list/detail
+ * End-to-end web flow: wizard issues a real cert (kryoptic + CA), list/detail
  * render, download serves the PEM, and the enrollment gate behaves.
  */
 final class CertificateWebTest extends AuthWebTestCase

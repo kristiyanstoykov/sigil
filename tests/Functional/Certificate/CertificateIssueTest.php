@@ -6,6 +6,7 @@ namespace App\Tests\Functional\Certificate;
 
 use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\Certificate\Algorithm\MlDsa65;
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Enum\CertificateStatus;
@@ -20,7 +21,7 @@ use Psr\Clock\ClockInterface;
 use Symfony\Component\Process\Process;
 
 /**
- * Exercises the real chain: SoftHSM token init, in-token keygen, CA-signed
+ * Exercises the real chain: kryoptic token init, in-token keygen, CA-signed
  * cert via the Python driver. Requires an initialized CA (sigil:ca:init).
  */
 class CertificateIssueTest extends AuthWebTestCase
@@ -93,7 +94,7 @@ class CertificateIssueTest extends AuthWebTestCase
         $brokenTokens = new class((string) getenv('PKCS11_MODULE')) extends Pkcs11TokenManager {
             public function deleteToken(string $tokenLabel): void
             {
-                throw new DomainException('PKCS#11 operation "softhsm2-util --delete-token" failed (exit 1).');
+                throw new DomainException('PKCS#11 slot registry "remove" failed (exit 1).');
             }
         };
         $issuer = new CertificateIssuer(
@@ -122,6 +123,29 @@ class CertificateIssueTest extends AuthWebTestCase
         );
         self::assertContains('certificate.revoked', $actions);
         self::assertContains('certificate.token_cleanup_failed', $actions);
+    }
+
+    /**
+     * ADR-014: the post-quantum suite's key pair is generated inside the token
+     * by bin/keygen.py, since pkcs11-tool cannot. The private key never leaves
+     * it - only the public half is readable without a PIN.
+     */
+    public function testAnMlDsaKeyPairCanBeGeneratedInsideTheToken(): void
+    {
+        $manager = static::getContainer()->get(Pkcs11TokenManager::class);
+        $label = 'test-mldsa-'.bin2hex(random_bytes(4));
+        $this->tokensToCleanUp[] = $label;
+
+        $manager->initToken($label, '654321');
+        $manager->generateKeyPair($label, new MlDsa65(), 'sign', '01', '654321');
+
+        $process = new Process(['pkcs11-tool', '--module', (string) getenv('PKCS11_MODULE'), '--token-label', $label, '--list-objects']);
+        $process->mustRun();
+        self::assertStringContainsString('Public Key Object', $process->getOutput());
+        self::assertStringNotContainsString('Private Key Object', $process->getOutput(), 'the private key is not visible without a login');
+
+        $manager->deleteToken($label);
+        self::assertFalse($manager->tokenExists($label));
     }
 
     public function testDeletingATokenTwiceIsNotAnError(): void

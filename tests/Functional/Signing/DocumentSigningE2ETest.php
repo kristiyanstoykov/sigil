@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
 
 /**
  * The full signing chain end to end: upload → issue a real CA-signed cert in a
- * SoftHSM token → sign the latest version with the real pyHanko/PKCS#11 driver
+ * kryoptic token → sign the latest version with the real pyHanko/PKCS#11 driver
  * → assert a Signed DocumentVersion whose bytes are a valid PAdES that chains to
  * the Sigil CA. Requires an initialized CA (sigil:ca:init). Test env uses the
  * "none" TSA, so the signature is PAdES-B-B (no network).
