@@ -1,0 +1,167 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Audit log · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{#
+    The audit log as one person may read it: what they did, and everything that
+    happened to their documents and certificates - whoever did it. Server-paged
+    and server-filtered (a log grows without bound), the filters are plain links
+    so every view is linkable and needs no JavaScript.
+#}
+{% block content %}
+<div class="docs-rise mx-auto max-w-6xl">
+
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Audit log</h1>
+            <p class="mt-1 text-sm text-theme-secondarytextcolor">Everything Sigil recorded about you and what is yours - append-only, hash-chained, and this page is a read of it.</p>
+        </div>
+    </div>
+
+    {# ── Chain integrity ─────────────────────────────────────────────────── #}
+    <div class="card !mb-5 !bg-white/90 px-5 py-4">
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                <i class="ti ti-link text-xl leading-none" aria-hidden="true"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-bold text-theme-headings">Hash chain</p>
+                <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                    {% if head %}
+                        {{ head.sequence }} entries in the whole log, head
+                        <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-[11px] text-theme-bodycolor">{{ head.entryHash|slice(0, 12) }}…</code>
+                        <span class="mx-1.5 text-theme-border">·</span>
+                        {% if lastAnchor %}
+                            last anchored at #{{ lastAnchor.sequence }} on {{ lastAnchor.anchoredAt|date('d M Y, H:i') }}
+                            {% if lastAnchor.sequence < head.sequence %}<span class="text-warning-600">({{ head.sequence - lastAnchor.sequence }} newer entries not yet anchored)</span>{% endif %}
+                        {% else %}
+                            <span class="text-warning-600">never anchored outside the database</span>
+                        {% endif %}
+                    {% else %}
+                        The log is empty.
+                    {% endif %}
+                </p>
+            </div>
+            {{ form_start(verifyForm, {action: path('app_audit_log_verify'), attr: {class: 'shrink-0'}}) }}
+                <button type="submit" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                    <i class="ti ti-shield-search text-base leading-none" aria-hidden="true"></i>
+                    Verify chain now
+                </button>
+            {{ form_end(verifyForm) }}
+        </div>
+        <p class="mt-3 text-xs leading-relaxed text-theme-secondarytextcolor">
+            Each entry's hash is computed over the previous entry's hash and its own content, so altering or removing
+            any earlier record breaks every hash after it. Verification recomputes the whole chain from the first entry;
+            an anchor is a signed copy of the head kept outside the database, which is what catches a cut-off tail.
+        </p>
+    </div>
+
+    {# ── Filters ─────────────────────────────────────────────────────────── #}
+    {% set query = {family: family|default(null), severity: severity ? severity.value : null} %}
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Show</span>
+        {% for key, label in {'': 'Everything'}|merge(families) %}
+            <a href="{{ path('app_audit_log', query|merge({family: key ?: null, page: null})) }}"
+               class="badge rounded-full {{ family == key ? 'bg-primary-500 text-white' : 'bg-theme-activebg text-theme-bodycolor hover:text-theme-headings' }}">{{ label }}</a>
+        {% endfor %}
+        <span class="mx-2 text-theme-border">·</span>
+        {% for key, label in {'': 'Any severity', 'warning': 'Warnings', 'critical': 'Critical'} %}
+            <a href="{{ path('app_audit_log', query|merge({severity: key ?: null, page: null})) }}"
+               class="badge rounded-full {{ (severity ? severity.value : '') == key ? 'bg-primary-500 text-white' : 'bg-theme-activebg text-theme-bodycolor hover:text-theme-headings' }}">{{ label }}</a>
+        {% endfor %}
+        <span class="ml-auto text-xs text-theme-secondarytextcolor">{{ total }} {{ total == 1 ? 'entry' : 'entries' }}</span>
+    </div>
+
+    {# ── Entries ─────────────────────────────────────────────────────────── #}
+    {% if entries is empty %}
+        <div class="card !mb-0 !bg-white/80 p-14 text-center">
+            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                <i class="ti ti-list-details text-3xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-extrabold text-theme-headings">{{ total == 0 and family == '' and severity is null ? 'Nothing recorded yet' : 'Nothing matches' }}</h2>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">
+                {% if total == 0 and family == '' and severity is null %}
+                    Upload, sign or send a document and it will be on the record here.
+                {% else %}
+                    No entries of that kind. <a href="{{ path('app_audit_log') }}" class="text-primary-500 hover:underline">Show everything</a>.
+                {% endif %}
+            </p>
+        </div>
+    {% else %}
+        <div class="card !mb-0 overflow-hidden !bg-white/90">
+            <ul class="divide-y divide-theme-border/60">
+                {% for entry in entries %}
+                    {% set style = audit_action_style(entry.action) %}
+                    {% set subject = entry.subjectId ? subjects[entry.subjectId]|default(null) : null %}
+                    {% set actor = entry.actorId ? actors[entry.actorId.toRfc4122]|default('A removed account') : 'Sigil' %}
+                    <li class="px-5 py-4">
+                        <div class="flex flex-wrap items-start gap-x-4 gap-y-2">
+                            <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ style.classes }}">
+                                <i class="ti {{ style.icon }} text-xl leading-none" aria-hidden="true"></i>
+                            </span>
+
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-bold text-theme-headings">
+                                    {{ style.label }}
+                                    {% if entry.severity.value == 'warning' %}
+                                        <span class="badge ml-1 rounded-full bg-warning-500/10 text-warning-600">warning</span>
+                                    {% elseif entry.severity.value == 'critical' %}
+                                        <span class="badge ml-1 rounded-full bg-danger-500/10 text-danger-600">critical</span>
+                                    {% endif %}
+                                </p>
+                                <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                                    <span class="font-medium text-theme-bodycolor">{{ actor }}</span>
+                                    <span class="mx-1.5 text-theme-border">·</span>
+                                    {{ entry.occurredAt|date('d M Y, H:i:s') }} UTC
+                                    {% if subject %}
+                                        <span class="mx-1.5 text-theme-border">·</span>
+                                        <a href="{{ path(subject.route, {id: entry.subjectId}) }}" class="text-primary-500 hover:underline">{{ subject.title }}</a>
+                                    {% elseif entry.subjectType %}
+                                        <span class="mx-1.5 text-theme-border">·</span>
+                                        {{ entry.subjectType }} <span class="font-mono">{{ entry.subjectId|slice(0, 8) }}…</span>
+                                        <span class="text-theme-secondarytextcolor">(no longer here)</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+
+                            <div class="shrink-0 text-right">
+                                <div class="text-xs font-medium text-theme-secondarytextcolor">#{{ entry.sequence }}</div>
+                                <code class="mt-0.5 block rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-[11px] text-theme-bodycolor" title="{{ entry.entryHash }}">{{ entry.entryHash|slice(0, 12) }}…</code>
+                            </div>
+                        </div>
+
+                        {% if entry.payload is not empty %}
+                            <details class="mt-2 pl-14">
+                                <summary class="cursor-pointer text-xs font-medium text-theme-secondarytextcolor hover:text-theme-headings">Details</summary>
+                                <dl class="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs">
+                                    {% for key, value in entry.payload %}
+                                        <dt class="font-medium text-theme-secondarytextcolor">{{ key }}</dt>
+                                        <dd class="min-w-0 break-all text-theme-bodycolor">{{ value is iterable ? value|json_encode : value }}</dd>
+                                    {% endfor %}
+                                </dl>
+                            </details>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% if pages > 1 %}
+            <nav class="mt-4 flex items-center justify-between text-sm" aria-label="Pages">
+                {% if page > 1 %}
+                    <a href="{{ path('app_audit_log', query|merge({page: page - 1})) }}" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i> Newer
+                    </a>
+                {% else %}<span></span>{% endif %}
+                <span class="text-theme-secondarytextcolor">Page {{ page }} of {{ pages }}</span>
+                {% if page < pages %}
+                    <a href="{{ path('app_audit_log', query|merge({page: page + 1})) }}" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                        Older <i class="ti ti-chevron-right text-base leading-none" aria-hidden="true"></i>
+                    </a>
+                {% else %}<span></span>{% endif %}
+            </nav>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

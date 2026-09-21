@@ -78,7 +78,9 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
             // The inbox is how a delivery reaches someone, and a recipient needs
             // no certificate to be served. Gating it would hide the notice
             // behind a wizard for a key they never have to have.
-            || str_starts_with($route, 'app_notification')) {
+            || str_starts_with($route, 'app_notification')
+            // Reading one's own record needs no key either.
+            || str_starts_with($route, 'app_audit_log')) {
             return;
         }
 

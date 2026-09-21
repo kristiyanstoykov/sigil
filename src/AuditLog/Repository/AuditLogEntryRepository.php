@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\AuditLog\Repository;
 
 use App\AuditLog\Entity\AuditLogEntry;
+use App\AuditLog\Enum\AuditSeverity;
 use App\Core\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -106,6 +108,72 @@ class AuditLogEntryRepository extends ServiceEntityRepository
         }
 
         return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * The log as one person may read it: what they did, and what happened to
+     * what is theirs - their documents and their certificates - including what
+     * others did to them (a signer's signature, a decliner's refusal). Never
+     * another user's actions on another user's things, and never the
+     * system-wide rows (CA init, anchors): those have no actor and no owner.
+     *
+     * @param list<string> $documentIds   rfc4122 ids of documents the user owns
+     * @param list<string> $certificateIds rfc4122 ids of the user's certificates
+     * @param list<string> $actions        restrict to these actions; empty = all
+     *
+     * @return list<AuditLogEntry>
+     */
+    public function findVisibleTo(User $user, array $documentIds, array $certificateIds, array $actions, ?AuditSeverity $severity, int $limit, int $offset): array
+    {
+        $qb = $this->visibleTo($user, $documentIds, $certificateIds, $actions, $severity)
+            ->orderBy('e.sequence', 'DESC')
+            ->setMaxResults($limit)
+            ->setFirstResult($offset);
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * @param list<string> $documentIds
+     * @param list<string> $certificateIds
+     * @param list<string> $actions
+     */
+    public function countVisibleTo(User $user, array $documentIds, array $certificateIds, array $actions, ?AuditSeverity $severity): int
+    {
+        return (int) $this->visibleTo($user, $documentIds, $certificateIds, $actions, $severity)
+            ->select('COUNT(e.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * @param list<string> $documentIds
+     * @param list<string> $certificateIds
+     * @param list<string> $actions
+     */
+    private function visibleTo(User $user, array $documentIds, array $certificateIds, array $actions, ?AuditSeverity $severity): QueryBuilder
+    {
+        $qb = $this->createQueryBuilder('e');
+        $or = ['e.actorId = :actor'];
+        $qb->setParameter('actor', $user->getId(), 'uuid');
+        if ([] !== $documentIds) {
+            $or[] = "(e.subjectType = 'Document' AND e.subjectId IN (:documents))";
+            $qb->setParameter('documents', $documentIds);
+        }
+        if ([] !== $certificateIds) {
+            $or[] = "(e.subjectType = 'Certificate' AND e.subjectId IN (:certificates))";
+            $qb->setParameter('certificates', $certificateIds);
+        }
+        $qb->andWhere(implode(' OR ', $or));
+
+        if ([] !== $actions) {
+            $qb->andWhere('e.action IN (:actions)')->setParameter('actions', $actions);
+        }
+        if (null !== $severity) {
+            $qb->andWhere('e.severity = :severity')->setParameter('severity', $severity->value);
+        }
+
+        return $qb;
     }
 
     /**

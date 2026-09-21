@@ -49,7 +49,7 @@ final readonly class SidebarMenuProvider
             ),
             new MenuItem(
                 label: 'Audit log',
-                route: null, // TODO: app_audit_log (AuditLog module)
+                route: 'app_audit_log',
                 icon: '<path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
             ),
             new MenuItem(

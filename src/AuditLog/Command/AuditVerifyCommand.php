@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace App\AuditLog\Command;
 
-use App\AuditLog\Entity\AuditLogEntry;
-use App\AuditLog\Repository\AuditLogEntryRepository;
 use App\AuditLog\Service\AuditAnchor;
 use App\AuditLog\Service\AuditAnchorSigner;
-use App\AuditLog\Service\AuditChainHasher;
+use App\AuditLog\Service\AuditChainVerifier;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -23,7 +21,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class AuditVerifyCommand extends Command
 {
     public function __construct(
-        private readonly AuditLogEntryRepository $repository,
+        private readonly AuditChainVerifier $verifier,
         private readonly AuditAnchorSigner $anchors,
     ) {
         parent::__construct();
@@ -38,39 +36,18 @@ final class AuditVerifyCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $expectedPrevious = AuditLogEntry::GENESIS_HASH;
-        $expectedSequence = 1;
-        $count = 0;
+        $result = $this->verifier->verify();
+        if (!$result->isIntact()) {
+            $io->error(sprintf(
+                "Chain BROKEN at sequence %d (action \"%s\"):\n - %s",
+                $result->brokenAt,
+                $result->brokenAction,
+                implode("\n - ", $result->reasons),
+            ));
 
-        foreach ($this->repository->iterateChain() as $entry) {
-            $errors = [];
-            if ($entry->getSequence() !== $expectedSequence) {
-                $errors[] = sprintf('sequence gap: expected %d, found %d', $expectedSequence, $entry->getSequence());
-            }
-            if ($entry->getPreviousHash() !== $expectedPrevious) {
-                $errors[] = 'previousHash does not match the preceding entry';
-            }
-            $recomputed = AuditChainHasher::hash($entry->getHashScheme(), $entry->getPreviousHash(), $entry->canonicalPayload());
-            if (!hash_equals($recomputed, $entry->getEntryHash())) {
-                $errors[] = 'entryHash mismatch - entry content was modified';
-            }
-
-            if ([] !== $errors) {
-                $io->error(sprintf(
-                    "Chain BROKEN at sequence %d (action \"%s\", %s):\n - %s",
-                    $entry->getSequence(),
-                    $entry->getAction(),
-                    $entry->getOccurredAt()->format(\DateTimeInterface::ATOM),
-                    implode("\n - ", $errors),
-                ));
-
-                return Command::FAILURE;
-            }
-
-            $expectedPrevious = $entry->getEntryHash();
-            $expectedSequence = $entry->getSequence() + 1;
-            ++$count;
+            return Command::FAILURE;
         }
+        $count = $result->entries;
 
         $io->success(0 === $count
             ? 'Audit log is empty - nothing to verify.'

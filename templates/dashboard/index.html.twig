@@ -280,24 +280,13 @@
                     store: everything Sigil does is already recorded there.
                 #}
                 <div class="card !mb-0 px-4 py-4">
-                    <h3 class="mb-3 text-base font-semibold text-theme-headings">Recent activity</h3>
-                    {% set activity_styles = {
-                        'document.uploaded':                {classes: 'bg-info-500/10 text-info-600',       icon: 'ti-upload',       label: 'Uploaded a document'},
-                        'document.signed':                  {classes: 'bg-success-500/10 text-success-600', icon: 'ti-signature',    label: 'Signed a document'},
-                        'document.accessed':                {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-eye', label: 'Opened a document'},
-                        'document.version_access_granted':  {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-key',          label: 'Handed over a key'},
-                        'delivery.served':                  {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-mail-forward', label: 'Delivered a document'},
-                        'signing_request.created':          {classes: 'bg-info-500/10 text-info-600',       icon: 'ti-send',         label: 'Sent for signature'},
-                        'signing_request.completed':        {classes: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check', label: 'A request completed'},
-                        'signing_request.declined':         {classes: 'bg-danger-500/10 text-danger-600',   icon: 'ti-ban',          label: 'A request was declined'},
-                        'signing_request.expired':          {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-alert-triangle',      label: 'A request expired'},
-                        'signing_request.cancelled':        {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-arrow-back-up', label: 'A request was withdrawn'},
-                        'receipt.sealed':                   {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-receipt',      label: 'A receipt was sealed'},
-                        'certificate.issued':               {classes: 'bg-success-500/10 text-success-600', icon: 'ti-shield-check', label: 'Certificate issued'},
-                    } %}
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-theme-headings">Recent activity</h3>
+                        <a href="{{ path('app_audit_log') }}" class="text-xs font-medium text-primary-500 hover:underline">Full audit log</a>
+                    </div>
                     <div class="flex flex-col gap-3">
                         {% for entry in activity %}
-                            {% set style = activity_styles[entry.action]|default({classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-point', label: entry.action}) %}
+                            {% set style = audit_action_style(entry.action) %}
                             <div class="flex gap-3">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg {{ style.classes }}">
                                     <i class="ti {{ style.icon }} text-sm leading-none" aria-hidden="true"></i>
