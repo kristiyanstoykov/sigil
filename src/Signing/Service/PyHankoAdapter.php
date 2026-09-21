@@ -38,6 +38,7 @@ final class PyHankoAdapter implements PadesSignerInterface
     private const array EXPLAINED = [
         'EncryptedPdf' => 'This PDF is password-protected, so it cannot be signed. Remove the password and upload it again.',
         'UnsupportedAlgorithm' => 'This certificate\'s signature suite is not supported by the signing driver.',
+        'Timeout' => 'Signing timed out - most likely the timestamp authority did not answer. Nothing was signed; please try again.',
     ];
 
     public function __construct(

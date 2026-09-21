@@ -48,7 +48,7 @@ ENV KRYOPTIC_CONF=/var/lib/kryoptic/token.conf \
 # ZoneInfo at import time.
 COPY requirements.txt /tmp/requirements.txt
 RUN apk add --no-cache python3 py3-pip tzdata \
-    && pip3 install --break-system-packages --no-cache-dir --no-deps -r /tmp/requirements.txt \
+    && pip3 install --break-system-packages --no-cache-dir --no-deps --require-hashes -r /tmp/requirements.txt \
     && rm -rf /var/cache/apk/* /tmp/requirements.txt
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
