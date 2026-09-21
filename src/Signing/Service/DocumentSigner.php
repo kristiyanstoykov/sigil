@@ -8,6 +8,7 @@ use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Service\PinGate;
 use App\Certificate\Service\SuiteCredentials;
+use App\Core\Doctrine\RowLock;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
@@ -114,6 +115,12 @@ final class DocumentSigner
         $version = null;
         try {
             $this->em->wrapInTransaction(function () use ($document, $actor, $signedPdf, $certificate, $signingRequest, &$version): void {
+                // The token has signed, but the world may have moved while it did:
+                // a delivery or a withdrawal that committed meanwhile. Re-read the
+                // document under lock and ask "may sign" again before minting.
+                RowLock::acquire($this->em, $document);
+                $this->assertMaySign($document, $this->requests->findPendingForDocument($document), $actor);
+
                 $version = $this->versionWriter->write(
                     $document,
                     $actor,

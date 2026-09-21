@@ -7,6 +7,7 @@ namespace App\Signing\Entity;
 use App\Core\Entity\Trait\HasTimestamps;
 use App\Core\Entity\Trait\HasUuid;
 use App\Core\Entity\User;
+use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
 use App\Signing\Enum\SigningRequestStatus;
 use App\Signing\Repository\SigningRequestRepository;
@@ -192,8 +193,13 @@ class SigningRequest
         return $signers;
     }
 
+    /** @throws DomainException when the request is already closed - a close is never overwritten */
     public function close(SigningRequestStatus $status, \DateTimeImmutable $at): void
     {
+        if (!$this->isPending()) {
+            throw new DomainException('This request is already closed.');
+        }
+
         $this->status = $status;
         $this->closedAt = $at;
     }

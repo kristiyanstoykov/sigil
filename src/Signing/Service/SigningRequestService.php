@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Signing\Service;
 
 use App\AuditLog\AuditLoggerInterface;
+use App\Core\Doctrine\RowLock;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
@@ -66,8 +67,9 @@ final class SigningRequestService
             throw new DomainException('This document has been delivered, so it is final and cannot be sent for signature.');
         }
 
-        $latest = $document->getLatestVersion()
-            ?? throw new DomainException('This document has no content to sign.');
+        if (null === $document->getLatestVersion()) {
+            throw new DomainException('This document has no content to sign.');
+        }
 
         // One request per document, ever. A closed request - completed, declined
         // or expired - is a finished chapter of that document's record, and the
@@ -110,7 +112,20 @@ final class SigningRequestService
         // commit together: a request on the record whose first signer holds no
         // key would be a queue nobody can move.
         try {
-            $request = $this->em->wrapInTransaction(function () use ($document, $requester, $signers, $deadline, $latest): SigningRequest {
+            $request = $this->em->wrapInTransaction(function () use ($document, $requester, $signers, $deadline): SigningRequest {
+                // Serialised against deliver() and a concurrent send: the guards
+                // above ran on what this request loaded; these run on what is
+                // committed, under a row lock.
+                RowLock::acquire($this->em, $document);
+                if ($document->isDelivered()) {
+                    throw new DomainException('This document has been delivered, so it is final and cannot be sent for signature.');
+                }
+                if ($document->isAwaitingSignatures() || null !== $this->requests->findLatestForDocument($document)) {
+                    throw new DomainException('This document already has a signature request out.');
+                }
+                $latest = $document->getLatestVersion()
+                    ?? throw new DomainException('This document has no content to sign.');
+
                 $request = new SigningRequest($document, $requester, $deadline);
                 $this->em->persist($request);
 
@@ -161,13 +176,18 @@ final class SigningRequestService
     public function recordSignature(SigningRequest $request, User $signer, DocumentVersion $version): void
     {
         $this->assertTurnOpen($request, $signer);
-        $entry = $request->signerFor($signer)
-            ?? throw new DomainException('It is not your turn to sign this document.');
 
         $now = $this->clock->now();
 
         // The signature on the record and the turn moving on commit together.
-        $next = $this->em->wrapInTransaction(function () use ($request, $signer, $entry, $version, $now): ?SigningRequestSigner {
+        $next = $this->em->wrapInTransaction(function () use ($request, $signer, $version, $now): ?SigningRequestSigner {
+            // Against a withdrawal or refusal that committed since the sign page
+            // was opened: re-read the request under lock and ask again.
+            RowLock::acquire($this->em, $request->getDocument(), $request);
+            $this->assertTurnOpen($request, $signer);
+            $entry = $request->signerFor($signer)
+                ?? throw new DomainException('It is not your turn to sign this document.');
+
             $entry->markSigned($version, $now);
             $this->em->flush();
 
@@ -230,16 +250,17 @@ final class SigningRequestService
         $entry = $request->signerFor($signer)
             ?? throw new DomainException('It is not your turn to sign this document.');
 
-        // Not flushed here: close() commits the refusal together with the closing.
-        $entry->markDeclined($reason, $this->clock->now());
-
         // close() revokes the turn-holder's grants, which is this signer: they
-        // refused, so they keep no access to what they refused.
+        // refused, so they keep no access to what they refused. The refusal is
+        // marked inside close()'s locked transaction, after the turn is re-checked.
         $this->close($request, SigningRequestStatus::Declined, $signer, [
             'signer' => $signer->getEmail(),
             'position' => $entry->getPosition(),
-            'reason' => $entry->getDeclineReason() ?? '(none given)',
-        ]);
+            'reason' => $reason ?? '(none given)',
+        ], function () use ($request, $signer, $reason): void {
+            $this->assertTurnOpen($request, $signer);
+            $request->signerFor($signer)?->markDeclined($reason, $this->clock->now());
+        });
     }
 
     /**
@@ -269,16 +290,26 @@ final class SigningRequestService
 
     /**
      * @param array<string, scalar> $auditPayload merged into the closing audit entry
+     * @param \Closure|null         $mutate       runs under the lock, after the request is re-read and confirmed pending
      */
-    private function close(SigningRequest $request, SigningRequestStatus $status, User $actor, array $auditPayload = []): void
+    private function close(SigningRequest $request, SigningRequestStatus $status, User $actor, array $auditPayload = [], ?\Closure $mutate = null): void
     {
         $now = $this->clock->now();
-        $pending = $request->currentSigner();
 
         // Closing and taking the turn-holder's key back commit together: a closed
         // request whose signer can still read the document is the leak the
-        // revocation exists to prevent.
-        $this->em->wrapInTransaction(function () use ($request, $status, $actor, $auditPayload, $pending, $now): void {
+        // revocation exists to prevent. Under a row lock, so two closings
+        // (withdraw, refuse, sweep) cannot both pass isPending() on stale rows.
+        $this->em->wrapInTransaction(function () use ($request, $status, $actor, $auditPayload, $mutate, $now): void {
+            RowLock::acquire($this->em, $request->getDocument(), $request);
+            if (!$request->isPending()) {
+                throw new DomainException('This request is already closed.');
+            }
+            if (null !== $mutate) {
+                $mutate();
+            }
+            $pending = $request->currentSigner();
+
             $request->close($status, $now);
             $request->getDocument()->clearAwaitingSignatures();
             $this->em->flush();

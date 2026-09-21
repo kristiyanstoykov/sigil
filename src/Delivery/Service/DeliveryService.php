@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Delivery\Service;
 
 use App\AuditLog\AuditLoggerInterface;
+use App\Core\Doctrine\RowLock;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Delivery\Entity\Delivery;
@@ -66,8 +67,9 @@ final class DeliveryService
             throw new DomainException('This document is out for signature. It can be delivered once everyone has signed.');
         }
 
-        $version = $document->getLatestVersion()
-            ?? throw new DomainException('This document has no content to deliver.');
+        if (null === $document->getLatestVersion()) {
+            throw new DomainException('This document has no content to deliver.');
+        }
 
         if ([] === $recipients) {
             throw new DomainException('Add at least one recipient.');
@@ -95,7 +97,20 @@ final class DeliveryService
         // entry commit together or not at all - "all or nothing" has to hold
         // against a failure halfway through, not only against a bad list.
         try {
-            $delivery = $this->em->wrapInTransaction(function () use ($document, $sender, $recipients, $note, $version, $now): Delivery {
+            $delivery = $this->em->wrapInTransaction(function () use ($document, $sender, $recipients, $note, $now): Delivery {
+                // Serialised against a send or a signature that committed since
+                // the page was loaded: re-read the document under lock and ask
+                // the two questions again, on the version that is latest now.
+                RowLock::acquire($this->em, $document);
+                if ($document->isDelivered()) {
+                    throw new DomainException('This document has already been delivered. Upload it again to serve it on anyone else.');
+                }
+                if ($document->isAwaitingSignatures()) {
+                    throw new DomainException('This document is out for signature. It can be delivered once everyone has signed.');
+                }
+                $version = $document->getLatestVersion()
+                    ?? throw new DomainException('This document has no content to deliver.');
+
                 $delivery = new Delivery($document, $sender, $note);
                 $this->em->persist($delivery);
 
