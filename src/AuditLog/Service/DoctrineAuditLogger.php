@@ -49,7 +49,7 @@ final class DoctrineAuditLogger implements AuditLoggerInterface
                 subjectId: $subjectId,
                 payload: $payload,
                 severity: $severity,
-                occurredAt: \DateTimeImmutable::createFromInterface($this->clock->now())->setTimezone(new \DateTimeZone('UTC')),
+                occurredAt: $this->clock->now()->setTimezone(new \DateTimeZone('UTC')),
             );
 
             $this->em->persist($entry);

@@ -14,12 +14,14 @@ use App\Certificate\Form\ChangePinForm;
 use App\Certificate\Form\NewCertificateForm;
 use App\Certificate\Form\UnlockCertificateForm;
 use App\Certificate\Repository\CertificateRepository;
+use App\Certificate\Security\CertificateVoter;
 use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\PinHasher;
 use App\Certificate\Service\Pkcs11TokenManager;
-use App\Core\Entity\User;
-use App\Core\Http\ContentDisposition;
 use App\Core\Exception\DomainException;
+use App\Core\Http\ContentDisposition;
+use App\Core\Security\CurrentUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Google\GoogleAuthenticatorInterface;
@@ -38,6 +40,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class CertificateController extends AbstractController
 {
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly CertificateRepository $certificates,
         private readonly PinGate $pinGate,
     ) {
@@ -48,7 +51,7 @@ class CertificateController extends AbstractController
     {
         // Status is partly virtual (hold, expiry), so the order is decided here,
         // not in SQL: usable first, then by newest.
-        $certificates = $this->certificates->findByUser($this->currentUser());
+        $certificates = $this->certificates->findByUser($this->currentUser->get());
         usort($certificates, static fn (Certificate $a, Certificate $b): int => [$a->getDisplayStatus()->sortRank(), $b->getCreatedAt()]
             <=> [$b->getDisplayStatus()->sortRank(), $a->getCreatedAt()]);
 
@@ -65,7 +68,7 @@ class CertificateController extends AbstractController
         #[Autowire(service: 'limiter.certificate_issue')]
         RateLimiterFactory $certificateIssueLimiter,
     ): Response {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
         $atLimit = $this->certificates->countActiveForUser($user) >= Certificate::MAX_PER_USER;
 
         $form = $this->createForm(NewCertificateForm::class);
@@ -139,13 +142,14 @@ class CertificateController extends AbstractController
         string $id,
         Request $request,
         Pkcs11TokenManager $tokens,
+        PinHasher $pinHasher,
         AuditLoggerInterface $auditLogger,
         \Doctrine\ORM\EntityManagerInterface $em,
         #[Autowire(service: 'limiter.pin_verification')]
         RateLimiterFactory $pinVerificationLimiter,
     ): Response {
         $certificate = $this->ownedCertificate($id);
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
 
         $form = $this->createForm(ChangePinForm::class);
         $form->handleRequest($request);
@@ -175,7 +179,7 @@ class CertificateController extends AbstractController
                     throw new CertificateLockedException('PIN integrity check failed - the certificate was locked as a precaution. Please re-issue it.');
                 }
 
-                $certificate->setPinHash(password_hash($newPin, \PASSWORD_ARGON2ID));
+                $certificate->setPinHash($pinHasher->hash($newPin));
                 $em->flush();
 
                 $auditLogger->log(
@@ -209,7 +213,7 @@ class CertificateController extends AbstractController
         RateLimiterFactory $certificateUnlockLimiter,
     ): Response {
         $certificate = $this->ownedCertificate($id);
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
 
         if (!$certificate->isLocked()) {
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
@@ -281,7 +285,7 @@ class CertificateController extends AbstractController
 
         $auditLogger->log(
             action: 'certificate.held',
-            actor: $this->currentUser(),
+            actor: $this->currentUser->get(),
             payload: ['heldUntil' => $until->format(\DateTimeInterface::ATOM)],
             subjectType: 'Certificate',
             subjectId: $certificate->getId()->toRfc4122(),
@@ -330,7 +334,7 @@ class CertificateController extends AbstractController
         // Warning like certificate.unlocked: signing capability was re-enabled.
         $auditLogger->log(
             action: 'certificate.hold_released',
-            actor: $this->currentUser(),
+            actor: $this->currentUser->get(),
             subjectType: 'Certificate',
             subjectId: $certificate->getId()->toRfc4122(),
             severity: AuditSeverity::Warning,
@@ -379,7 +383,7 @@ class CertificateController extends AbstractController
         }
 
         try {
-            $issuer->revoke($certificate, $this->currentUser(), 'revoked by owner');
+            $issuer->revoke($certificate, $this->currentUser->get(), 'revoked by owner');
             $this->addFlash('success', 'The certificate was revoked and its key destroyed.');
         } catch (DomainException $e) {
             $this->addFlash('danger', $e->getMessage());
@@ -443,7 +447,7 @@ class CertificateController extends AbstractController
     ): ?Response {
         $id = $certificate->getId()->toRfc4122();
 
-        if (!$pinVerificationLimiter->create($this->currentUser()->getUserIdentifier())->consume()->isAccepted()) {
+        if (!$pinVerificationLimiter->create($this->currentUser->get()->getUserIdentifier())->consume()->isAccepted()) {
             $this->addFlash('danger', 'Too many PIN attempts - please try again later.');
 
             return $this->redirectToRoute('app_certificate_show', ['id' => $id]);
@@ -462,13 +466,13 @@ class CertificateController extends AbstractController
 
     private function utcNow(ClockInterface $clock): \DateTimeImmutable
     {
-        return \DateTimeImmutable::createFromInterface($clock->now())->setTimezone(new \DateTimeZone('UTC'));
+        return $clock->now()->setTimezone(new \DateTimeZone('UTC'));
     }
 
     private function ownedCertificate(string $id): Certificate
     {
         $certificate = $this->certificates->find($id);
-        if (null === $certificate || $certificate->getUser()->getId()->toRfc4122() !== $this->currentUser()->getId()->toRfc4122()) {
+        if (null === $certificate || !$this->isGranted(CertificateVoter::OWN, $certificate)) {
             // 404, not 403: do not reveal that the id exists
             throw $this->createNotFoundException();
         }
@@ -476,11 +480,4 @@ class CertificateController extends AbstractController
         return $certificate;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

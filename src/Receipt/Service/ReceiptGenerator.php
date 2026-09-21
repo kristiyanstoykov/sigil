@@ -58,7 +58,7 @@ final class ReceiptGenerator
 
         $document = $request->getDocument();
         $documentId = $document->getId();
-        $sealedAt = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $sealedAt = $this->clock->now();
 
         // The version that was delivered: the latest one at close. For a request
         // nobody signed this is still the original upload.
@@ -125,7 +125,7 @@ final class ReceiptGenerator
 
         $document = $delivery->getDocument();
         $documentId = $document->getId();
-        $sealedAt = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $sealedAt = $this->clock->now();
 
         // The version actually served, not the latest: a later version is not
         // delivered retroactively, and the receipt must name what was handed over.

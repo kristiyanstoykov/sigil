@@ -7,8 +7,10 @@ namespace App\Signing\Controller;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Core\Repository\UserRepository;
+use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
+use App\Document\Security\DocumentVoter;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Form\CancelSigningRequestForm;
 use App\Signing\Form\CreateSigningRequestForm;
@@ -31,6 +33,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class SigningRequestController extends AbstractController
 {
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly DocumentRepository $documents,
         private readonly SigningRequestRepository $requests,
         private readonly SigningRequestService $service,
@@ -64,7 +67,7 @@ class SigningRequestController extends AbstractController
                 $signers = $this->resolveSigners((string) $form->get(CreateSigningRequestForm::E_SIGNERS)->getData());
                 $days = (int) $form->get(CreateSigningRequestForm::E_DEADLINE_DAYS)->getData();
 
-                $this->service->create($document, $this->currentUser(), $signers, $this->deadlineIn($days));
+                $this->service->create($document, $this->currentUser->get(), $signers, $this->deadlineIn($days));
 
                 $this->addFlash('success', sprintf('Sent. %s will be asked to sign, in that order.', self::listNames($signers)));
 
@@ -78,7 +81,7 @@ class SigningRequestController extends AbstractController
         // sign too". It only seeds the list - the owner is an ordinary row from
         // there on, movable like any other, and create() re-checks eligibility.
         $preset = [];
-        $me = $this->currentUser();
+        $me = $this->currentUser->get();
         $alreadySigned = $signatories->hasSigned($document, $me);
         if ($request->query->getBoolean('include_me') && !$form->isSubmitted() && !$alreadySigned) {
             $preset[] = [
@@ -114,7 +117,7 @@ class SigningRequestController extends AbstractController
         // already signed this file must not be asked for a second signature.
         // create() enforces the same rule - this only says so earlier.
         $reason = $signatories->hasSigned($document, $user)
-            ? $this->alreadySignedReason($user, $this->currentUser())
+            ? $this->alreadySignedReason($user, $this->currentUser->get())
             : $eligibility->reasonWhyNot($user);
 
         return $this->json([
@@ -127,7 +130,7 @@ class SigningRequestController extends AbstractController
 
     private function alreadySignedReason(User $signer, User $viewer): string
     {
-        return $signer->getId()->toRfc4122() === $viewer->getId()->toRfc4122()
+        return $signer->is($viewer)
             ? 'You have already signed this document.'
             : sprintf('%s has already signed this document.', $signer->getEmail());
     }
@@ -149,7 +152,7 @@ class SigningRequestController extends AbstractController
         }
 
         try {
-            $this->service->cancel($pending, $this->currentUser());
+            $this->service->cancel($pending, $this->currentUser->get());
             $this->addFlash('success', 'The signature request was withdrawn.');
         } catch (DomainException $e) {
             // The form sits in a confirm modal, so a field error would render
@@ -197,7 +200,7 @@ class SigningRequestController extends AbstractController
     {
         $days = max(1, min($days, SigningRequest::MAX_DEADLINE_DAYS));
 
-        return \DateTimeImmutable::createFromInterface($this->clock->now())->modify(sprintf('+%d days', $days));
+        return $this->clock->now()->modify(sprintf('+%d days', $days));
     }
 
     /**
@@ -223,7 +226,7 @@ class SigningRequestController extends AbstractController
     private function ownedDocument(string $id): Document
     {
         $document = $this->documents->find($id);
-        if (null === $document || $document->getOwner()->getId()->toRfc4122() !== $this->currentUser()->getId()->toRfc4122()) {
+        if (null === $document || !$this->isGranted(DocumentVoter::OWN, $document)) {
             // 404, not 403: do not reveal that the id exists.
             throw $this->createNotFoundException();
         }
@@ -231,11 +234,4 @@ class SigningRequestController extends AbstractController
         return $document;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

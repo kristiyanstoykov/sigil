@@ -6,8 +6,9 @@ namespace App\Core\Crypto;
 
 use App\Core\Crypto\Exception\DecryptionFailedException;
 use App\Core\Exception\DomainException;
+use App\Core\Process\DriverException;
+use App\Core\Process\JsonDriver;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Process\Process;
 
 /**
  * Root-key wrapper backed by a PKCS#11 token (ADR-010). The root wrapping key
@@ -43,8 +44,7 @@ final class Pkcs11RootKeyWrapper implements RootKeyWrapperInterface
         private readonly string $keyLabel,
         #[Autowire(env: 'SIGIL_ROOT_TOKEN_PIN')]
         private readonly string $pin,
-        #[Autowire('%kernel.project_dir%/bin/wrap_key.py')]
-        private readonly string $driverPath,
+        private readonly JsonDriver $driver,
     ) {
     }
 
@@ -116,22 +116,12 @@ final class Pkcs11RootKeyWrapper implements RootKeyWrapperInterface
      */
     private function invoke(#[\SensitiveParameter] array $request): array
     {
-        $process = new Process(['python3', $this->driverPath]);
-        $process->setInput(json_encode($request, \JSON_THROW_ON_ERROR));
-        $process->setTimeout(self::TIMEOUT_SECONDS);
-        $process->run();
-
-        /** @var mixed $decoded */
-        $decoded = json_decode($process->getOutput(), true);
-        if (!\is_array($decoded) || true !== ($decoded['ok'] ?? false)) {
+        try {
+            return $this->driver->run('wrap_key.py', $request, timeout: self::TIMEOUT_SECONDS);
+        } catch (DriverException $e) {
             // The driver reports only an exception class name, never input - safe
             // to surface for diagnostics without leaking the PIN or key bytes.
-            $error = \is_array($decoded) && \is_string($decoded['error'] ?? null)
-                ? $decoded['error']
-                : 'no output';
-            throw new DomainException(sprintf('PKCS#11 root-key operation failed (%s).', $error));
+            throw new DomainException(sprintf('PKCS#11 root-key operation failed (%s).', $e->error));
         }
-
-        return $decoded;
     }
 }

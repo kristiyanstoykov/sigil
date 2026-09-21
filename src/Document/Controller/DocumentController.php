@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Document\Controller;
 
-use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Core\Http\ContentDisposition;
+use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
 use App\Document\Entity\DocumentVersion;
 use App\Document\Form\UploadDocumentForm;
-use App\Document\Repository\DocumentKeyGrantRepository;
 use App\Document\Repository\DocumentRepository;
+use App\Document\Security\DocumentVoter;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentUploader;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -34,15 +34,15 @@ class DocumentController extends AbstractController
     private const TABS = [self::TAB_OVERVIEW, 'versions', 'history', 'receipts'];
 
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly DocumentRepository $documents,
-        private readonly DocumentKeyGrantRepository $grants,
     ) {
     }
 
     #[Route('', name: 'app_documents', methods: ['GET'])]
     public function index(): Response
     {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
 
         // One list, not two: the page is a library, and which documents are the
         // user's own is a column, not a separate tab. Role and status filtering
@@ -107,7 +107,7 @@ class DocumentController extends AbstractController
             if (false === $bytes) {
                 throw new DomainException('The uploaded file could not be read.');
             }
-            $document = $uploader->upload($this->currentUser(), $bytes, (string) $file->getClientOriginalName());
+            $document = $uploader->upload($this->currentUser->get(), $bytes, (string) $file->getClientOriginalName());
         } catch (DomainException $e) {
             $this->addFlash('danger', $e->getMessage());
 
@@ -184,7 +184,7 @@ class DocumentController extends AbstractController
         bool $attachment,
     ): Response {
         try {
-            $bytes = $downloader->download($version, $this->currentUser());
+            $bytes = $downloader->download($version, $this->currentUser->get());
         } catch (DomainException) {
             throw $this->createNotFoundException();
         }
@@ -236,16 +236,14 @@ class DocumentController extends AbstractController
     }
 
     /**
-     * For reading: the owner, or anyone the document has been shared with. The
-     * grant is the authority - holding one is exactly what "has access" means -
-     * so this asks the grants rather than keeping a second list in sync.
-     * Download still re-checks per version inside DocumentDownloader.
+     * For reading: DocumentVoter::VIEW - the owner, or anyone holding a grant.
+     * 404 on refusal so an id is never confirmed. Download still re-checks per
+     * version inside DocumentDownloader.
      */
     private function readableDocument(string $id): Document
     {
         $document = $this->documents->find($id);
-        if (null === $document
-            || (!$this->isOwner($document) && !$this->grants->hasGrantForDocument($document, $this->currentUser()))) {
+        if (null === $document || !$this->isGranted(DocumentVoter::VIEW, $document)) {
             throw $this->createNotFoundException();
         }
 
@@ -254,14 +252,6 @@ class DocumentController extends AbstractController
 
     private function isOwner(Document $document): bool
     {
-        return $document->getOwner()->getId()->toRfc4122() === $this->currentUser()->getId()->toRfc4122();
-    }
-
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
+        return $this->isGranted(DocumentVoter::OWN, $document);
     }
 }

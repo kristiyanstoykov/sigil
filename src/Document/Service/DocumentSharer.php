@@ -52,7 +52,7 @@ final class DocumentSharer
     {
         $this->assertOwner($document, $actor);
 
-        if (self::isSameUser($recipient, $document->getOwner())) {
+        if ($recipient->is($document->getOwner())) {
             throw new DomainException('You already have access to this document.');
         }
 
@@ -147,7 +147,7 @@ final class DocumentSharer
     {
         $this->assertOwner($document, $actor);
 
-        if (self::isSameUser($recipient, $document->getOwner())) {
+        if ($recipient->is($document->getOwner())) {
             throw new DomainException("The owner's own access cannot be revoked.");
         }
 
@@ -177,13 +177,8 @@ final class DocumentSharer
      */
     private function assertOwner(Document $document, User $actor): void
     {
-        if (!self::isSameUser($actor, $document->getOwner())) {
+        if (!$actor->is($document->getOwner())) {
             throw new DomainException('Only the owner can share this document.');
         }
-    }
-
-    private static function isSameUser(User $a, User $b): bool
-    {
-        return $a->getId()->toRfc4122() === $b->getId()->toRfc4122();
     }
 }

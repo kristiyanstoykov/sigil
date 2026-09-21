@@ -99,6 +99,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     // ── Getters / Setters ────────────────────────────────────────────────────
 
+    /**
+     * Identity, not object identity: two managed instances of the same row
+     * (a fresh load beside a session-refreshed user) must compare equal.
+     */
+    public function is(User $other): bool
+    {
+        return $this->getId()->equals($other->getId());
+    }
+
     public function getEmail(): string
     {
         return $this->email;

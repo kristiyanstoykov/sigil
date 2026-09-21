@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Signing\Twig;
 
 use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
 use App\Signing\Controller\SigningRequestController;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Form\CancelSigningRequestForm;
 use App\Signing\Repository\SigningRequestRepository;
 use App\Signing\Service\DocumentSignatories;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormView;
 use Twig\Extension\AbstractExtension;
@@ -26,7 +26,7 @@ final class SigningRequestExtension extends AbstractExtension
     public function __construct(
         private readonly SigningRequestRepository $requests,
         private readonly FormFactoryInterface $forms,
-        private readonly Security $security,
+        private readonly CurrentUser $currentUser,
         private readonly DocumentSignatories $signatories,
     ) {
     }
@@ -73,8 +73,8 @@ final class SigningRequestExtension extends AbstractExtension
      */
     public function turnsForMe(): int
     {
-        $user = $this->security->getUser();
-        if (!$user instanceof User) {
+        $user = $this->currentUser->getOrNull();
+        if (null === $user) {
             return 0;
         }
 
@@ -88,9 +88,9 @@ final class SigningRequestExtension extends AbstractExtension
      */
     public function forMe(): array
     {
-        $user = $this->security->getUser();
+        $user = $this->currentUser->getOrNull();
 
-        return $user instanceof User ? $this->requests->findPendingForSigner($user) : [];
+        return null !== $user ? $this->requests->findPendingForSigner($user) : [];
     }
 
     public function pending(Document $document): ?SigningRequest

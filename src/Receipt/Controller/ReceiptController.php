@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Receipt\Controller;
 
-use App\Core\Entity\User;
-use App\Core\Http\ContentDisposition;
 use App\Core\Exception\DomainException;
+use App\Core\Http\ContentDisposition;
+use App\Core\Security\CurrentUser;
 use App\Receipt\Entity\DeliveryReceipt;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Receipt\Service\ReceiptDownloader;
@@ -20,15 +20,17 @@ use Symfony\Component\Uid\Uuid;
 #[Route('/receipts')]
 class ReceiptController extends AbstractController
 {
-    public function __construct(private readonly DeliveryReceiptRepository $receipts)
-    {
+    public function __construct(
+        private readonly CurrentUser $currentUser,
+        private readonly DeliveryReceiptRepository $receipts,
+    ) {
     }
 
     #[Route('', name: 'app_receipts', methods: ['GET'])]
     public function index(): Response
     {
         return $this->render('receipt/index.html.twig', [
-            'receipts' => $this->receipts->findReadableBy($this->currentUser()),
+            'receipts' => $this->receipts->findReadableBy($this->currentUser->get()),
         ]);
     }
 
@@ -38,7 +40,7 @@ class ReceiptController extends AbstractController
         $receipt = $this->readableReceipt($id);
 
         try {
-            $bytes = $downloader->download($receipt, $this->currentUser());
+            $bytes = $downloader->download($receipt, $this->currentUser->get());
         } catch (DomainException) {
             throw $this->createNotFoundException();
         }
@@ -65,11 +67,4 @@ class ReceiptController extends AbstractController
         return $receipt;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

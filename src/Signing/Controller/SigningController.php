@@ -8,12 +8,14 @@ use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
 use App\Signing\Exception\TokenPinRejectedException;
 use App\Signing\Form\DeclineFormFactory;
 use App\Signing\Form\SignDocumentForm;
 use App\Signing\Repository\SigningRequestRepository;
+use App\Signing\Security\SigningVoter;
 use App\Signing\Service\DocumentSigner;
 use Psr\Clock\ClockInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -29,6 +31,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class SigningController extends AbstractController
 {
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly DocumentRepository $documents,
         private readonly CertificateRepository $certificates,
         private readonly DocumentSigner $signer,
@@ -44,8 +47,8 @@ class SigningController extends AbstractController
         #[Autowire(service: 'limiter.pin_verification')]
         RateLimiterFactory $pinVerificationLimiter,
     ): Response {
-        $user = $this->currentUser();
-        $document = $this->signableDocument($id, $user);
+        $user = $this->currentUser->get();
+        $document = $this->signableDocument($id);
         $signingRequest = $this->signingRequests->findPendingForDocument($document);
 
         // Delivered is terminal - there is nothing to decide and nothing to sign.
@@ -74,7 +77,7 @@ class SigningController extends AbstractController
         // Past the deadline the turn is closed even for its holder; the sweep
         // will expire the request. DocumentSigner refuses too - this only spares
         // the user a PIN prompt that cannot succeed.
-        if (null !== $signingRequest && $signingRequest->isOverdue(\DateTimeImmutable::createFromInterface($this->clock->now()))) {
+        if (null !== $signingRequest && $signingRequest->isOverdue($this->clock->now())) {
             $this->addFlash('info', 'The deadline for this signature request has passed, so it can no longer be signed.');
 
             return $this->redirectToRoute('app_document_show', ['id' => $id]);
@@ -171,7 +174,7 @@ class SigningController extends AbstractController
      */
     private function usableCertificates(User $user): array
     {
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
 
         return array_values(array_filter(
             $this->certificates->findByUser($user),
@@ -213,31 +216,15 @@ class SigningController extends AbstractController
      * request for this document - including signers whose turn has not come up,
      * who get the waiting view rather than the form.
      */
-    private function signableDocument(string $id, User $user): Document
+    /** SigningVoter::SIGN - the owner or a listed signer; 404 otherwise, never 403. */
+    private function signableDocument(string $id): Document
     {
         $document = $this->documents->find($id);
-        if (null === $document) {
-            // 404, not 403: do not reveal that the id exists.
-            throw $this->createNotFoundException();
-        }
-
-        if ($document->getOwner()->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
-            return $document;
-        }
-
-        $request = $this->signingRequests->findPendingForDocument($document);
-        if (null === $request || null === $request->signerFor($user)) {
+        if (null === $document || !$this->isGranted(SigningVoter::SIGN, $document)) {
             throw $this->createNotFoundException();
         }
 
         return $document;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

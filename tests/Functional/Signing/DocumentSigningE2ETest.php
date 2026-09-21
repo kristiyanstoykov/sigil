@@ -11,8 +11,10 @@ use App\Certificate\Algorithm\SignatureAlgorithmInterface;
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\CertificateIssuer;
+use App\Certificate\Service\PinHasher;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Certificate\Service\SuiteCredentials;
+use App\Core\Process\JsonDriver;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentUploader;
@@ -176,8 +178,9 @@ class DocumentSigningE2ETest extends AuthWebTestCase
             (string) getenv('PKCS11_MODULE'),
             (string) ($_ENV['SIGIL_CA_PIN'] ?? $_SERVER['SIGIL_CA_PIN']),
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
-            $projectDir.'/bin/issue_cert.py',
+            new JsonDriver($projectDir.'/bin'),
             new SuiteCredentials($projectDir.'/var/ca'),
+        new PinHasher(),
         );
     }
 

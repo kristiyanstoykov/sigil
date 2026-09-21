@@ -124,6 +124,6 @@ class Notification
 
     public function isFor(User $user): bool
     {
-        return $this->recipient->getId()->toRfc4122() === $user->getId()->toRfc4122();
+        return $this->recipient->is($user);
     }
 }

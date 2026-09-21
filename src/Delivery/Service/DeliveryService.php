@@ -48,7 +48,7 @@ final class DeliveryService
      */
     public function deliver(Document $document, User $sender, array $recipients, ?string $note = null): Delivery
     {
-        if ($document->getOwner()->getId()->toRfc4122() !== $sender->getId()->toRfc4122()) {
+        if (!$document->getOwner()->is($sender)) {
             throw new DomainException('Only the owner can deliver this document.');
         }
 
@@ -89,7 +89,7 @@ final class DeliveryService
             }
         }
 
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
 
         // One transaction: the delivery row, the flag, every grant and every audit
         // entry commit together or not at all - "all or nothing" has to hold

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Delivery\Twig;
 
-use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Delivery\Entity\Delivery;
 use App\Delivery\Repository\DeliveryRepository;
 use App\Document\Entity\Document;
-use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
@@ -21,7 +20,7 @@ final class DeliveryExtension extends AbstractExtension
 {
     public function __construct(
         private readonly DeliveryRepository $deliveries,
-        private readonly Security $security,
+        private readonly CurrentUser $currentUser,
     ) {
     }
 
@@ -51,8 +50,8 @@ final class DeliveryExtension extends AbstractExtension
      */
     public function wasDeliveredToMe(Document $document): bool
     {
-        $user = $this->security->getUser();
+        $user = $this->currentUser->getOrNull();
 
-        return $user instanceof User && $this->deliveries->wasServed($document, $user);
+        return null !== $user && $this->deliveries->wasServed($document, $user);
     }
 }

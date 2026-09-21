@@ -56,7 +56,7 @@ final class SigningRequestService
      */
     public function create(Document $document, User $requester, array $signers, \DateTimeImmutable $deadline): SigningRequest
     {
-        if ($document->getOwner()->getId()->toRfc4122() !== $requester->getId()->toRfc4122()) {
+        if (!$document->getOwner()->is($requester)) {
             throw new DomainException('Only the owner can request signatures for this document.');
         }
 
@@ -116,7 +116,7 @@ final class SigningRequestService
 
                 // Delivery waits until the queue is done: a delivered document is final,
                 // and serving one mid-queue would strand the signers still to come.
-                $document->markAwaitingSignatures(\DateTimeImmutable::createFromInterface($this->clock->now()));
+                $document->markAwaitingSignatures($this->clock->now());
 
                 $position = 1;
                 foreach ($signers as $signer) {
@@ -164,7 +164,7 @@ final class SigningRequestService
         $entry = $request->signerFor($signer)
             ?? throw new DomainException('It is not your turn to sign this document.');
 
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
 
         // The signature on the record and the turn moving on commit together.
         $next = $this->em->wrapInTransaction(function () use ($request, $signer, $entry, $version, $now): ?SigningRequestSigner {
@@ -203,7 +203,7 @@ final class SigningRequestService
      */
     public function cancel(SigningRequest $request, User $actor): void
     {
-        if ($request->getRequester()->getId()->toRfc4122() !== $actor->getId()->toRfc4122()) {
+        if (!$request->getRequester()->is($actor)) {
             throw new DomainException('Only the requester can cancel this request.');
         }
 
@@ -231,7 +231,7 @@ final class SigningRequestService
             ?? throw new DomainException('It is not your turn to sign this document.');
 
         // Not flushed here: close() commits the refusal together with the closing.
-        $entry->markDeclined($reason, \DateTimeImmutable::createFromInterface($this->clock->now()));
+        $entry->markDeclined($reason, $this->clock->now());
 
         // close() revokes the turn-holder's grants, which is this signer: they
         // refused, so they keep no access to what they refused.
@@ -256,7 +256,7 @@ final class SigningRequestService
             throw new DomainException('It is not your turn to sign this document.');
         }
 
-        if ($request->isOverdue(\DateTimeImmutable::createFromInterface($this->clock->now()))) {
+        if ($request->isOverdue($this->clock->now())) {
             throw new DomainException('The deadline for this request has passed, so it can no longer be signed.');
         }
     }
@@ -272,7 +272,7 @@ final class SigningRequestService
      */
     private function close(SigningRequest $request, SigningRequestStatus $status, User $actor, array $auditPayload = []): void
     {
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
         $pending = $request->currentSigner();
 
         // Closing and taking the turn-holder's key back commit together: a closed
@@ -307,7 +307,7 @@ final class SigningRequestService
     /** @throws DomainException if the deadline is in the past or beyond the 30-day ceiling */
     private function assertDeadline(\DateTimeImmutable $deadline): void
     {
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
 
         if ($deadline <= $now) {
             throw new DomainException('The signing deadline must be in the future.');

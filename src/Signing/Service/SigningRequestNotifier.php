@@ -50,7 +50,7 @@ final class SigningRequestNotifier
     public function notifySigned(Document $document, User $signer, int $remaining = 0): void
     {
         $owner = $document->getOwner();
-        if ($owner->getId()->toRfc4122() === $signer->getId()->toRfc4122()) {
+        if ($owner->is($signer)) {
             return;
         }
 

@@ -118,6 +118,6 @@ class SigningRequestSigner
 
     public function isUser(User $user): bool
     {
-        return $this->user->getId()->toRfc4122() === $user->getId()->toRfc4122();
+        return $this->user->is($user);
     }
 }

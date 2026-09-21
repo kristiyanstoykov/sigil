@@ -50,7 +50,7 @@ final class SweepSigningRequestsCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $dryRun = (bool) $input->getOption('dry-run');
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
 
         $overdue = $this->requests->findOverdue($now);
         if ([] === $overdue) {

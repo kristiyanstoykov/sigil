@@ -12,9 +12,11 @@ use App\Certificate\Entity\Certificate;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Repository\CertificateRepository;
+use App\Certificate\Service\PinHasher;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
+use App\Core\Process\JsonDriver;
 use App\Core\Exception\DomainException;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -108,8 +110,9 @@ class CertificateIssueTest extends AuthWebTestCase
             (string) getenv('PKCS11_MODULE'),
             (string) ($_ENV['SIGIL_CA_PIN'] ?? $_SERVER['SIGIL_CA_PIN']),
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
-            $c->getParameter('kernel.project_dir').'/bin/issue_cert.py',
+            new JsonDriver($c->getParameter('kernel.project_dir').'/bin'),
             new SuiteCredentials($c->getParameter('kernel.project_dir').'/var/ca'),
+        new PinHasher(),
         );
 
         $issuer->revoke($certificate, $user, 'user requested');

@@ -61,7 +61,7 @@ final class NotifyOnSigningEvent
         $owner = $event->document->getOwner();
 
         // Nobody needs telling they did the thing they just did.
-        if ($owner->getId()->toRfc4122() === $event->signer->getId()->toRfc4122()) {
+        if ($owner->is($event->signer)) {
             return;
         }
 

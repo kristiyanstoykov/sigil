@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Receipt\Twig;
 
-use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
 use App\Receipt\Entity\DeliveryReceipt;
 use App\Receipt\Enum\ReceiptSource;
 use App\Receipt\Repository\DeliveryReceiptKeyGrantRepository;
 use App\Receipt\Repository\DeliveryReceiptRepository;
 use App\Signing\Entity\SigningRequest;
-use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
@@ -24,7 +23,7 @@ final class ReceiptExtension extends AbstractExtension
     public function __construct(
         private readonly DeliveryReceiptRepository $receipts,
         private readonly DeliveryReceiptKeyGrantRepository $grants,
-        private readonly Security $security,
+        private readonly CurrentUser $currentUser,
     ) {
     }
 
@@ -43,10 +42,10 @@ final class ReceiptExtension extends AbstractExtension
      */
     public function forRequest(SigningRequest $request): ?DeliveryReceipt
     {
-        $user = $this->security->getUser();
+        $user = $this->currentUser->getOrNull();
         $receipt = $this->receipts->findForSource(ReceiptSource::SigningRequest, $request->getId());
 
-        if (!$user instanceof User || null === $receipt) {
+        if (null === $user || null === $receipt) {
             return null;
         }
 
@@ -62,8 +61,8 @@ final class ReceiptExtension extends AbstractExtension
      */
     public function forDocument(Document $document): array
     {
-        $user = $this->security->getUser();
-        if (!$user instanceof User) {
+        $user = $this->currentUser->getOrNull();
+        if (null === $user) {
             return [];
         }
 

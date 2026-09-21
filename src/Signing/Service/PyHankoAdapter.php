@@ -6,11 +6,12 @@ namespace App\Signing\Service;
 
 use App\AuditLog\AuditLoggerInterface;
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
+use App\Core\Process\DriverException;
+use App\Core\Process\JsonDriver;
 use App\AuditLog\Enum\AuditSeverity;
 use App\Signing\Exception\SigningException;
 use App\Signing\Exception\TokenPinRejectedException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Process\Process;
 
 /**
  * {@see PadesSignerInterface} backed by bin/sign_pdf.py over native PKCS#11.
@@ -42,10 +43,9 @@ final class PyHankoAdapter implements PadesSignerInterface
     public function __construct(
         private readonly AuditLoggerInterface $auditLogger,
         private readonly SignatureAlgorithmRegistry $algorithms,
+        private readonly JsonDriver $driver,
         #[Autowire(env: 'PKCS11_MODULE')]
         private readonly string $modulePath,
-        #[Autowire('%kernel.project_dir%/bin/sign_pdf.py')]
-        private readonly string $driverPath,
     ) {
     }
 
@@ -88,37 +88,27 @@ final class PyHankoAdapter implements PadesSignerInterface
      *
      * @return array{pdf_b64: string}
      */
-    private function runDriver(array $request): array
+    private function runDriver(#[\SensitiveParameter] array $request): array
     {
-        $process = new Process(['python3', $this->driverPath]);
-        $process->setInput(json_encode($request, \JSON_THROW_ON_ERROR));
-        $process->setTimeout(120); // a TSA round-trip can be slow
-        $process->run();
+        try {
+            /** @var array{pdf_b64: string} $response */
+            $response = $this->driver->run('sign_pdf.py', $request, timeout: 120); // a TSA round-trip can be slow
 
-        /** @var mixed $decoded */
-        $decoded = json_decode($process->getOutput(), true);
-
-        if (!\is_array($decoded) || true !== ($decoded['ok'] ?? false)) {
-            $error = \is_array($decoded) && \is_string($decoded['error'] ?? null)
-                ? $decoded['error']
-                : 'driver produced no output';
-
+            return $response;
+        } catch (DriverException $e) {
             // A token PIN rejection is handled (and audited) by the caller via
             // the ADR-008 desync path; don't double-audit it as a signing fault.
-            if (\in_array($error, self::TOKEN_PIN_REJECTIONS, true)) {
+            if (\in_array($e->error, self::TOKEN_PIN_REJECTIONS, true)) {
                 throw new TokenPinRejectedException('The token rejected the PIN.');
             }
 
             $this->auditLogger->log(
                 action: 'document.signing_failed',
-                payload: ['error' => $error],
+                payload: ['error' => $e->error],
                 severity: AuditSeverity::Critical,
             );
 
-            throw new SigningException(self::EXPLAINED[$error] ?? 'Document signing failed.');
+            throw new SigningException(self::EXPLAINED[$e->error] ?? 'Document signing failed.');
         }
-
-        /** @var array{pdf_b64: string} $decoded */
-        return $decoded;
     }
 }

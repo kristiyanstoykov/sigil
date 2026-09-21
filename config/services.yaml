@@ -15,6 +15,13 @@ parameters:
     # in memory for AEAD at this size. Single source of truth for the upload flow.
     app.max_document_size_bytes: 10485760
 
+    # Argon2id costs for certificate PINs (ADR-008, PinHasher). PHP's defaults,
+    # stated explicitly; a change here re-hashes each PIN on its next successful
+    # verify. Lower them only in a test-only override, never here.
+    app.pin_hash.memory_cost: 65536
+    app.pin_hash.time_cost: 4
+    app.pin_hash.threads: 1
+
 services:
     # default configuration for services in *this* file
     _defaults:

@@ -13,9 +13,11 @@ use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\PinHasher;
 use App\Certificate\Service\Pkcs11TokenManager;
 use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
+use App\Core\Process\JsonDriver;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
@@ -221,8 +223,9 @@ class DeliveryReceiptTest extends AuthWebTestCase
             (string) getenv('PKCS11_MODULE'),
             (string) ($_ENV['SIGIL_CA_PIN'] ?? $_SERVER['SIGIL_CA_PIN']),
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
-            $projectDir.'/bin/issue_cert.py',
+            new JsonDriver($projectDir.'/bin'),
             $credentials,
+            new PinHasher(),
         );
         if (!$issuer->hasCa()) {
             $issuer->bootstrapCa();

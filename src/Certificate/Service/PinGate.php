@@ -29,6 +29,7 @@ class PinGate
         private readonly EntityManagerInterface $em,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly ClockInterface $clock,
+        private readonly PinHasher $hasher,
     ) {
     }
 
@@ -53,8 +54,13 @@ class PinGate
                 : 'This certificate is not usable (on hold, revoked or expired).');
         }
 
-        if (password_verify($pin, $certificate->getPinHash())) {
+        if ($this->hasher->verify($pin, $certificate->getPinHash())) {
             $certificate->resetPinCounter();
+            // The PIN is in hand and correct: the moment to move an old hash
+            // to the current costs.
+            if ($this->hasher->needsRehash($certificate->getPinHash())) {
+                $certificate->setPinHash($this->hasher->hash($pin));
+            }
             $this->em->flush();
 
             return;
@@ -126,6 +132,6 @@ class PinGate
 
     private function now(): \DateTimeImmutable
     {
-        return \DateTimeImmutable::createFromInterface($this->clock->now())->setTimezone(new \DateTimeZone('UTC'));
+        return $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
     }
 }

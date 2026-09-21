@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Notification\Twig;
 
-use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Notification\Entity\Notification;
 use App\Notification\Form\MarkAllReadFormFactory;
 use App\Notification\Form\OpenNotificationFormFactory;
 use App\Notification\Repository\NotificationRepository;
 use App\Notification\Service\InboxTopic;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Form\FormView;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
@@ -34,7 +33,7 @@ final class NotificationExtension extends AbstractExtension
         private readonly NotificationRepository $notifications,
         private readonly OpenNotificationFormFactory $openForms,
         private readonly MarkAllReadFormFactory $markAllForms,
-        private readonly Security $security,
+        private readonly CurrentUser $currentUser,
     ) {
     }
 
@@ -51,8 +50,8 @@ final class NotificationExtension extends AbstractExtension
 
     public function unreadCount(): int
     {
-        $user = $this->security->getUser();
-        if (!$user instanceof User) {
+        $user = $this->currentUser->getOrNull();
+        if (null === $user) {
             return 0;
         }
 
@@ -64,8 +63,8 @@ final class NotificationExtension extends AbstractExtension
      */
     public function recentNotifications(int $limit = 8): array
     {
-        $user = $this->security->getUser();
-        if (!$user instanceof User) {
+        $user = $this->currentUser->getOrNull();
+        if (null === $user) {
             return [];
         }
 
@@ -89,8 +88,8 @@ final class NotificationExtension extends AbstractExtension
      */
     public function topic(): ?string
     {
-        $user = $this->security->getUser();
+        $user = $this->currentUser->getOrNull();
 
-        return $user instanceof User ? InboxTopic::for($user) : null;
+        return null !== $user ? InboxTopic::for($user) : null;
     }
 }

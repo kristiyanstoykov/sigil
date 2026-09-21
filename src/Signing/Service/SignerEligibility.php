@@ -36,7 +36,7 @@ final class SignerEligibility
             return sprintf('%s has not verified their email address yet.', $user->getEmail());
         }
 
-        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $now = $this->clock->now();
         foreach ($this->certificates->findByUser($user) as $certificate) {
             if ($certificate->isUsable($now)) {
                 return null;

@@ -11,10 +11,11 @@ use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Core\Process\DriverException;
+use App\Core\Process\JsonDriver;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -44,9 +45,9 @@ class CertificateIssuer
         private readonly string $caPin,
         #[Autowire(env: 'SIGIL_SEAL_PIN')]
         private readonly string $sealPin,
-        #[Autowire('%kernel.project_dir%/bin/issue_cert.py')]
-        private readonly string $driverPath,
+        private readonly JsonDriver $driver,
         private readonly SuiteCredentials $credentials,
+        private readonly PinHasher $pinHasher,
     ) {
     }
 
@@ -108,7 +109,7 @@ class CertificateIssuer
                 algorithmId: $algorithm->id(),
                 tokenLabel: $tokenLabel,
                 keyLabel: self::KEY_LABEL,
-                pinHash: password_hash($pin, \PASSWORD_ARGON2ID),
+                pinHash: $this->pinHasher->hash($pin),
             );
 
             $this->em->persist($certificate);
@@ -355,31 +356,22 @@ class CertificateIssuer
      *
      * @return array{certificate_pem: string, serial_number: string, subject_dn: string, not_before: string, not_after: string}
      */
-    private function runDriver(array $request): array
+    private function runDriver(#[\SensitiveParameter] array $request): array
     {
-        $process = new Process(['python3', $this->driverPath]);
-        $process->setInput(json_encode($request, \JSON_THROW_ON_ERROR));
-        $process->setTimeout(60);
-        $process->run();
+        try {
+            /** @var array{certificate_pem: string, serial_number: string, subject_dn: string, not_before: string, not_after: string} $response */
+            $response = $this->driver->run('issue_cert.py', $request, timeout: 60);
 
-        /** @var mixed $decoded */
-        $decoded = json_decode($process->getOutput(), true);
-
-        if (!\is_array($decoded) || true !== ($decoded['ok'] ?? false)) {
-            $error = \is_array($decoded) && \is_string($decoded['error'] ?? null)
-                ? $decoded['error']
-                : 'driver produced no output';
+            return $response;
+        } catch (DriverException $e) {
             $this->auditLogger->log(
                 action: 'certificate.issuance_failed',
-                payload: ['error' => $error],
+                payload: ['error' => $e->error],
                 severity: AuditSeverity::Critical,
             );
 
             throw new DomainException('Certificate issuance failed.');
         }
-
-        /** @var array{certificate_pem: string, serial_number: string, subject_dn: string, not_before: string, not_after: string} $decoded */
-        return $decoded;
     }
 
     private function writeCertFile(string $path, string $pem): void
@@ -411,6 +403,6 @@ class CertificateIssuer
 
     private function now(): \DateTimeImmutable
     {
-        return \DateTimeImmutable::createFromInterface($this->clock->now())->setTimezone(new \DateTimeZone('UTC'));
+        return $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
     }
 }

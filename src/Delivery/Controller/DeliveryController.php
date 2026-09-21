@@ -7,11 +7,13 @@ namespace App\Delivery\Controller;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Core\Repository\UserRepository;
+use App\Core\Security\CurrentUser;
 use App\Delivery\Form\DeliverDocumentForm;
 use App\Delivery\Service\DeliveryService;
 use App\Delivery\Service\RecipientEligibility;
 use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
+use App\Document\Security\DocumentVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
@@ -26,6 +28,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class DeliveryController extends AbstractController
 {
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly DocumentRepository $documents,
         private readonly DeliveryService $service,
         private readonly UserRepository $users,
@@ -55,7 +58,7 @@ class DeliveryController extends AbstractController
                 /** @var string|null $note */
                 $note = $form->get(DeliverDocumentForm::E_NOTE)->getData();
 
-                $delivery = $this->service->deliver($document, $this->currentUser(), $recipients, $note);
+                $delivery = $this->service->deliver($document, $this->currentUser->get(), $recipients, $note);
 
                 $this->addFlash('success', sprintf(
                     'Delivered to %s. A sealed receipt is on the document.',
@@ -136,7 +139,7 @@ class DeliveryController extends AbstractController
     private function ownedDocument(string $id): Document
     {
         $document = $this->documents->find($id);
-        if (null === $document || $document->getOwner()->getId()->toRfc4122() !== $this->currentUser()->getId()->toRfc4122()) {
+        if (null === $document || !$this->isGranted(DocumentVoter::OWN, $document)) {
             // 404, not 403: do not reveal that the id exists.
             throw $this->createNotFoundException();
         }
@@ -144,11 +147,4 @@ class DeliveryController extends AbstractController
         return $document;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

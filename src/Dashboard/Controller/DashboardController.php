@@ -10,6 +10,7 @@ use App\Certificate\Enum\CertificateDisplayStatus;
 use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Delivery\Repository\DeliveryRepository;
 use App\Document\Repository\DocumentRepository;
 use App\Notification\Enum\NotificationType;
@@ -55,10 +56,9 @@ class DashboardController extends AbstractController
     }
 
     #[Route('/', name: 'app_dashboard')]
-    public function index(SignatureAlgorithmRegistry $algorithms): Response
+    public function index(SignatureAlgorithmRegistry $algorithms, CurrentUser $currentUser): Response
     {
-        $user = $this->getUser();
-        \assert($user instanceof User);
+        $user = $currentUser->get();
 
         // Incoming requests split the same way the signing inbox splits them:
         // only turns that are actually yours are work you can do now.

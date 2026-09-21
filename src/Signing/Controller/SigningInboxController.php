@@ -6,7 +6,8 @@ namespace App\Signing\Controller;
 
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
-use App\Document\Repository\DocumentKeyGrantRepository;
+use App\Core\Security\CurrentUser;
+use App\Document\Security\DocumentVoter;
 use App\Signing\Entity\SigningRequest;
 use App\Signing\Form\DeclineFormFactory;
 use App\Signing\Form\DeclineSigningRequestForm;
@@ -37,18 +38,18 @@ class SigningInboxController extends AbstractController
     private const TABS = ['sign', 'sent', 'history'];
 
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly SigningRequestRepository $requests,
         private readonly SigningRequestService $service,
         private readonly DeclineFormFactory $declineForms,
         private readonly WithdrawFormFactory $withdrawForms,
-        private readonly DocumentKeyGrantRepository $grants,
     ) {
     }
 
     #[Route('', name: 'app_signing_requests', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
         $requested = (string) $request->query->get('tab', 'sign');
         $tab = \in_array($requested, self::TABS, true) ? $requested : 'sign';
 
@@ -80,7 +81,7 @@ class SigningInboxController extends AbstractController
     #[Route('/{id}/withdraw', name: 'app_signing_request_withdraw', methods: ['POST'])]
     public function withdraw(string $id, Request $request): Response
     {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
         $signingRequest = $this->sentBy($id, $user);
 
         $form = $this->withdrawForms->create($signingRequest);
@@ -106,7 +107,7 @@ class SigningInboxController extends AbstractController
     #[Route('/{id}/decline', name: 'app_signing_request_decline', methods: ['POST'])]
     public function decline(string $id, Request $request): Response
     {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
         $signingRequest = $this->turnOf($id, $user);
 
         $form = $this->declineForms->create($signingRequest);
@@ -143,8 +144,7 @@ class SigningInboxController extends AbstractController
         $readable = [];
         foreach ($requests as $request) {
             $document = $request->getDocument();
-            $readable[$request->getId()->toRfc4122()] = $document->getOwner()->getId()->toRfc4122() === $user->getId()->toRfc4122()
-                || $this->grants->hasGrantForDocument($document, $user);
+            $readable[$request->getId()->toRfc4122()] = $this->isGranted(DocumentVoter::VIEW, $document);
         }
 
         return $readable;
@@ -181,7 +181,7 @@ class SigningInboxController extends AbstractController
     private function sentBy(string $id, User $user): SigningRequest
     {
         $request = $this->pendingRequest($id);
-        if ($request->getRequester()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+        if (!$request->getRequester()->is($user)) {
             throw $this->createNotFoundException();
         }
 
@@ -204,11 +204,4 @@ class SigningInboxController extends AbstractController
         return $request;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

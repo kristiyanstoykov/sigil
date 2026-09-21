@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Notification\Controller;
 
-use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use App\Notification\Entity\Notification;
 use App\Notification\Form\MarkAllReadFormFactory;
 use App\Notification\Form\OpenNotificationFormFactory;
@@ -29,6 +29,7 @@ class NotificationController extends AbstractController
     private const int PER_PAGE = 20;
 
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly NotificationRepository $notifications,
         private readonly OpenNotificationFormFactory $openForms,
         private readonly MarkAllReadFormFactory $markAllForms,
@@ -40,7 +41,7 @@ class NotificationController extends AbstractController
     #[Route('', name: 'app_notifications', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        $user = $this->currentUser();
+        $user = $this->currentUser->get();
         $page = max(1, $request->query->getInt('page', 1));
         $total = $this->notifications->countFor($user);
         $rows = $this->notifications->findRecentFor($user, self::PER_PAGE, ($page - 1) * self::PER_PAGE);
@@ -90,7 +91,7 @@ class NotificationController extends AbstractController
             return $this->redirectToRoute('app_notifications');
         }
 
-        $notification->markRead(\DateTimeImmutable::createFromInterface($this->clock->now()));
+        $notification->markRead($this->clock->now());
         $this->em->flush();
 
         return $this->redirect($notification->getUrl());
@@ -104,8 +105,8 @@ class NotificationController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $this->notifications->markAllReadFor(
-                $this->currentUser(),
-                \DateTimeImmutable::createFromInterface($this->clock->now()),
+                $this->currentUser->get(),
+                $this->clock->now(),
             );
         }
 
@@ -141,18 +142,11 @@ class NotificationController extends AbstractController
         }
 
         $notification = $this->notifications->find(Uuid::fromString($id));
-        if (null === $notification || !$notification->isFor($this->currentUser())) {
+        if (null === $notification || !$notification->isFor($this->currentUser->get())) {
             throw $this->createNotFoundException();
         }
 
         return $notification;
     }
 
-    private function currentUser(): User
-    {
-        $user = $this->getUser();
-        \assert($user instanceof User);
-
-        return $user;
-    }
 }

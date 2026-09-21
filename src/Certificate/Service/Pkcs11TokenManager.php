@@ -6,6 +6,8 @@ namespace App\Certificate\Service;
 
 use App\Certificate\Algorithm\SignatureAlgorithmInterface;
 use App\Core\Exception\DomainException;
+use App\Core\Process\DriverException;
+use App\Core\Process\JsonDriver;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
 
@@ -29,6 +31,7 @@ class Pkcs11TokenManager
         private readonly string $modulePath,
         #[Autowire('%kernel.project_dir%/bin')]
         private readonly string $binDir = __DIR__.'/../../../bin',
+        private readonly JsonDriver $driver = new JsonDriver(__DIR__.'/../../../bin'),
     ) {
     }
 
@@ -76,25 +79,19 @@ class Pkcs11TokenManager
         string $keyId,
         #[\SensitiveParameter] string $userPin,
     ): void {
-        $process = new Process(['python3', $this->binDir.'/keygen.py']);
-        $process->setInput(json_encode([
-            'module' => $this->modulePath,
-            'token_label' => $tokenLabel,
-            'key_label' => $keyLabel,
-            'key_id' => $keyId,
-            'pin' => $userPin,
-            'algorithm' => $algorithm->toDriverSpec(),
-        ], \JSON_THROW_ON_ERROR));
-        $process->setTimeout(self::TIMEOUT_SECONDS);
-        $process->run();
-
-        /** @var mixed $decoded */
-        $decoded = json_decode($process->getOutput(), true);
-        if (!\is_array($decoded) || true !== ($decoded['ok'] ?? false)) {
-            $error = \is_array($decoded) && \is_string($decoded['error'] ?? null) ? $decoded['error'] : 'no output';
-            throw new DomainException('UnsupportedAlgorithm' === $error
+        try {
+            $this->driver->run('keygen.py', [
+                'module' => $this->modulePath,
+                'token_label' => $tokenLabel,
+                'key_label' => $keyLabel,
+                'key_id' => $keyId,
+                'pin' => $userPin,
+                'algorithm' => $algorithm->toDriverSpec(),
+            ]);
+        } catch (DriverException $e) {
+            throw new DomainException('UnsupportedAlgorithm' === $e->error
                 ? sprintf('The token does not support %s.', $algorithm->label())
-                : sprintf('Key generation failed (%s).', $error));
+                : sprintf('Key generation failed (%s).', $e->error));
         }
     }
 
