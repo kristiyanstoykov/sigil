@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Certificate\Form;
 
+use App\Certificate\Service\PinPolicy;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
-use Symfony\Component\Validator\Constraints\Regex;
 
 /**
  * The PIN-confirmed lifecycle actions on a certificate: hold, resume, revoke.
@@ -21,8 +21,8 @@ use Symfony\Component\Validator\Constraints\Regex;
  * per-certificate `csrf_token_id`, e.g. 'hold-certificate-{uuid}', so a token
  * minted for one action cannot be replayed on another.
  *
- * The PIN is only shaped here (6-8 digits). Whether it is CORRECT is decided by
- * PinGate, behind the rate limiter and the Argon2id hash - never by the form.
+ * The PIN is only bounded here (an existing PIN may predate PinPolicy). Whether
+ * it is CORRECT is decided by PinGate, behind the rate limiter and the Argon2id hash - never by the form.
  *
  * @extends AbstractType<array<string, mixed>>
  */
@@ -41,15 +41,13 @@ class CertificateActionForm extends AbstractType
             'mapped' => false,
             'attr' => [
                 'autocomplete' => 'off',
-                'inputmode' => 'numeric',
-                'maxlength' => 8,
+                'maxlength' => PinPolicy::MAX_LENGTH,
                 'placeholder' => '••••••',
                 'aria-label' => 'Certificate PIN',
             ],
             'constraints' => [
                 new NotBlank(message: 'Enter your certificate PIN.'),
-                new Length(min: 6, max: 8, minMessage: 'The PIN is 6-8 digits.', maxMessage: 'The PIN is 6-8 digits.'),
-                new Regex(pattern: '/^\d+$/', message: 'The PIN is digits only.'),
+                new Length(max: PinPolicy::MAX_LENGTH, maxMessage: 'That is not a PIN.'),
             ],
         ]);
     }

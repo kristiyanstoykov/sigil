@@ -11,13 +11,14 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 /**
  * The one place a certificate PIN is hashed or checked (ADR-008).
  *
- * A PIN is 6-8 digits: a 10^6-10^8 space that Argon2id alone only slows down,
- * so a leaked `certificate` table would yield every PIN in about a day per
- * core. The PIN is therefore *peppered* first - HMAC-SHA-384 under a key
- * derived from SIGIL_ROOT_KEY - and Argon2id runs over that. Without the
- * host's key the stored hash confirms nothing; with the table alone there is
- * nothing to brute-force. Peppered hashes carry a prefix; a bare Argon2id hash
- * from before 2026-09-21 still verifies and is re-hashed on the next good PIN.
+ * A PIN may be short (pre-PinPolicy ones are 6-8 digits, a 10^6-10^8 space)
+ * and Argon2id alone only slows a guess down, so a leaked `certificate` table
+ * would yield every such PIN in about a day per core. The PIN is therefore
+ * *peppered* first - HMAC-SHA-384 under a key derived from SIGIL_ROOT_KEY -
+ * and Argon2id runs over that. Without the host's key the stored hash confirms
+ * nothing; with the table alone there is nothing to brute-force. Peppered
+ * hashes carry a prefix; a bare Argon2id hash from before 2026-09-21 still
+ * verifies and is re-hashed on the next good PIN.
  *
  * Costs are explicit, so a change is deliberate and an old hash is upgraded
  * on the next successful verify rather than left behind.

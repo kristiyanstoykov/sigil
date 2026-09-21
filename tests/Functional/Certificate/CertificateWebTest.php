@@ -42,8 +42,8 @@ final class CertificateWebTest extends AuthWebTestCase
         self::assertStringContainsString('Protect it with a PIN', (string) $this->client->getResponse()->getContent());
 
         $form = $crawler->selectButton('Generate my certificate')->form([
-            'new_certificate_form[pin][first]' => '123456',
-            'new_certificate_form[pin][second]' => '123456',
+            'new_certificate_form[pin][first]' => 'Test-PIN-2026!',
+            'new_certificate_form[pin][second]' => 'Test-PIN-2026!',
         ]);
         $this->client->submit($form);
         self::assertResponseRedirects();
@@ -83,8 +83,8 @@ final class CertificateWebTest extends AuthWebTestCase
 
         $crawler = $this->client->request('GET', '/certificates/new');
         $form = $crawler->selectButton('Generate my certificate')->form([
-            'new_certificate_form[pin][first]' => '123456',
-            'new_certificate_form[pin][second]' => '123456',
+            'new_certificate_form[pin][first]' => 'Test-PIN-2026!',
+            'new_certificate_form[pin][second]' => 'Test-PIN-2026!',
         ]);
         $this->client->submit($form);
         $certUrl = (string) $this->client->getResponse()->headers->get('Location');

@@ -33,7 +33,7 @@ use Symfony\Component\Process\Process;
  */
 class DocumentSigningE2ETest extends AuthWebTestCase
 {
-    private const PIN = '123456';
+    private const PIN = 'Test-PIN-2026!';
 
     /** @var list<string> */
     private array $tokensToCleanUp = [];

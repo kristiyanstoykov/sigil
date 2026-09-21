@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Receipt;
 
+use App\AuditLog\Repository\AuditLogEntryRepository;
 use App\Certificate\Entity\Certificate;
 use App\Core\Entity\User;
 use App\Core\Repository\UserRepository;
@@ -15,11 +16,15 @@ use App\Receipt\Service\ReceiptSealer;
 use App\Signing\Service\SigningRequestService;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\DomCrawler\Field\FileFormField;
+use Symfony\Component\DomCrawler\Form;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The receipts pages: a participant sees and downloads their receipt, anyone
- * else gets a 404 - the grants are the access list, exactly as for documents.
+ * The receipts pages: a participant sees, downloads and checks files against
+ * their receipt, anyone else gets a 404 - the grants are the access list, exactly as for documents.
  */
 class ReceiptControllerTest extends AuthWebTestCase
 {
@@ -87,6 +92,93 @@ class ReceiptControllerTest extends AuthWebTestCase
 
         $this->client->request('GET', '/receipts/not-a-uuid/download');
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testAParticipantCanCheckAFileAgainstTheReceipt(): void
+    {
+        $ownerEmail = $this->uniqueEmail('owner');
+        $this->createUser($ownerEmail, verified: true, totpEnabled: true);
+        $this->loginFully($ownerEmail);
+        $receipt = $this->sealReceipt($ownerEmail);
+        $url = '/receipts/'.$receipt->getId()->toRfc4122().'/verify';
+
+        $crawler = $this->client->request('GET', $url);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Contract.pdf', $crawler->text());
+        self::assertStringContainsString(substr($receipt->getDocumentHash(), -16), $crawler->text(), 'the fingerprint is shown');
+
+        // The bytes the receipt attests - the request closed unsigned, so the original upload.
+        $this->client->submit($this->verifyForm($crawler, self::MINIMAL_PDF));
+        self::assertResponseRedirects($url);
+        $crawler = $this->client->followRedirect();
+        self::assertCount(1, $crawler->filter('[data-verify-result="match"]'));
+
+        // Any other bytes - a re-saved copy, say.
+        $this->client->submit($this->verifyForm($crawler, self::MINIMAL_PDF."\n% resaved"));
+        self::assertResponseRedirects($url);
+        $crawler = $this->client->followRedirect();
+        self::assertCount(1, $crawler->filter('[data-verify-result="mismatch"]'));
+        self::assertCount(0, $crawler->filter('[data-verify-result="match"]'), 'a verdict shows once and is not carried over');
+
+        $entries = static::getContainer()->get(AuditLogEntryRepository::class)->findBy(['action' => 'receipt.verified'], ['id' => 'ASC']);
+        $entries = array_values(array_filter($entries, static fn ($e) => $e->getSubjectId() === $receipt->getId()->toRfc4122()));
+        self::assertCount(2, $entries);
+        self::assertSame('DeliveryReceipt', $entries[0]->getSubjectType(), 'audited against the receipt, so it never reaches the sender\'s log');
+        self::assertTrue($entries[0]->getPayload()['matches']);
+        self::assertFalse($entries[1]->getPayload()['matches']);
+    }
+
+    public function testCheckingWithoutAFileIsAFieldError(): void
+    {
+        $ownerEmail = $this->uniqueEmail('owner');
+        $this->createUser($ownerEmail, verified: true, totpEnabled: true);
+        $this->loginFully($ownerEmail);
+        $receipt = $this->sealReceipt($ownerEmail);
+
+        $crawler = $this->client->request('GET', '/receipts/'.$receipt->getId()->toRfc4122().'/verify');
+        $this->client->submit($crawler->selectButton('Check this file')->form());
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertStringContainsString('Choose the PDF to check.', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testSomeoneWhoWasNotAParticipantCannotCheckAFile(): void
+    {
+        $ownerEmail = $this->uniqueEmail('owner');
+        $this->createUser($ownerEmail, verified: true, totpEnabled: true);
+        $this->loginFully($ownerEmail);
+        $receipt = $this->sealReceipt($ownerEmail);
+
+        $strangerEmail = $this->uniqueEmail('stranger');
+        $this->createUser($strangerEmail, verified: true, totpEnabled: true);
+        $this->client->getCookieJar()->clear();
+        $this->loginFully($strangerEmail);
+
+        $url = '/receipts/'.$receipt->getId()->toRfc4122().'/verify';
+        $this->client->request('GET', $url);
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+
+        $this->client->request('POST', $url, files: ['verify_document_form' => ['file' => $this->pdfUpload(self::MINIMAL_PDF)]]);
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND, 'no oracle for a stranger, however the request is shaped');
+        self::assertCount(0, static::getContainer()->get(AuditLogEntryRepository::class)->findBy(['action' => 'receipt.verified', 'subjectId' => $receipt->getId()->toRfc4122()]));
+    }
+
+    private function verifyForm(Crawler $crawler, string $pdfBytes): Form
+    {
+        $form = $crawler->selectButton('Check this file')->form();
+        $field = $form['verify_document_form[file]'];
+        self::assertInstanceOf(FileFormField::class, $field);
+        $field->upload($this->pdfUpload($pdfBytes)->getPathname());
+
+        return $form;
+    }
+
+    private function pdfUpload(string $pdfBytes): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'sigil-verify-');
+        self::assertNotFalse($path);
+        file_put_contents($path, $pdfBytes);
+
+        return new UploadedFile($path, 'given.pdf', 'application/pdf', null, true);
     }
 
     /** Upload, send a one-signer request, withdraw it - the close seals the receipt. */

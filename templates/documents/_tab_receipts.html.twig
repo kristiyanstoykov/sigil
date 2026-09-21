@@ -35,11 +35,18 @@
                             </p>
                         </div>
                     </div>
-                    <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
-                       class="btn btn-sm btn-outline-secondary inline-flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto">
-                        <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
-                        Download
-                    </a>
+                    <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
+                        <a href="{{ path('app_receipt_verify', {id: receipt.id}) }}"
+                           class="btn btn-sm btn-outline-secondary inline-flex w-full items-center justify-center gap-1.5 sm:w-auto">
+                            <i class="ti ti-file-check text-sm leading-none" aria-hidden="true"></i>
+                            Verify a file
+                        </a>
+                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+                           class="btn btn-sm btn-outline-secondary inline-flex w-full items-center justify-center gap-1.5 sm:w-auto">
+                            <i class="ti ti-download text-sm leading-none" aria-hidden="true"></i>
+                            Download
+                        </a>
+                    </div>
                 </li>
             {% endfor %}
         </ul>

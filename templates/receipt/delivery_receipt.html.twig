@@ -157,8 +157,8 @@
     any earlier record breaks every hash after it. The <em>Document fingerprint</em>
     is a keyed MAC (the algorithm named beside it) of the document's bytes under a key only Sigil holds, so
     it cannot be recomputed with an ordinary checksum tool: it identifies the exact
-    bytes this receipt is about, and Sigil can confirm whether a given file matches
-    it. Delivery here means the document
+    bytes this receipt is about, and anyone named on this receipt can have Sigil
+    check a file against it (Receipts &rarr; <em>Verify a file</em>). Delivery here means the document
     was made available to the recipient (the consignment event of ETSI EN&nbsp;319&nbsp;522);
     Sigil does not record whether a recipient subsequently opened it.
     {% if delivered %}

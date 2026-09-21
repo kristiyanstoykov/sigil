@@ -39,3 +39,12 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '15 minutes'
+
+        # Verifying a file against a receipt's fingerprint. Only grant holders
+        # can ask, so this is pacing rather than a defence - but a yes/no over
+        # uploaded bytes is still an oracle, and the answer is audited each
+        # time. Keyed per user.
+        receipt_verification:
+            policy: sliding_window
+            limit: 30
+            interval: '10 minutes'

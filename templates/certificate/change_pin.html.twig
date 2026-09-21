@@ -18,7 +18,7 @@
 
             {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
             {% set label_class = 'form-label text-sm font-medium' %}
-            {% set pin_class = 'form-control font-mono tracking-[0.3em]' %}
+            {% set pin_class = 'form-control font-mono' %}
             {% set current = constant('App\\Certificate\\Form\\ChangePinForm::E_CURRENT_PIN') %}
             {% set new = constant('App\\Certificate\\Form\\ChangePinForm::E_NEW_PIN') %}
 
@@ -30,7 +30,7 @@
             <div class="flex gap-3">
                 <div class="flex-1">
                     {{ form_label(form[new].first, null, {label_attr: {class: label_class}}) }}
-                    {{ form_widget(form[new].first, {attr: {class: pin_class, placeholder: '6–8 digits'}}) }}
+                    {{ form_widget(form[new].first, {attr: {class: pin_class, placeholder: constant('App\\Certificate\\Service\\PinPolicy::HINT')}}) }}
                 </div>
                 <div class="flex-1">
                     {{ form_label(form[new].second, null, {label_attr: {class: label_class}}) }}

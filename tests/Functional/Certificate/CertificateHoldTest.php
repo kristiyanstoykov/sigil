@@ -19,7 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class CertificateHoldTest extends AuthWebTestCase
 {
-    private const PIN = '123456';
+    private const PIN = 'Test-PIN-2026!';
 
     /** @var list<string> */
     private array $tokensToCleanUp = [];

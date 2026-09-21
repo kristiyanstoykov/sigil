@@ -44,6 +44,7 @@ final class AuditActionExtension extends AbstractExtension
         'delivery.served' => ['classes' => self::PRIMARY, 'icon' => 'ti-mail-forward', 'label' => 'Delivered a document', 'family' => 'delivery'],
         'receipt.sealed' => ['classes' => self::PRIMARY, 'icon' => 'ti-receipt', 'label' => 'A receipt was sealed', 'family' => 'receipts'],
         'receipt.seal_failed' => ['classes' => self::DANGER, 'icon' => 'ti-receipt-off', 'label' => 'A receipt could not be sealed', 'family' => 'receipts'],
+        'receipt.verified' => ['classes' => self::PRIMARY, 'icon' => 'ti-file-check', 'label' => 'A file was checked against a receipt', 'family' => 'receipts'],
         'certificate.issued' => ['classes' => self::SUCCESS, 'icon' => 'ti-shield-check', 'label' => 'Certificate issued', 'family' => 'certificates'],
         'certificate.revoked' => ['classes' => self::DANGER, 'icon' => 'ti-shield-x', 'label' => 'Certificate revoked', 'family' => 'certificates'],
         'certificate.held' => ['classes' => self::WARNING, 'icon' => 'ti-shield-pause', 'label' => 'Certificate put on hold', 'family' => 'certificates'],

@@ -52,7 +52,12 @@
 
                         <span class="badge rounded-full {{ tone.badge }}">{{ receipt.outcome.label }}</span>
 
-                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}"
+                        <a href="{{ path('app_receipt_verify', {id: receipt.id}) }}"
+                           class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                            <i class="ti ti-file-check text-base leading-none" aria-hidden="true"></i>
+                            Verify a file
+                        </a>
+                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
                            class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
                             <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
                             Download

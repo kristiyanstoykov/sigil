@@ -61,13 +61,13 @@
                 <div class="card !mb-0 p-5">
                     {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
                     {% set label_class = 'form-label text-sm font-medium' %}
-                    {% set pin_class = 'form-control font-mono tracking-[0.3em]' %}
+                    {% set pin_class = 'form-control font-mono' %}
                     {% set pin = constant('App\\Certificate\\Form\\NewCertificateForm::E_PIN') %}
 
                     <div class="flex gap-3">
                         <div class="flex-1">
                             {{ form_label(form[pin].first, 'Choose a PIN', {label_attr: {class: label_class}}) }}
-                            {{ form_widget(form[pin].first, {attr: {class: pin_class, placeholder: '6–8 digits'}}) }}
+                            {{ form_widget(form[pin].first, {attr: {class: pin_class, placeholder: constant('App\\Certificate\\Service\\PinPolicy::HINT')}}) }}
                         </div>
                         <div class="flex-1">
                             {{ form_label(form[pin].second, 'Confirm PIN', {label_attr: {class: label_class}}) }}
@@ -84,7 +84,7 @@
                     <div class="alert alert-warning flex items-start gap-3 !mb-4 text-sm" role="alert">
                         <i class="ti ti-lock shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
                         <div>
-                            <strong>Keep this PIN safe.</strong> It protects your private key and is required every time you sign. For security, we can't recover it - if you forget it, you'll simply issue a fresh certificate.
+                            <strong>Keep this PIN safe.</strong> It protects your private key and is required every time you sign - which is why digits alone are not enough. For security, we can't recover it - if you forget it, you'll simply issue a fresh certificate.
                         </div>
                     </div>
 

@@ -49,16 +49,16 @@ class CertificateIssueTest extends AuthWebTestCase
         $user = $this->createUser($this->uniqueEmail('cert'));
         $issuer = static::getContainer()->get(CertificateIssuer::class);
 
-        $certificate = $issuer->issueForUser($user, '123456');
+        $certificate = $issuer->issueForUser($user, 'Test-PIN-2026!');
         $this->tokensToCleanUp[] = $certificate->getTokenLabel();
 
         self::assertSame(CertificateStatus::Active, $certificate->getStatus());
         self::assertSame('ECDSA-P384-SHA384/v1', $certificate->getAlgorithmId());
         self::assertStringContainsString('BEGIN CERTIFICATE', $certificate->getCertificatePem());
-        self::assertNotSame($certificate->getPinHash(), '123456');
+        self::assertNotSame($certificate->getPinHash(), 'Test-PIN-2026!');
         // Peppered under the host key, so a raw guess against the stored hash proves nothing.
         self::assertStringStartsWith(PinHasher::PREFIX, $certificate->getPinHash());
-        self::assertTrue(static::getContainer()->get(PinHasher::class)->verify('123456', $certificate->getPinHash()));
+        self::assertTrue(static::getContainer()->get(PinHasher::class)->verify('Test-PIN-2026!', $certificate->getPinHash()));
 
         // the certificate chains to the Sigil CA
         $pemFile = (string) tempnam(sys_get_temp_dir(), 'sigil-test-cert-');
@@ -74,14 +74,14 @@ class CertificateIssueTest extends AuthWebTestCase
         self::assertTrue($manager->tokenExists($certificate->getTokenLabel()));
     }
 
-    public function testPinFormatIsEnforced(): void
+    public function testPinPolicyIsEnforced(): void
     {
         $user = $this->createUser($this->uniqueEmail('cert'));
         $issuer = static::getContainer()->get(CertificateIssuer::class);
 
         $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('PIN must be 6 to 8 digits');
-        $issuer->issueForUser($user, 'abc123');
+        $this->expectExceptionMessage('too easy to guess');
+        $issuer->issueForUser($user, '13579024');
     }
 
     /**
@@ -93,7 +93,7 @@ class CertificateIssueTest extends AuthWebTestCase
     {
         $c = static::getContainer();
         $user = $this->createUser($this->uniqueEmail('cert'));
-        $certificate = $c->get(CertificateIssuer::class)->issueForUser($user, '654321');
+        $certificate = $c->get(CertificateIssuer::class)->issueForUser($user, 'Other-PIN-6543!');
         $this->tokensToCleanUp[] = $certificate->getTokenLabel();
 
         $brokenTokens = new class((string) getenv('PKCS11_MODULE')) extends Pkcs11TokenManager {
@@ -141,8 +141,8 @@ class CertificateIssueTest extends AuthWebTestCase
         $label = 'test-mldsa-'.bin2hex(random_bytes(4));
         $this->tokensToCleanUp[] = $label;
 
-        $manager->initToken($label, '654321');
-        $manager->generateKeyPair($label, new MlDsa65(), 'sign', '01', '654321');
+        $manager->initToken($label, 'Other-PIN-6543!');
+        $manager->generateKeyPair($label, new MlDsa65(), 'sign', '01', 'Other-PIN-6543!');
 
         $process = new Process(['pkcs11-tool', '--module', (string) getenv('PKCS11_MODULE'), '--token-label', $label, '--list-objects']);
         $process->mustRun();
@@ -168,7 +168,7 @@ class CertificateIssueTest extends AuthWebTestCase
         $issuer = static::getContainer()->get(CertificateIssuer::class);
         $manager = static::getContainer()->get(Pkcs11TokenManager::class);
 
-        $certificate = $issuer->issueForUser($user, '654321');
+        $certificate = $issuer->issueForUser($user, 'Other-PIN-6543!');
         self::assertTrue($manager->tokenExists($certificate->getTokenLabel()));
 
         $issuer->revoke($certificate, $user, 'user requested');

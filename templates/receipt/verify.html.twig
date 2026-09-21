@@ -1,0 +1,77 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'certificate/_helpers.html.twig' as helpers %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}Verify a file · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+<div class="docs-rise mx-auto max-w-2xl">
+    {{ helpers.back_link(path('app_receipts'), 'Back to receipts') }}
+
+    <div class="mb-5">
+        <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Is this the file the receipt is about?</h1>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">
+            The receipt names a fingerprint of the exact bytes it attests, keyed so only Sigil can recompute it.
+            Upload the PDF you were given and Sigil will say whether it matches.
+        </p>
+    </div>
+
+    {# The verdict of the last check, carried across the redirect as its own
+       flash type - the toast stack never consumes it. #}
+    {% for verdict in app.flashes(constant('App\\Receipt\\Controller\\ReceiptController::FLASH_VERIFICATION')) %}
+        {% if verdict.matches %}
+            <div role="status" class="alert alert-success !mb-5 flex items-start gap-3 text-sm" data-verify-result="match">
+                <i class="ti ti-circle-check shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
+                <div>
+                    <strong>It matches.</strong> The file you uploaded ({{ docs.filesize(verdict.sizeBytes) }}) is, byte for byte, the document this receipt attests.
+                </div>
+            </div>
+        {% else %}
+            <div role="status" class="alert alert-danger !mb-5 flex items-start gap-3 text-sm" data-verify-result="mismatch">
+                <i class="ti ti-circle-x shrink-0 text-base leading-none mt-0.5" aria-hidden="true"></i>
+                <div>
+                    <strong>It does not match.</strong> The file you uploaded ({{ docs.filesize(verdict.sizeBytes) }}) is not the document this receipt attests. A re-saved,
+                    printed-to-PDF or later-signed copy differs from the original even if it looks the same - check against the file exactly as Sigil delivered it.
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    <div class="card !mb-5 !bg-white/90 p-5">
+        <dl class="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[max-content_1fr]">
+            <dt class="font-semibold text-theme-headings">Document</dt>
+            <dd class="min-w-0 truncate text-theme-bodycolor">{{ receipt.documentTitle }}</dd>
+
+            <dt class="font-semibold text-theme-headings">Receipt</dt>
+            <dd class="text-theme-bodycolor">{{ receipt.source.label }} · {{ receipt.outcome.label|lower }} · sealed {{ receipt.sealedAt|date('d M Y, H:i') }}</dd>
+
+            <dt class="font-semibold text-theme-headings">Fingerprint</dt>
+            <dd class="min-w-0">
+                {% if receipt.documentHash %}
+                    <code class="block break-all rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor">{{ receipt.documentHash|fingerprint_digest }}</code>
+                    <span class="mt-1 block text-xs text-theme-secondarytextcolor">{{ receipt.documentHash|fingerprint_algorithm }}, keyed - an ordinary checksum tool cannot reproduce it.</span>
+                {% else %}
+                    <span class="text-theme-secondarytextcolor">None - this receipt names no document version.</span>
+                {% endif %}
+            </dd>
+        </dl>
+    </div>
+
+    <div class="card !mb-0 !bg-white/90 p-5">
+        {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+        {% set file = constant('App\\Receipt\\Form\\VerifyDocumentForm::E_FILE') %}
+        <div class="mb-4">
+            {{ form_label(form[file], null, {label_attr: {class: 'form-label text-sm font-medium'}}) }}
+            {{ form_widget(form[file], {attr: {class: 'form-control'}}) }}
+            {{ form_errors(form[file]) }}
+            <p class="mt-1.5 text-xs text-theme-secondarytextcolor">Up to 10 MB. The file is compared and discarded - it is not stored.</p>
+        </div>
+        <button type="submit" class="btn btn-primary inline-flex items-center gap-2" {{ receipt.documentHash ? '' : 'disabled' }}>
+            <i class="ti ti-file-check text-base leading-none" aria-hidden="true"></i>
+            Check this file
+        </button>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

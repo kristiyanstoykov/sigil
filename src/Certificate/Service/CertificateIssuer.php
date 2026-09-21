@@ -53,7 +53,7 @@ class CertificateIssuer
 
     public function issueForUser(User $user, #[\SensitiveParameter] string $pin): Certificate
     {
-        self::assertValidPin($pin);
+        PinPolicy::assert($pin);
 
         if ($this->certificates->countActiveForUser($user) >= Certificate::MAX_PER_USER) {
             throw new DomainException(sprintf('You already have the maximum of %d certificates.', Certificate::MAX_PER_USER));
@@ -329,13 +329,6 @@ class CertificateIssuer
         );
 
         return $sealCertPath;
-    }
-
-    public static function assertValidPin(#[\SensitiveParameter] string $pin): void
-    {
-        if (1 !== preg_match('/^\d{6,8}$/', $pin)) {
-            throw new DomainException('The PIN must be 6 to 8 digits.');
-        }
     }
 
     /**
