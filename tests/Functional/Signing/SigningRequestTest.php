@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Signing;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
@@ -405,8 +407,11 @@ class SigningRequestTest extends AuthWebTestCase
     private function signer(): DocumentSigner
     {
         $c = static::getContainer();
-        $caPath = sys_get_temp_dir().'/sigil-request-test-ca.crt';
-        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        // The fake signer ignores the chain, but DocumentSigner insists the CA
+        // file exists: a throwaway var/ca with a placeholder for the classical suite.
+        $caDir = sys_get_temp_dir().'/sigil-request-test-ca';
+        @mkdir($caDir);
+        file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
 
         $fake = new class implements PadesSignerInterface {
             public function sign(PadesSignRequest $request, #[\SensitiveParameter] string $pin): string
@@ -425,7 +430,8 @@ class SigningRequestTest extends AuthWebTestCase
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
             $c->get(EntityManagerInterface::class),
-            $caPath,
+            $c->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($caDir),
         );
     }
 

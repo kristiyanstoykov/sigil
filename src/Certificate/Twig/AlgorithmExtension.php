@@ -25,7 +25,14 @@ final class AlgorithmExtension extends AbstractExtension
     {
         return [
             new TwigFunction('certificate_algorithm_label', $this->label(...)),
+            new TwigFunction('active_algorithm_label', $this->activeLabel(...)),
         ];
+    }
+
+    /** What a certificate issued now would be - the wizard's promise. */
+    public function activeLabel(): string
+    {
+        return $this->algorithms->active()->label();
     }
 
     public function label(Certificate $certificate): string

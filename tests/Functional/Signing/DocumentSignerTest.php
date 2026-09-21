@@ -7,8 +7,10 @@ namespace App\Tests\Functional\Signing;
 use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Entity\AuditLogEntry;
 use App\AuditLog\Enum\AuditSeverity;
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
 use App\Document\Enum\DocumentVersionKind;
 use App\Core\Crypto\EncryptionServiceInterface;
@@ -75,8 +77,11 @@ class DocumentSignerTest extends AuthWebTestCase
         $c = static::getContainer();
 
         // Real collaborators, fake signer, a throwaway CA file the fake ignores.
-        $caPath = sys_get_temp_dir().'/sigil-signer-test-ca.crt';
-        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        // The fake signer ignores the chain, but DocumentSigner insists the CA
+        // file exists: a throwaway var/ca with a placeholder for the classical suite.
+        $caDir = sys_get_temp_dir().'/sigil-signer-test-ca';
+        @mkdir($caDir);
+        file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
 
         return new DocumentSigner(
             $c->get(PinGate::class),
@@ -90,7 +95,8 @@ class DocumentSignerTest extends AuthWebTestCase
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
             $c->get(EntityManagerInterface::class),
-            $caPath,
+            $c->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($caDir),
         );
     }
 
@@ -201,8 +207,11 @@ class DocumentSignerTest extends AuthWebTestCase
             $c->get(EntityManagerInterface::class),
             new NullLogger(),
         );
-        $caPath = sys_get_temp_dir().'/sigil-signer-test-ca.crt';
-        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        // The fake signer ignores the chain, but DocumentSigner insists the CA
+        // file exists: a throwaway var/ca with a placeholder for the classical suite.
+        $caDir = sys_get_temp_dir().'/sigil-signer-test-ca';
+        @mkdir($caDir);
+        file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
         $signer = new DocumentSigner(
             $c->get(PinGate::class),
             $c->get(DocumentDownloader::class),
@@ -218,7 +227,8 @@ class DocumentSignerTest extends AuthWebTestCase
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
             $c->get(EntityManagerInterface::class),
-            $caPath,
+            $c->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($caDir),
         );
 
         try {

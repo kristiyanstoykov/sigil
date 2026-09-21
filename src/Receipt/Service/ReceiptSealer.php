@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Receipt\Service;
 
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Exception\DomainException;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
@@ -28,19 +29,18 @@ final class ReceiptSealer
         private readonly PadesSignerInterface $signer,
         private readonly TsaProviderRegistry $tsa,
         private readonly SignatureAlgorithmRegistry $algorithms,
+        private readonly SuiteCredentials $credentials,
         #[Autowire(env: 'SIGIL_SEAL_PIN')]
         private readonly string $sealPin,
-        #[Autowire('%kernel.project_dir%/var/ca/seal.crt')]
-        private readonly string $sealCertPath,
-        #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
-        private readonly string $caCertPath,
-        private readonly string $sealTokenLabel = 'sigil-seal',
     ) {
     }
 
+    /** Whether the active suite's seal and its CA are provisioned. */
     public function isReady(): bool
     {
-        return is_file($this->sealCertPath) && is_file($this->caCertPath);
+        $suite = $this->algorithms->active();
+
+        return is_file($this->credentials->sealCertPath($suite)) && is_file($this->credentials->caCertPath($suite));
     }
 
     /**
@@ -54,18 +54,20 @@ final class ReceiptSealer
             throw new DomainException('The delivery seal is not initialized (run sigil:seal:init).');
         }
 
-        $sealPem = (string) file_get_contents($this->sealCertPath);
+        // Receipts are sealed with the active suite's seal (sigil:seal:init
+        // provisions one per suite); a receipt embeds its chain, so those
+        // sealed under an earlier suite keep validating.
+        $suite = $this->algorithms->active();
+        $sealPem = (string) file_get_contents($this->credentials->sealCertPath($suite));
 
         $request = new PadesSignRequest(
             pdfBytes: $pdfBytes,
-            tokenLabel: $this->sealTokenLabel,
+            tokenLabel: $this->credentials->sealTokenLabel($suite),
             keyLabel: self::KEY_LABEL,
             signingCertPem: $sealPem,
-            caChainPem: (string) file_get_contents($this->caCertPath),
+            caChainPem: (string) file_get_contents($this->credentials->caCertPath($suite)),
             signerName: 'SIGIL SIGNUM VERITATIS',
-            // The seal is issued with the active suite (sigil:seal:init); a
-            // per-suite seal file that pins this is B4 of the 2026-09-20 plan.
-            algorithmId: $this->algorithms->active()->id(),
+            algorithmId: $suite->id(),
             tsaUrl: $this->tsa->activeUrl(),
             reason: sprintf('Delivery receipt for "%s"', $documentTitle),
             fieldName: 'SigilSeal-'.bin2hex(random_bytes(4)),

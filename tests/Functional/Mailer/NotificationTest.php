@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Mailer;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentSharer;
@@ -91,8 +93,11 @@ final class NotificationTest extends AuthWebTestCase
         $container->get(SigningRequestService::class)
             ->create($document, $owner, [$signer], new \DateTimeImmutable('+7 days'));
 
-        $caPath = sys_get_temp_dir().'/sigil-mail-test-ca.crt';
-        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        // The fake signer ignores the chain, but DocumentSigner insists the CA
+        // file exists: a throwaway var/ca with a placeholder for the classical suite.
+        $caDir = sys_get_temp_dir().'/sigil-mail-test-ca';
+        @mkdir($caDir);
+        file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
         $fake = new class implements PadesSignerInterface {
             public function sign(PadesSignRequest $request, #[\SensitiveParameter] string $pin): string
             {
@@ -110,7 +115,8 @@ final class NotificationTest extends AuthWebTestCase
             $container->get(SigningRequestService::class),
             $container->get(EventDispatcherInterface::class),
             $container->get(EntityManagerInterface::class),
-            $caPath,
+            $container->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($caDir),
         ))->sign($document, $this->certificateOf($signer), $signer, '135790');
 
         $email = $this->messageTo($owner->getEmail());

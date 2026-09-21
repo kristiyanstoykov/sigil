@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Signing\Service;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
@@ -19,7 +21,6 @@ use App\Signing\Exception\TokenPinRejectedException;
 use App\Signing\Repository\SigningRequestRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * Signs a document's latest version and stores the result as a new
@@ -43,8 +44,8 @@ final class DocumentSigner
         private readonly SigningRequestService $requestService,
         private readonly EventDispatcherInterface $events,
         private readonly EntityManagerInterface $em,
-        #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
-        private readonly string $caCertPath,
+        private readonly SignatureAlgorithmRegistry $algorithms,
+        private readonly SuiteCredentials $credentials,
     ) {
     }
 
@@ -68,7 +69,10 @@ final class DocumentSigner
             throw new DomainException('This document has no content to sign.');
         }
 
-        if (!is_file($this->caCertPath)) {
+        // The chain embedded in the signature is the one that issued this
+        // certificate: its suite's CA (ADR-014), not whichever suite is active.
+        $caCertPath = $this->credentials->caCertPath($this->algorithms->get($certificate->getAlgorithmId()));
+        if (!is_file($caCertPath)) {
             throw new DomainException('The certificate authority is not initialized (run sigil:ca:init).');
         }
 
@@ -83,7 +87,7 @@ final class DocumentSigner
             tokenLabel: $certificate->getTokenLabel(),
             keyLabel: $certificate->getKeyLabel(),
             signingCertPem: $certificate->getCertificatePem(),
-            caChainPem: (string) file_get_contents($this->caCertPath),
+            caChainPem: (string) file_get_contents($caCertPath),
             signerName: mb_strtoupper($actor->getFullName()),
             algorithmId: $certificate->getAlgorithmId(),
             tsaUrl: $this->tsa->activeUrl(),

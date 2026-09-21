@@ -46,12 +46,7 @@ class CertificateIssuer
         private readonly string $sealPin,
         #[Autowire('%kernel.project_dir%/bin/issue_cert.py')]
         private readonly string $driverPath,
-        #[Autowire('%kernel.project_dir%/var/ca/ca.crt')]
-        private readonly string $caCertPath,
-        #[Autowire('%kernel.project_dir%/var/ca/seal.crt')]
-        private readonly string $sealCertPath,
-        private readonly string $caTokenLabel = 'sigil-ca',
-        private readonly string $sealTokenLabel = 'sigil-seal',
+        private readonly SuiteCredentials $credentials,
     ) {
     }
 
@@ -62,11 +57,14 @@ class CertificateIssuer
         if ($this->certificates->countActiveForUser($user) >= Certificate::MAX_PER_USER) {
             throw new DomainException(sprintf('You already have the maximum of %d certificates.', Certificate::MAX_PER_USER));
         }
-        if (!is_file($this->caCertPath)) {
-            throw new DomainException('The certificate authority is not initialized (run sigil:ca:init).');
+        // The active suite's CA issues the active suite's keys - one chain, one
+        // suite, so an ML-DSA certificate never hangs off a classical root.
+        $algorithm = $this->algorithms->active();
+        $caCertPath = $this->credentials->caCertPath($algorithm);
+        if (!is_file($caCertPath)) {
+            throw new DomainException(sprintf('The %s certificate authority is not initialized (run sigil:ca:init).', $algorithm->label()));
         }
 
-        $algorithm = $this->algorithms->active();
         $tokenLabel = 'crt-'.Uuid::v7()->toBase32();
 
         try {
@@ -77,21 +75,19 @@ class CertificateIssuer
                 'mode' => 'issue',
                 'module' => $this->modulePath,
                 'signer' => [
-                    'token_label' => $this->caTokenLabel,
+                    'token_label' => $this->credentials->caTokenLabel($algorithm),
                     'key_label' => self::KEY_LABEL,
                     'pin' => $this->caPin,
                 ],
                 'subject' => $this->subjectFor($user),
                 'validity_days' => self::USER_CERT_DAYS,
-                'issuer_cert_pem' => (string) file_get_contents($this->caCertPath),
+                'issuer_cert_pem' => (string) file_get_contents($caCertPath),
                 'subject_pubkey' => [
                     'token_label' => $tokenLabel,
                     'key_label' => self::KEY_LABEL,
                 ],
-                // The subject's key follows the active suite (ADR-014). The CA
-                // signs in its own, which the driver reads off the CA key - a
-                // per-suite CA that pins it from here is B4 of the 2026-09-20 plan.
                 'subject_algorithm' => $algorithm->toDriverSpec(),
+                'issuer_algorithm' => $algorithm->toDriverSpec(),
             ]);
 
             $this->tokens->writeCertificate(
@@ -182,50 +178,58 @@ class CertificateIssuer
         }
     }
 
+    /** Whether the active suite's CA is provisioned. */
     public function hasCa(): bool
     {
-        return is_file($this->caCertPath);
+        return is_file($this->credentials->caCertPath($this->algorithms->active()));
     }
 
+    /** Whether the active suite's seal is provisioned. */
     public function hasSeal(): bool
     {
-        return is_file($this->sealCertPath);
+        return is_file($this->credentials->sealCertPath($this->algorithms->active()));
     }
 
     /**
-     * CA bootstrap (sigil:ca:init). Refuses to touch an existing CA.
+     * CA bootstrap (sigil:ca:init) for the active suite. Refuses to touch an
+     * existing CA; a different suite gets its own token and file (ADR-014).
      */
     public function bootstrapCa(): string
     {
-        if (is_file($this->caCertPath)) {
+        $algorithm = $this->algorithms->active();
+        $caTokenLabel = $this->credentials->caTokenLabel($algorithm);
+        $caCertPath = $this->credentials->caCertPath($algorithm);
+
+        if (is_file($caCertPath)) {
             throw new DomainException('CA already initialized - refusing to overwrite.');
         }
 
         // token survives (named volume) but var/ was wiped: re-export the
         // CA cert stored in the token instead of failing or re-keying
-        if ($this->tokens->tokenExists($this->caTokenLabel)) {
-            $der = $this->tokens->readCertificate($this->caTokenLabel, self::KEY_LABEL);
-            $this->writeCertFile($this->caCertPath, self::derToPem($der));
+        if ($this->tokens->tokenExists($caTokenLabel)) {
+            $der = $this->tokens->readCertificate($caTokenLabel, self::KEY_LABEL);
+            $this->writeCertFile($caCertPath, self::derToPem($der));
 
-            return $this->caCertPath;
+            return $caCertPath;
         }
 
-        $algorithm = $this->algorithms->active();
-        $this->tokens->initToken($this->caTokenLabel, $this->caPin);
-        $this->tokens->generateKeyPair($this->caTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->caPin);
+        $this->tokens->initToken($caTokenLabel, $this->caPin);
+        $this->tokens->generateKeyPair($caTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->caPin);
 
         $result = $this->runDriver([
             'mode' => 'ca-selfsign',
             'module' => $this->modulePath,
             'signer' => [
-                'token_label' => $this->caTokenLabel,
+                'token_label' => $caTokenLabel,
                 'key_label' => self::KEY_LABEL,
                 'pin' => $this->caPin,
             ],
             'subject' => [
                 'country_name' => 'BG',
                 'organization_name' => 'Sigil',
-                'common_name' => 'Sigil Signum Veritatis CA',
+                // The suite is part of the name: a verifier's trust store may
+                // hold one root per suite, and they must not look like one CA.
+                'common_name' => sprintf('Sigil Signum Veritatis CA (%s)', strtoupper($algorithm->slug())),
             ],
             'validity_days' => self::CA_CERT_DAYS,
             'subject_algorithm' => $algorithm->toDriverSpec(),
@@ -235,21 +239,21 @@ class CertificateIssuer
         // store the cert in the token too, so the PEM file can always be
         // re-exported if var/ is wiped (container recreation)
         $this->tokens->writeCertificate(
-            $this->caTokenLabel,
+            $caTokenLabel,
             self::pemToDer($result['certificate_pem']),
             self::KEY_LABEL,
             self::KEY_ID,
             $this->caPin,
         );
-        $this->writeCertFile($this->caCertPath, $result['certificate_pem']);
+        $this->writeCertFile($caCertPath, $result['certificate_pem']);
 
         $this->auditLogger->log(
             action: 'certificate.ca_initialized',
-            payload: ['serialNumber' => $result['serial_number'], 'subjectDn' => $result['subject_dn']],
+            payload: ['serialNumber' => $result['serial_number'], 'subjectDn' => $result['subject_dn'], 'algorithm' => $algorithm->id()],
             severity: AuditSeverity::Warning,
         );
 
-        return $this->caCertPath;
+        return $caCertPath;
     }
 
     /**
@@ -261,31 +265,35 @@ class CertificateIssuer
      */
     public function bootstrapSeal(): string
     {
-        if (is_file($this->sealCertPath)) {
+        $algorithm = $this->algorithms->active();
+        $sealTokenLabel = $this->credentials->sealTokenLabel($algorithm);
+        $sealCertPath = $this->credentials->sealCertPath($algorithm);
+        $caCertPath = $this->credentials->caCertPath($algorithm);
+
+        if (is_file($sealCertPath)) {
             throw new DomainException('Seal already initialized - refusing to overwrite.');
         }
-        if (!is_file($this->caCertPath)) {
-            throw new DomainException('The certificate authority is not initialized (run sigil:ca:init).');
+        if (!is_file($caCertPath)) {
+            throw new DomainException(sprintf('The %s certificate authority is not initialized (run sigil:ca:init).', $algorithm->label()));
         }
 
         // Same recovery as the CA: the token is on a named volume, var/ is not.
-        if ($this->tokens->tokenExists($this->sealTokenLabel)) {
-            $der = $this->tokens->readCertificate($this->sealTokenLabel, self::KEY_LABEL);
-            $this->writeCertFile($this->sealCertPath, self::derToPem($der));
+        if ($this->tokens->tokenExists($sealTokenLabel)) {
+            $der = $this->tokens->readCertificate($sealTokenLabel, self::KEY_LABEL);
+            $this->writeCertFile($sealCertPath, self::derToPem($der));
 
-            return $this->sealCertPath;
+            return $sealCertPath;
         }
 
-        $algorithm = $this->algorithms->active();
-        $this->tokens->initToken($this->sealTokenLabel, $this->sealPin);
-        $this->tokens->generateKeyPair($this->sealTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->sealPin);
+        $this->tokens->initToken($sealTokenLabel, $this->sealPin);
+        $this->tokens->generateKeyPair($sealTokenLabel, $algorithm, self::KEY_LABEL, self::KEY_ID, $this->sealPin);
 
         $result = $this->runDriver([
             'mode' => 'issue',
             'profile' => 'seal',
             'module' => $this->modulePath,
             'signer' => [
-                'token_label' => $this->caTokenLabel,
+                'token_label' => $this->credentials->caTokenLabel($algorithm),
                 'key_label' => self::KEY_LABEL,
                 'pin' => $this->caPin,
             ],
@@ -295,30 +303,31 @@ class CertificateIssuer
                 'common_name' => 'Sigil Signum Veritatis Delivery Seal',
             ],
             'validity_days' => self::SEAL_CERT_DAYS,
-            'issuer_cert_pem' => (string) file_get_contents($this->caCertPath),
+            'issuer_cert_pem' => (string) file_get_contents($caCertPath),
             'subject_pubkey' => [
-                'token_label' => $this->sealTokenLabel,
+                'token_label' => $sealTokenLabel,
                 'key_label' => self::KEY_LABEL,
             ],
             'subject_algorithm' => $algorithm->toDriverSpec(),
+            'issuer_algorithm' => $algorithm->toDriverSpec(),
         ]);
 
         $this->tokens->writeCertificate(
-            $this->sealTokenLabel,
+            $sealTokenLabel,
             self::pemToDer($result['certificate_pem']),
             self::KEY_LABEL,
             self::KEY_ID,
             $this->sealPin,
         );
-        $this->writeCertFile($this->sealCertPath, $result['certificate_pem']);
+        $this->writeCertFile($sealCertPath, $result['certificate_pem']);
 
         $this->auditLogger->log(
             action: 'certificate.seal_initialized',
-            payload: ['serialNumber' => $result['serial_number'], 'subjectDn' => $result['subject_dn']],
+            payload: ['serialNumber' => $result['serial_number'], 'subjectDn' => $result['subject_dn'], 'algorithm' => $algorithm->id()],
             severity: AuditSeverity::Warning,
         );
 
-        return $this->sealCertPath;
+        return $sealCertPath;
     }
 
     public static function assertValidPin(#[\SensitiveParameter] string $pin): void

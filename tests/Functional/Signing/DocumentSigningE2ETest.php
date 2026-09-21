@@ -12,6 +12,7 @@ use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Repository\CertificateRepository;
 use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Service\Pkcs11TokenManager;
+use App\Certificate\Service\SuiteCredentials;
 use App\Document\Enum\DocumentVersionKind;
 use App\Document\Service\DocumentDownloader;
 use App\Document\Service\DocumentUploader;
@@ -125,11 +126,11 @@ class DocumentSigningE2ETest extends AuthWebTestCase
     }
 
     /**
-     * ADR-014: the post-quantum suite end to end - ML-DSA-65 key in the token,
-     * an RFC 9881 certificate, a PAdES whose CMS signature is `mldsa65` in pure
-     * mode, validated by pyHanko. The CA is still the classical one here (a
-     * per-suite CA is B4); what this proves is that the suite travels from the
-     * Certificate row to the token and back without anything hard-coded to ECDSA.
+     * ADR-014: the post-quantum suite end to end, root included - an ML-DSA-65
+     * CA (provisioned here if the shared token volume lacks it, exactly as
+     * sigil:ca:init would with that suite active), an RFC 9881 leaf under it,
+     * a PAdES whose CMS signature is `mldsa65` in pure mode, validated by
+     * pyHanko against that CA. Nothing in the chain is classical.
      */
     public function testTheMlDsaSuiteSignsAndValidatesEndToEnd(): void
     {
@@ -137,17 +138,26 @@ class DocumentSigningE2ETest extends AuthWebTestCase
         $projectDir = (string) $container->getParameter('kernel.project_dir');
         $pdf = (string) file_get_contents($projectDir.'/tests/Fixtures/blank.pdf');
 
+        $issuer = $this->issuerWithActive(new MlDsa65());
+        if (!$issuer->hasCa()) {
+            $issuer->bootstrapCa();
+        }
+        $caFile = (new SuiteCredentials($projectDir.'/var/ca'))->caCertPath(new MlDsa65());
+        self::assertStringEndsWith('/ca-ml-dsa-65.crt', $caFile, 'a suite of its own gets a CA of its own');
+
         $user = $this->createUser($this->uniqueEmail('e2e-mldsa'));
         $document = $container->get(DocumentUploader::class)->upload($user, $pdf, 'Quantum-safe.pdf');
 
-        $certificate = $this->issuerWithActive(new MlDsa65())->issueForUser($user, self::PIN);
+        $certificate = $issuer->issueForUser($user, self::PIN);
         $this->tokensToCleanUp[] = $certificate->getTokenLabel();
         self::assertSame(MlDsa65::ID, $certificate->getAlgorithmId());
 
         $signedVersion = $container->get(DocumentSigner::class)->sign($document, $certificate, $user, self::PIN);
 
         $signedBytes = $container->get(DocumentDownloader::class)->download($signedVersion, $user);
-        self::assertSame('INTACT TRUSTED mldsa65', $this->validatePades($signedBytes, $projectDir, withAlgorithm: true));
+        self::assertSame('INTACT TRUSTED mldsa65', $this->validatePades($signedBytes, $projectDir, withAlgorithm: true, caFile: $caFile));
+        // The classical CA must not vouch for it: the chains are separate on purpose.
+        self::assertStringContainsString('UNTRUSTED', $this->validatePades($signedBytes, $projectDir, withAlgorithm: true));
     }
 
     /** A CertificateIssuer whose active suite is $active, everything else from the container. */
@@ -167,8 +177,7 @@ class DocumentSigningE2ETest extends AuthWebTestCase
             (string) ($_ENV['SIGIL_CA_PIN'] ?? $_SERVER['SIGIL_CA_PIN']),
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
             $projectDir.'/bin/issue_cert.py',
-            $projectDir.'/var/ca/ca.crt',
-            $projectDir.'/var/ca/seal.crt',
+            new SuiteCredentials($projectDir.'/var/ca'),
         );
     }
 
@@ -178,7 +187,7 @@ class DocumentSigningE2ETest extends AuthWebTestCase
      * $strict mirrors pyHanko's own default: it refuses to validate signatures in
      * hybrid-reference files, so that one case has to opt out.
      */
-    private function validatePades(string $pdfBytes, string $projectDir, bool $strict = true, bool $withAlgorithm = false): string
+    private function validatePades(string $pdfBytes, string $projectDir, bool $strict = true, bool $withAlgorithm = false, ?string $caFile = null): string
     {
         $pdfFile = (string) tempnam(sys_get_temp_dir(), 'sigil-signed-');
         file_put_contents($pdfFile, $pdfBytes);
@@ -203,7 +212,7 @@ class DocumentSigningE2ETest extends AuthWebTestCase
             PY;
 
         $process = new Process(
-            ['python3', '-c', $script, $pdfFile, $projectDir.'/var/ca/ca.crt', $strict ? '1' : '0', $withAlgorithm ? '1' : '0'],
+            ['python3', '-c', $script, $pdfFile, $caFile ?? $projectDir.'/var/ca/ca.crt', $strict ? '1' : '0', $withAlgorithm ? '1' : '0'],
             cwd: $projectDir,
         );
         $process->run();

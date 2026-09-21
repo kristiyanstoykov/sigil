@@ -6,10 +6,15 @@ namespace App\Tests\Functional\Receipt;
 
 use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\Certificate\Algorithm\EcdsaP384Sha384;
+use App\Certificate\Algorithm\MlDsa65;
 use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
+use App\Certificate\Service\CertificateIssuer;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\Pkcs11TokenManager;
+use App\Certificate\Service\SuiteCredentials;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\Document;
@@ -194,13 +199,60 @@ class DeliveryReceiptTest extends AuthWebTestCase
         self::assertSame('INTACT TRUSTED', $this->validatePades($pdf, $this->projectDir()));
     }
 
+    /**
+     * ADR-014: with the post-quantum suite active, the seal is that suite's
+     * seal under that suite's CA - provisioned here the way sigil:seal:init
+     * would - and the receipt validates against it, not the classical root.
+     * Receipts sealed before the switch embed their own chain and stay valid.
+     */
+    public function testAReceiptSealedUnderThePostQuantumSuiteChainsToThatSuitesCa(): void
+    {
+        $c = static::getContainer();
+        $projectDir = $this->projectDir();
+        $registry = new SignatureAlgorithmRegistry([new EcdsaP384Sha384(), new MlDsa65()], MlDsa65::ID);
+        $credentials = new SuiteCredentials($projectDir.'/var/ca');
+        $issuer = new CertificateIssuer(
+            $c->get(Pkcs11TokenManager::class),
+            $registry,
+            $c->get(CertificateRepository::class),
+            $c->get(EntityManagerInterface::class),
+            $c->get(AuditLoggerInterface::class),
+            $c->get(ClockInterface::class),
+            (string) getenv('PKCS11_MODULE'),
+            (string) ($_ENV['SIGIL_CA_PIN'] ?? $_SERVER['SIGIL_CA_PIN']),
+            (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
+            $projectDir.'/bin/issue_cert.py',
+            $credentials,
+        );
+        if (!$issuer->hasCa()) {
+            $issuer->bootstrapCa();
+        }
+        if (!$issuer->hasSeal()) {
+            $issuer->bootstrapSeal();
+        }
+
+        $sealer = new ReceiptSealer(
+            $c->get(PadesSignerInterface::class),
+            new TsaProviderRegistry([new NoTsaProvider()], 'none'),
+            $registry,
+            $credentials,
+            (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
+        );
+        $pdf = (string) file_get_contents($projectDir.'/tests/Fixtures/blank.pdf');
+        $sealed = $sealer->seal($pdf, 'Quantum-safe receipt');
+
+        $caFile = $credentials->caCertPath(new MlDsa65());
+        self::assertSame('INTACT TRUSTED', $this->validatePades($sealed['bytes'], $projectDir, $caFile));
+        self::assertStringContainsString('UNTRUSTED', $this->validatePades($sealed['bytes'], $projectDir), 'the classical CA does not vouch for it');
+    }
+
     private function projectDir(): string
     {
         return (string) static::getContainer()->getParameter('kernel.project_dir');
     }
 
     /** Validates the receipt's embedded seal with pyHanko against var/ca/ca.crt. */
-    private function validatePades(string $pdfBytes, string $projectDir): string
+    private function validatePades(string $pdfBytes, string $projectDir, ?string $caFile = null): string
     {
         $pdfFile = (string) tempnam(sys_get_temp_dir(), 'sigil-receipt-');
         file_put_contents($pdfFile, $pdfBytes);
@@ -219,7 +271,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
             print(("INTACT" if st.intact else "BROKEN"), ("TRUSTED" if st.trusted else "UNTRUSTED"))
             PY;
 
-        $process = new Process(['python3', '-c', $script, $pdfFile, $projectDir.'/var/ca/ca.crt'], cwd: $projectDir);
+        $process = new Process(['python3', '-c', $script, $pdfFile, $caFile ?? $projectDir.'/var/ca/ca.crt'], cwd: $projectDir);
         $process->run();
         @unlink($pdfFile);
 
@@ -267,9 +319,8 @@ class DeliveryReceiptTest extends AuthWebTestCase
             $this->fakePadesSigner(),
             new TsaProviderRegistry([new NoTsaProvider()], 'none'),
             $c->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($projectDir.'/var/ca'),
             'unused-pin',
-            $projectDir.'/var/ca/seal.crt',
-            $projectDir.'/var/ca/ca.crt',
         );
 
         return new ReceiptGenerator(
@@ -296,8 +347,11 @@ class DeliveryReceiptTest extends AuthWebTestCase
     private function signAs(Document $document, User $user): void
     {
         $c = static::getContainer();
-        $caPath = sys_get_temp_dir().'/sigil-receipt-test-ca.crt';
-        file_put_contents($caPath, "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
+        // The fake signer ignores the chain, but DocumentSigner insists the CA
+        // file exists: a throwaway var/ca with a placeholder for the classical suite.
+        $caDir = sys_get_temp_dir().'/sigil-receipt-test-ca';
+        @mkdir($caDir);
+        file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
 
         $certificate = static::getContainer()->get(CertificateRepository::class)
             ->findOneBy(['user' => $user]);
@@ -313,7 +367,8 @@ class DeliveryReceiptTest extends AuthWebTestCase
             $c->get(SigningRequestService::class),
             $c->get(EventDispatcherInterface::class),
             $c->get(EntityManagerInterface::class),
-            $caPath,
+            $c->get(SignatureAlgorithmRegistry::class),
+            new SuiteCredentials($caDir),
         );
 
         $signer->sign($document, $certificate, $user, self::PIN);
