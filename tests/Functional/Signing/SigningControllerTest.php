@@ -26,7 +26,7 @@ final class SigningControllerTest extends AuthWebTestCase
         ."3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n"
         ."trailer\n<< /Root 1 0 R /Size 4 >>\nstartxref\n0\n%%EOF";
 
-    private function makeCertificate(User $user): Certificate
+    private function makeCertificate(User $user, string $algorithmId = 'ECDSA-P384-SHA384/v1'): Certificate
     {
         $em = static::getContainer()->get(EntityManagerInterface::class);
         $now = new \DateTimeImmutable();
@@ -37,7 +37,7 @@ final class SigningControllerTest extends AuthWebTestCase
             certificatePem: '-----BEGIN CERTIFICATE-----',
             notBefore: $now->modify('-1 day'),
             notAfter: $now->modify('+1 year'),
-            algorithmId: 'ECDSA-P384-SHA384/v1',
+            algorithmId: $algorithmId,
             tokenLabel: 'test-'.bin2hex(random_bytes(8)),
             keyLabel: 'sign',
             pinHash: password_hash(self::PIN, \PASSWORD_ARGON2ID),
@@ -166,6 +166,30 @@ final class SigningControllerTest extends AuthWebTestCase
         self::assertStringContainsString('TEST SIGNER', $html);         // the seal preview
         self::assertGreaterThan(0, $crawler->filter('select')->count()); // certificate chooser
         self::assertGreaterThan(0, $crawler->filter('input[type="password"]')->count());
+    }
+
+    /**
+     * Regression: two certificates with the same name and expiry used to
+     * collapse into one option - the chooser was keyed by label. The suite is
+     * part of the label now, and a still-identical pair is told apart by serial.
+     */
+    public function testTheCertificateChooserListsEveryUsableCertificateWithItsSuite(): void
+    {
+        [$documentId] = $this->seed('two-suites', withCertificate: true);
+        $document = static::getContainer()->get(DocumentRepository::class)->find($documentId);
+        \assert(null !== $document);
+        $user = $document->getOwner();
+        $this->makeCertificate($user, 'ML-DSA-65/v1');
+        $this->makeCertificate($user); // same suite, name and expiry as the first
+
+        $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
+        self::assertResponseIsSuccessful();
+
+        $options = $crawler->filter('select option')->each(static fn ($o): string => trim($o->text()));
+        self::assertCount(3, $options, implode(' | ', $options));
+        self::assertCount(3, array_unique($options), 'every certificate gets its own option');
+        self::assertCount(1, array_filter($options, static fn (string $o): bool => str_contains($o, 'ML-DSA-65')));
+        self::assertCount(2, array_filter($options, static fn (string $o): bool => str_contains($o, 'ECDSA-P384')));
     }
 
     /**

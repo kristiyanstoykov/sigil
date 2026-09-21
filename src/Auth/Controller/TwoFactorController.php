@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Auth\Controller;
 
 use App\Auth\Form\TwoFactorSetupForm;
+use App\Auth\Security\TotpSecretVault;
 use App\Core\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
@@ -24,6 +25,7 @@ class TwoFactorController extends AbstractController
 {
     public function __construct(
         private readonly GoogleAuthenticatorInterface $googleAuthenticator,
+        private readonly TotpSecretVault $vault,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -40,7 +42,8 @@ class TwoFactorController extends AbstractController
         }
 
         if ($user->getGoogleAuthenticatorSecret() === null) {
-            $user->setGoogleAuthenticatorSecret($this->googleAuthenticator->generateSecret());
+            // Sealed before it ever reaches the row (D5): the entity only holds the envelope.
+            $user->setGoogleAuthenticatorSecret($this->vault->seal($this->googleAuthenticator->generateSecret(), $user->getId()->toRfc4122()));
             $this->em->flush();
         }
 

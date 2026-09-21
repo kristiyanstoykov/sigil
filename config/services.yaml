@@ -45,10 +45,11 @@ services:
     # Crypto: the only symmetric-crypto entry point (ADR-004/006)
     App\Core\Crypto\EncryptionServiceInterface: '@App\Core\Crypto\EnvelopeEncryptionService'
 
-    # Root-key wrapper (ADR-010): the one seam where the root key is used.
-    # Default = PKCS#11 token (root key never enters app memory); the test env
-    # overrides this with the env-key wrapper below (no token needed for tests).
-    App\Core\Crypto\RootKeyWrapperInterface: '@App\Core\Crypto\Pkcs11RootKeyWrapper'
+    # Root-key wrapper (ADR-010): the one seam where the root key is used. The
+    # app depends on the router, which wraps with SIGIL_ROOT_WRAPPER_ACTIVE
+    # (pkcs11 in dev/prod; env in tests, where there is no root token) and
+    # unwraps by the scheme byte each stored KEK carries.
+    App\Core\Crypto\RootKeyWrapperInterface: '@App\Core\Crypto\RoutingRootKeyWrapper'
 
     # Document storage (ADR-009): the app depends on the routing facade, which
     # dispatches to the backend stamped into each storage key.
@@ -95,11 +96,11 @@ when@test:
             autowire: true
             autoconfigure: true
 
-        # Tests have no PKCS#11 root token: wrap the KEK with the env root key
-        # (the pre-ADR-010 behaviour), so the crypto path is exercised end to end
-        # without provisioning a token in CI.
+        # Tests have no PKCS#11 root token: .env.test sets
+        # SIGIL_ROOT_WRAPPER_ACTIVE=env, so the router wraps with the env root
+        # key and the crypto path is exercised end to end without a token in CI.
         App\Core\Crypto\RootKeyWrapperInterface:
-            alias: App\Core\Crypto\EnvRootKeyWrapper
+            alias: App\Core\Crypto\RoutingRootKeyWrapper
             public: true
 
         App\AuditLog\Service\DoctrineAuditLogger:
@@ -112,6 +113,12 @@ when@test:
             public: true
 
         App\Certificate\Service\PinGate:
+            public: true
+
+        App\Auth\Security\TotpSecretVault:
+            public: true
+
+        App\Auth\Command\TotpSealCommand:
             public: true
 
         App\Document\Service\KeyManagementService:

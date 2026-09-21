@@ -39,9 +39,9 @@
                                 Signed version
                             {%- endif -%}
                         </p>
-                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" data-controller="clipboard" data-clipboard-text-value="{{ v.contentHash }}">
+                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1" data-controller="clipboard" data-clipboard-text-value="{{ v.contentHash|fingerprint_digest }}">
                             <span class="text-[11px] font-medium uppercase tracking-wide text-theme-secondarytextcolor">Integrity fingerprint</span>
-                            <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor whitespace-nowrap">{{ v.contentHash|slice(0, 10) }}…{{ v.contentHash|slice(-6) }}</code>
+                            <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-xs text-theme-bodycolor whitespace-nowrap">{{ v.contentHash|fingerprint_digest|slice(0, 10) }}…{{ v.contentHash|fingerprint_digest|slice(-6) }}</code>
                             <button type="button" data-action="clipboard#copy"
                                     class="inline-flex items-center gap-1 text-xs font-medium text-theme-secondarytextcolor hover:text-theme-headings cursor-pointer">
                                 <i class="ti ti-copy text-sm leading-none" aria-hidden="true"></i>

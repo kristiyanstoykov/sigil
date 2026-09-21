@@ -121,7 +121,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $request = $this->service()->create($document, $owner, [$first], $this->inDays(1));
         $this->makeOverdue($request);
 
-        $this->runCommand('sigil:signing:sweep');
+        $this->runConsole('sigil:signing:sweep');
 
         $documents = static::getContainer()->get(DocumentRepository::class);
         self::assertNull($documents->find($documentId->toRfc4122()), 'nobody signed, so the document is destroyed');
@@ -409,7 +409,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
         $em->refresh($request);
     }
 
-    private function runCommand(string $name): void
+    private function runConsole(string $name): void
     {
         self::assertNotNull(static::$kernel);
         $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(static::$kernel);

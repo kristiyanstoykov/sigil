@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional;
 
+use App\Auth\Security\TotpSecretVault;
 use App\Core\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -60,12 +61,16 @@ abstract class AuthWebTestCase extends WebTestCase
             ->setIsVerified($verified);
         $user->setPassword($hasher->hashPassword($user, self::PASSWORD));
 
+        $em->persist($user); // mints the id the sealed seed is bound to
+
         if ($totpEnabled) {
-            $user->setGoogleAuthenticatorSecret(self::TOTP_SECRET);
+            // Stored the way the setup page stores it: sealed, never the base32 seed.
+            /** @var TotpSecretVault $vault */
+            $vault = $container->get(TotpSecretVault::class);
+            $user->setGoogleAuthenticatorSecret($vault->seal(self::TOTP_SECRET, $user->getId()->toRfc4122()));
             $user->enableTotp();
         }
 
-        $em->persist($user);
         $em->flush();
 
         return $user;

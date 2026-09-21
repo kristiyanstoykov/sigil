@@ -6,6 +6,7 @@ namespace App\AuditLog\Entity;
 
 use App\AuditLog\Enum\AuditSeverity;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\AuditLog\Service\AuditChainHasher;
 use App\Core\Entity\Trait\HasUuid;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
@@ -13,7 +14,8 @@ use Symfony\Component\Uid\Uuid;
 /**
  * Append-only, hash-chained audit record (see "Security invariants").
  *
- * entryHash = sha256(previousHash . canonicalPayload). Entries are never
+ * entryHash = hash(previousHash . canonicalPayload) under the scheme the entry
+ * names (SHA256/v1 today, {@see AuditChainHasher}). Entries are never
  * updated or deleted; there are deliberately no setters. Chain integrity is
  * verified with `sigil:audit:verify`.
  */
@@ -58,6 +60,10 @@ class AuditLogEntry
     #[ORM\Column(length: 64)]
     private string $previousHash;
 
+    /** Which chain scheme produced entryHash ({@see AuditChainHasher}); verified with the same one. */
+    #[ORM\Column(length: 32, options: ['default' => AuditChainHasher::SCHEME])]
+    private string $hashScheme = AuditChainHasher::SCHEME;
+
     #[ORM\Column(length: 64, unique: true)]
     private string $entryHash;
 
@@ -84,7 +90,7 @@ class AuditLogEntry
         $this->payload = $payload;
         $this->severity = $severity;
         $this->occurredAt = $occurredAt;
-        $this->entryHash = hash('sha256', $previousHash.$this->canonicalPayload());
+        $this->entryHash = AuditChainHasher::hash($this->hashScheme, $previousHash, $this->canonicalPayload());
     }
 
     /**
@@ -172,5 +178,23 @@ class AuditLogEntry
     public function getEntryHash(): string
     {
         return $this->entryHash;
+    }
+
+    public function getHashScheme(): string
+    {
+        return $this->hashScheme;
+    }
+
+    /**
+     * Re-derive this entry's hash from its stored content and the given
+     * predecessor. ONLY for sigil:audit:rechain, which repairs a chain whose
+     * hashes were computed over data the database never kept; the content
+     * itself is untouched and the repair is itself audited.
+     */
+    public function relink(string $previousHash): void
+    {
+        $this->previousHash = $previousHash;
+        $this->hashScheme = AuditChainHasher::SCHEME;
+        $this->entryHash = AuditChainHasher::hash($this->hashScheme, $previousHash, $this->canonicalPayload());
     }
 }

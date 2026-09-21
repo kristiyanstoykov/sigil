@@ -28,8 +28,20 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * class prepends a scheme byte (0x02) so a token-wrapped KEK is self-describing
  * and cannot be confused with an env-wrapped one ({@see EnvRootKeyWrapper}, 0x01).
  */
-final class Pkcs11RootKeyWrapper implements RootKeyWrapperInterface
+final class Pkcs11RootKeyWrapper implements RootKeyWrapperSchemeInterface
 {
+    public const string ID = 'pkcs11';
+
+    public function id(): string
+    {
+        return self::ID;
+    }
+
+    public function schemeByte(): string
+    {
+        return self::SCHEME_BYTE;
+    }
+
     /** Scheme marker for token-wrapped KEKs; distinguishes them from env 0x01 blobs. */
     private const SCHEME_BYTE = "\x02";
 

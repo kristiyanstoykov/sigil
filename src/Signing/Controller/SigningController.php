@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Signing\Controller;
 
+use App\Certificate\Algorithm\SignatureAlgorithmRegistry;
 use App\Certificate\Entity\Certificate;
 use App\Certificate\Repository\CertificateRepository;
 use App\Core\Entity\User;
@@ -38,6 +39,7 @@ class SigningController extends AbstractController
         private readonly SigningRequestRepository $signingRequests,
         private readonly DeclineFormFactory $declineForms,
         private readonly ClockInterface $clock,
+        private readonly SignatureAlgorithmRegistry $algorithms,
     ) {
     }
 
@@ -85,9 +87,15 @@ class SigningController extends AbstractController
 
         $usable = $this->usableCertificates($user);
 
+        // Keyed by label, so two certificates must never label alike: the suite
+        // is part of it, and a still-identical pair is told apart by serial.
         $choices = [];
         foreach ($usable as $certificate) {
-            $choices[$this->certificateLabel($certificate)] = $certificate->getId()->toRfc4122();
+            $label = $this->certificateLabel($certificate);
+            if (isset($choices[$label])) {
+                $label .= sprintf(' · #%s', substr($certificate->getSerialNumber(), 0, 8));
+            }
+            $choices[$label] = $certificate->getId()->toRfc4122();
         }
 
         $form = $this->createForm(SignDocumentForm::class, null, ['certificate_choices' => $choices]);
@@ -198,17 +206,20 @@ class SigningController extends AbstractController
             return preg_match('/\b'.preg_quote($key, '/').': ([^,]+)/', $dn, $m) ? trim($m[1]) : null;
         };
 
+        // The suite always - with two suites live (ADR-014) it is what
+        // separates a person's certificates.
+        $suite = strtoupper($this->algorithms->get($certificate->getAlgorithmId())->slug());
+
         $name = $part('Common Name');
         if (null === $name) {
             // Unrecognised shape - keep it whole rather than guess at it.
-            return sprintf('%s — expires %s', $dn, $expires);
+            return sprintf('%s · %s · expires %s', $dn, $suite, $expires);
         }
 
-        // Organisation only when there is one: it is what separates two
-        // certificates issued to the same person.
+        // Organisation only when there is one.
         $org = $part('Organization');
 
-        return sprintf('%s%s · expires %s', $name, null !== $org ? ' ('.$org.')' : '', $expires);
+        return sprintf('%s%s · %s · expires %s', $name, null !== $org ? ' ('.$org.')' : '', $suite, $expires);
     }
 
     /**

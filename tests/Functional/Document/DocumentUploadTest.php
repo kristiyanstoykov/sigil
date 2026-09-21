@@ -43,9 +43,9 @@ class DocumentUploadTest extends AuthWebTestCase
         self::assertSame(DocumentVersionKind::Original, $version->getKind());
         self::assertSame(\strlen(self::MINIMAL_PDF), $version->getSizeBytes());
 
-        // contentHash is a keyed HMAC-SHA-384 (96 hex chars), NOT a plain sha384.
-        self::assertMatchesRegularExpression('/^[0-9a-f]{96}$/', $version->getContentHash());
-        self::assertNotSame(hash('sha384', self::MINIMAL_PDF), $version->getContentHash());
+        // contentHash is a self-describing keyed HMAC-SHA-384, NOT a plain sha384.
+        self::assertMatchesRegularExpression('/^HMAC-SHA384\/v1:[0-9a-f]{96}$/', $version->getContentHash());
+        self::assertStringNotContainsString(hash('sha384', self::MINIMAL_PDF), $version->getContentHash());
 
         // Storage holds ciphertext only, under a backend-stamped key.
         $storage = static::getContainer()->get(DocumentStorageInterface::class);

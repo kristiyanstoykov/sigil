@@ -326,7 +326,7 @@ class SigningRequestTest extends AuthWebTestCase
         $this->signer()->sign($partly, $this->makeCertificate($signerA), $signerA, self::PIN);
         $this->makeOverdue($request);
 
-        self::assertSame(0, $this->runCommand('sigil:signing:sweep'), 'the sweep ran to the end');
+        self::assertSame(0, $this->runConsole('sigil:signing:sweep'), 'the sweep ran to the end');
 
         $documents = $container->get(DocumentRepository::class);
         $requests = $container->get(SigningRequestRepository::class);
@@ -384,7 +384,7 @@ class SigningRequestTest extends AuthWebTestCase
         $em->refresh($request);
     }
 
-    private function runCommand(string $name): int
+    private function runConsole(string $name): int
     {
         self::assertNotNull(static::$kernel);
         $application = new \Symfony\Bundle\FrameworkBundle\Console\Application(static::$kernel);

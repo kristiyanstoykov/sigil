@@ -2,6 +2,13 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    # Absolute URLs in emails (verification links, notifications) are built from
+    # the request's Host header, so a proxy that forwards any Host would let a
+    # stranger mint links to a host of their choosing. One regex the Host must
+    # match; an empty value matches any host (dev only), production sets it
+    # (see .env.example).
+    trusted_hosts: '%env(TRUSTED_HOSTS)%'
+
     # Note that the session will be started ONLY if you read or write from it.
     session:
         enabled: true

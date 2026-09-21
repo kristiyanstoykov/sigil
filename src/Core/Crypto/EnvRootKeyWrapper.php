@@ -20,8 +20,21 @@ namespace App\Core\Crypto;
  * to KEKs already stored before ADR-010 and distinguishable from the token
  * wrapper's 0x02 blobs.
  */
-final class EnvRootKeyWrapper implements RootKeyWrapperInterface
+final class EnvRootKeyWrapper implements RootKeyWrapperSchemeInterface
 {
+    public const string ID = 'env';
+
+    public function id(): string
+    {
+        return self::ID;
+    }
+
+    /** The envelope's own format-version byte (ADR-006) - every blob starts with it. */
+    public function schemeByte(): string
+    {
+        return "\x01";
+    }
+
     public function __construct(
         private readonly EncryptionServiceInterface $encryption,
         private readonly RootKeyProvider $rootKeys,

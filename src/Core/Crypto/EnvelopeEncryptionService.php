@@ -34,7 +34,7 @@ final class EnvelopeEncryptionService implements EncryptionServiceInterface
 
     public function encrypt(string $plaintext, string $key, string $aad = ''): string
     {
-        $cipher = $this->registry->default();
+        $cipher = $this->registry->active();
         $algoId = $cipher->id();
 
         $header = \chr(self::FORMAT_VERSION).\chr(\strlen($algoId)).$algoId;
@@ -74,7 +74,7 @@ final class EnvelopeEncryptionService implements EncryptionServiceInterface
 
     public function generateKey(): string
     {
-        return random_bytes($this->registry->default()->keyLength());
+        return random_bytes($this->registry->active()->keyLength());
     }
 
     public function deriveKey(string $inputKeyMaterial, string $context): string

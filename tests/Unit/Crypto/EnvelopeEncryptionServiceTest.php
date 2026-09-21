@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Crypto;
 
 use App\Core\Crypto\AesGcmSodiumCipher;
+use App\Core\Crypto\CipherAlgorithmInterface;
 use App\Core\Crypto\CipherAlgorithmRegistry;
 use App\Core\Crypto\EnvelopeEncryptionService;
 use App\Core\Crypto\Exception\DecryptionFailedException;
@@ -38,6 +39,38 @@ final class EnvelopeEncryptionServiceTest extends TestCase
 
         self::assertSame(0x01, \ord($envelope[0]), 'format version byte');
         self::assertStringContainsString(AesGcmSodiumCipher::ID, $envelope, 'algo id is embedded');
+    }
+
+    /**
+     * Crypto agility, exercised: an envelope names its suite, so ciphertext
+     * written under suite A stays readable after the active suite moves to B -
+     * and new writes carry B's id. B here is a test-only cipher that XORs with
+     * the key stream of a fixed marker, enough to tell the two apart.
+     */
+    public function testSwitchingTheActiveCipherLeavesOldEnvelopesReadable(): void
+    {
+        $key = $this->service->generateKey();
+        $underA = $this->service->encrypt('written under A', $key, 'ctx');
+
+        $switched = new EnvelopeEncryptionService(new CipherAlgorithmRegistry(
+            [new AesGcmSodiumCipher(), new TestOnlyCipher()],
+            TestOnlyCipher::ID,
+        ));
+
+        self::assertSame('written under A', $switched->decrypt($underA, $key, 'ctx'), 'old ciphertext routes to its own suite');
+        $underB = $switched->encrypt('written under B', $key, 'ctx');
+        self::assertStringContainsString(TestOnlyCipher::ID, $underB, 'new writes carry the active id');
+        self::assertSame('written under B', $switched->decrypt($underB, $key, 'ctx'));
+
+        // And the original service, which does not know B, refuses B's envelope generically.
+        $this->expectException(DecryptionFailedException::class);
+        $this->service->decrypt($underB, $key, 'ctx');
+    }
+
+    public function testAnUnknownActiveCipherIsABootError(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new CipherAlgorithmRegistry([new AesGcmSodiumCipher()], 'ChaCha20-Poly1305/v9');
     }
 
     public function testGeneratedKeyIs32Bytes(): void
@@ -105,5 +138,36 @@ final class EnvelopeEncryptionServiceTest extends TestCase
 
         $wrapped = $this->service->encrypt($dek, $kek);
         self::assertSame($dek, $this->service->decrypt($wrapped, $kek));
+    }
+}
+
+/** Not a cipher: a distinguishable stand-in for "another registered suite". */
+final class TestOnlyCipher implements CipherAlgorithmInterface
+{
+    public const string ID = 'TEST-XOR/v0';
+
+    public function id(): string
+    {
+        return self::ID;
+    }
+
+    public function keyLength(): int
+    {
+        return 32;
+    }
+
+    public function nonceLength(): int
+    {
+        return 12;
+    }
+
+    public function encrypt(string $plaintext, string $nonce, string $key, string $aad): string
+    {
+        return $plaintext ^ str_repeat($key, (int) ceil(\strlen($plaintext) / 32));
+    }
+
+    public function decrypt(string $ciphertext, string $nonce, string $key, string $aad): string
+    {
+        return $this->encrypt($ciphertext, $nonce, $key, $aad);
     }
 }

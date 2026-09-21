@@ -53,8 +53,8 @@ class DocumentVersion
     #[ORM\Column]
     private int $sizeBytes;
 
-    /** HMAC-SHA-384 hex of the plaintext bytes, keyed under the root key ({@see ContentHasher}). */
-    #[ORM\Column(length: 96)]
+    /** Self-describing keyed fingerprint of the plaintext, "HMAC-SHA384/v1:<hex>" ({@see ContentHasher}). */
+    #[ORM\Column(length: 128)]
     private string $contentHash;
 
     public function __construct(

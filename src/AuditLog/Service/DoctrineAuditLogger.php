@@ -49,7 +49,9 @@ final class DoctrineAuditLogger implements AuditLoggerInterface
                 subjectId: $subjectId,
                 payload: $payload,
                 severity: $severity,
-                occurredAt: $this->clock->now()->setTimezone(new \DateTimeZone('UTC')),
+                // Whole seconds only: the column is timestamp(0), and a hash
+                // over microseconds the database drops can never be recomputed.
+                occurredAt: $this->clock->now()->setTimezone(new \DateTimeZone('UTC'))->setMicrosecond(0),
             );
 
             $this->em->persist($entry);

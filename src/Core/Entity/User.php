@@ -54,6 +54,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
+    /**
+     * What goes into the session. The password hash is replaced by its crc32c
+     * (Symfony compares that to invalidate sessions on a password change) and
+     * the TOTP seed is dropped: every request refreshes the user from the
+     * database, which is where the bundle reads it - the session copy would
+     * only ever be a second place for it to leak from.
+     *
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        $data = (array) $this;
+        $data["\0".self::class."\0password"] = hash('crc32c', $this->password);
+        $data["\0".self::class."\0googleAuthenticatorSecret"] = null;
+
+        return $data;
+    }
+
     // ── UserInterface ────────────────────────────────────────────────────────
 
     /** @return non-empty-string */

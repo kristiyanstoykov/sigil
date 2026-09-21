@@ -6,9 +6,13 @@ namespace App\AuditLog\Command;
 
 use App\AuditLog\Entity\AuditLogEntry;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\AuditLog\Service\AuditAnchor;
+use App\AuditLog\Service\AuditAnchorSigner;
+use App\AuditLog\Service\AuditChainHasher;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -18,9 +22,16 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class AuditVerifyCommand extends Command
 {
-    public function __construct(private readonly AuditLogEntryRepository $repository)
-    {
+    public function __construct(
+        private readonly AuditLogEntryRepository $repository,
+        private readonly AuditAnchorSigner $anchors,
+    ) {
         parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this->addOption('anchor', null, InputOption::VALUE_REQUIRED, 'Anchor file written by sigil:audit:anchor; every line in it must still hold');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -39,7 +50,7 @@ final class AuditVerifyCommand extends Command
             if ($entry->getPreviousHash() !== $expectedPrevious) {
                 $errors[] = 'previousHash does not match the preceding entry';
             }
-            $recomputed = hash('sha256', $entry->getPreviousHash().$entry->canonicalPayload());
+            $recomputed = AuditChainHasher::hash($entry->getHashScheme(), $entry->getPreviousHash(), $entry->canonicalPayload());
             if (!hash_equals($recomputed, $entry->getEntryHash())) {
                 $errors[] = 'entryHash mismatch - entry content was modified';
             }
@@ -64,6 +75,54 @@ final class AuditVerifyCommand extends Command
         $io->success(0 === $count
             ? 'Audit log is empty - nothing to verify.'
             : sprintf('Audit chain intact: %d entries verified.', $count));
+
+        /** @var string|null $anchorPath */
+        $anchorPath = $input->getOption('anchor');
+
+        return null === $anchorPath ? Command::SUCCESS : $this->verifyAnchors($anchorPath, $io);
+    }
+
+    /**
+     * The chain being internally consistent says nothing about a tail that was
+     * cut off or rewritten wholesale; the anchors do. Each one must be ours and
+     * must still be found in the chain.
+     */
+    private function verifyAnchors(string $path, SymfonyStyle $io): int
+    {
+        $lines = @file($path, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES);
+        if (false === $lines) {
+            $io->error(sprintf('Cannot read anchor file %s.', $path));
+
+            return Command::FAILURE;
+        }
+
+        foreach ($lines as $n => $line) {
+            try {
+                $anchor = AuditAnchor::fromJsonLine($line);
+            } catch (\Throwable) {
+                $io->error(sprintf('Anchor line %d is not a valid anchor.', $n + 1));
+
+                return Command::FAILURE;
+            }
+            if (!$this->anchors->isAuthentic($anchor)) {
+                $io->error(sprintf('Anchor line %d (sequence %d) was not minted by this installation, or was altered.', $n + 1, $anchor->sequence));
+
+                return Command::FAILURE;
+            }
+            if (!$this->anchors->stillHolds($anchor)) {
+                $io->error(sprintf(
+                    'Anchor line %d says sequence %d had hash %s… at %s - the chain no longer contains it (tail deleted or history rewritten).',
+                    $n + 1,
+                    $anchor->sequence,
+                    substr($anchor->entryHash, 0, 12),
+                    $anchor->anchoredAt->format(\DateTimeInterface::ATOM),
+                ));
+
+                return Command::FAILURE;
+            }
+        }
+
+        $io->success(sprintf('%d anchor(s) hold: the chain still contains every checkpointed head.', \count($lines)));
 
         return Command::SUCCESS;
     }

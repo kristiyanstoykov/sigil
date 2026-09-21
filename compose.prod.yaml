@@ -1,0 +1,54 @@
+# Production overrides - a hardening skeleton, not a turnkey deployment.
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d
+#
+# What it changes against the dev file: APP_ENV=prod with debug off, no host
+# ports on the database / MinIO / Mercure (only the app and the hub are reached,
+# through the reverse proxy you put in front), image tags you pin explicitly
+# (MERCURE_IMAGE_TAG, MINIO_IMAGE_TAG) instead of `latest`, and every secret
+# read from the environment with no dev fallback.
+# What it does NOT do, and a real deployment must: put TLS in front (Caddy,
+# nginx, a cloud LB) and set TRUSTED_HOSTS + DEFAULT_URI + MERCURE_PUBLIC_URL to
+# the public name; replace `php -S` (single worker, dev server) with FrankenPHP
+# or php-fpm - the app has no dependency on the runtime; ship
+# SIGIL_AUDIT_ANCHOR_PATH and the kryoptic_tokens volume off the host.
+services:
+  app:
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      APP_SECRET: "${APP_SECRET:?set APP_SECRET}"
+      DATABASE_URL: "postgresql://sigil:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/sigil?serverVersion=16&charset=utf8"
+      TRUSTED_HOSTS: "${TRUSTED_HOSTS:?set TRUSTED_HOSTS, e.g. ^sigil\\.example\\.com$}"
+      DEFAULT_URI: "${DEFAULT_URI:?set DEFAULT_URI, e.g. https://sigil.example.com}"
+      MERCURE_PUBLIC_URL: "${MERCURE_PUBLIC_URL:?set MERCURE_PUBLIC_URL}"
+      MERCURE_JWT_SECRET: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      SIGIL_ROOT_TOKEN_PIN: "${SIGIL_ROOT_TOKEN_PIN:?set SIGIL_ROOT_TOKEN_PIN}"
+      SIGIL_CA_PIN: "${SIGIL_CA_PIN:?set SIGIL_CA_PIN}"
+      SIGIL_SEAL_PIN: "${SIGIL_SEAL_PIN:?set SIGIL_SEAL_PIN}"
+    # Bind the dev server to the internal network only; the reverse proxy
+    # publishes it.
+    ports: !override []
+    expose:
+      - "8000"
+
+  mercure:
+    image: "dunglas/mercure:${MERCURE_IMAGE_TAG:?pin a Mercure release tag}"
+    environment:
+      MERCURE_PUBLISHER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      MERCURE_SUBSCRIBER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+    ports: !override []
+    expose:
+      - "3000"
+
+  minio:
+    image: "quay.io/minio/minio:${MINIO_IMAGE_TAG:?pin a MinIO release tag}"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}"
+    ports: !override []
+
+  db:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
+    ports: !override []
