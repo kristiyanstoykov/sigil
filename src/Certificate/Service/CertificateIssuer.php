@@ -88,10 +88,10 @@ class CertificateIssuer
                     'token_label' => $tokenLabel,
                     'key_label' => self::KEY_LABEL,
                 ],
-                // The suite travels to the driver (ADR-014): the subject's key
-                // and the CA's signature each follow their own spec.
+                // The subject's key follows the active suite (ADR-014). The CA
+                // signs in its own, which the driver reads off the CA key - a
+                // per-suite CA that pins it from here is B4 of the 2026-09-20 plan.
                 'subject_algorithm' => $algorithm->toDriverSpec(),
-                'issuer_algorithm' => $algorithm->toDriverSpec(),
             ]);
 
             $this->tokens->writeCertificate(
@@ -301,7 +301,6 @@ class CertificateIssuer
                 'key_label' => self::KEY_LABEL,
             ],
             'subject_algorithm' => $algorithm->toDriverSpec(),
-            'issuer_algorithm' => $algorithm->toDriverSpec(),
         ]);
 
         $this->tokens->writeCertificate(

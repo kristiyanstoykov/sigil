@@ -16,6 +16,9 @@ Request:
   "subject": {"common_name": "...", "organization_name": "...",
               "organizational_unit_name": "...", "country_name": "BG"},
   "validity_days": 365,
+  "subject_algorithm": <driver spec v1>,  // the suite the subject's key is
+  "issuer_algorithm": <driver spec v1>,   // optional: the SIGNER key's suite;
+                                          // read off the key itself when absent
   // mode=issue only:
   "issuer_cert_pem": "-----BEGIN CERTIFICATE-----...",
   "subject_pubkey": {"token_label": "...", "key_label": "..."}
@@ -25,9 +28,13 @@ Response: {"ok": true, "certificate_pem": "...", "serial_number": "...",
            "subject_dn": "...", "not_before": "...", "not_after": "..."}
 or        {"ok": false, "error": "..."}
 
-The signing digest/algorithm follows the SIGNER key type (ECDSA P-384 +
-SHA-384 for the default suite). Soft tokens expose raw CKM_ECDSA, so the
-TBS digest is computed here and signed in-token (same shape as ADR-007).
+Both suites come from PHP (SignatureAlgorithmInterface::toDriverSpec, ADR-014)
+and nothing here is hard-coded to one: the subject spec shapes the
+SubjectPublicKeyInfo (EC named curve, or the ML-DSA OID of RFC 9881 with the raw
+public key), the issuer spec picks the signature algorithm and how the TBS is
+signed - prehash (digest here, raw CKM_ECDSA in the token) or pure (the token
+signs the whole TBS DER, CKM_ML_DSA). Feeding ML-DSA a digest would sign the
+wrong bytes, so the mode is never inferred from the key.
 """
 import datetime
 import hashlib
@@ -39,11 +46,16 @@ import pkcs11
 from pkcs11 import Attribute, KeyType, Mechanism, ObjectClass
 from pkcs11.util.ec import encode_ecdsa_signature
 from asn1crypto import algos, core, keys, pem, x509
+# Registers the ML-DSA OIDs (RFC 9881/9882) in asn1crypto's maps; 1.5.x lacks them.
+import pyhanko_certvalidator.asn1_types  # noqa: F401
 
 from sigil_pkcs11 import find_token
 
-DIGEST = "sha384"
-SIG_ALGO = algos.SignedDigestAlgorithm({"algorithm": "sha384_ecdsa"})
+# What an omitted spec means - the classical suite - so the driver stays usable
+# by hand. The app always sends both.
+CLASSICAL = {"spec": "v1", "family": "ecdsa", "parameter_set": "secp384r1", "digest": "sha384",
+             "signing_mode": "prehash", "signature_algorithm": "sha384_ecdsa"}
+FAMILIES = ("ecdsa", "ml-dsa")
 
 # Key usage per certificate profile. A seal carries non_repudiation
 # (contentCommitment) exactly like a signer certificate: that bit expresses the
@@ -70,28 +82,64 @@ def name_from(subject: dict) -> x509.Name:
         {k: v for k, v in subject.items() if k in allowed and v})
 
 
-def spki_from_token(session, key_label: str) -> keys.PublicKeyInfo:
+ML_DSA_SPECS = {
+    1: {"parameter_set": "ML-DSA-44", "signature_algorithm": "mldsa44"},
+    2: {"parameter_set": "ML-DSA-65", "signature_algorithm": "mldsa65"},
+    3: {"parameter_set": "ML-DSA-87", "signature_algorithm": "mldsa87"},
+}
+
+
+def check_spec(spec: dict) -> dict:
+    if spec.get("spec") != "v1" or spec.get("family") not in FAMILIES:
+        fail("UnsupportedAlgorithm")
+    return spec
+
+
+def spec_from_key(key) -> dict:
+    """The suite an existing signing key belongs to - a CA key has exactly one.
+
+    Used for the issuer when the app does not say: the CA was provisioned with
+    whatever suite was active then, and a later switch must not make the app
+    sign with the wrong mode.
+    """
+    if key.key_type == KeyType.EC:
+        return CLASSICAL
+    if key.key_type == KeyType.ML_DSA:
+        return {"spec": "v1", "family": "ml-dsa", "digest": "sha384", "signing_mode": "pure",
+                **ML_DSA_SPECS[int(key[Attribute.PARAMETER_SET])]}
+    fail("UnsupportedAlgorithm")
+
+
+def spki_from_token(session, key_label: str, spec: dict) -> keys.PublicKeyInfo:
+    """SubjectPublicKeyInfo for the token's public key, shaped by its suite."""
     pub = session.get_key(object_class=ObjectClass.PUBLIC_KEY, label=key_label)
-    if pub.key_type == KeyType.EC:
+    if spec["family"] == "ecdsa":
+        if pub.key_type != KeyType.EC:
+            raise ValueError("key/suite mismatch")
         point = core.OctetString.load(pub[Attribute.EC_POINT]).native
         return keys.PublicKeyInfo({
             "algorithm": keys.PublicKeyAlgorithm({
                 "algorithm": "ec",
-                "parameters": keys.ECDomainParameters(
-                    name="named", value="secp384r1"),
+                "parameters": keys.ECDomainParameters(name="named", value=spec["parameter_set"]),
             }),
             "public_key": point,
         })
-    if pub.key_type == KeyType.RSA:
-        rsa = keys.RSAPublicKey({
-            "modulus": int.from_bytes(pub[Attribute.MODULUS]),
-            "public_exponent": int.from_bytes(pub[Attribute.PUBLIC_EXPONENT]),
-        })
-        return keys.PublicKeyInfo({
-            "algorithm": keys.PublicKeyAlgorithm({"algorithm": "rsa"}),
-            "public_key": rsa,
-        })
-    raise ValueError(f"unsupported key type {pub.key_type!r}")
+    # ML-DSA (RFC 9881): algorithm = id-ml-dsa-NN with absent parameters, key = raw bytes.
+    if pub.key_type != KeyType.ML_DSA:
+        raise ValueError("key/suite mismatch")
+    return keys.PublicKeyInfo({
+        "algorithm": keys.PublicKeyAlgorithm({"algorithm": spec["signature_algorithm"]}),
+        "public_key": core.OctetBitString(pub[Attribute.VALUE]),
+    })
+
+
+def sign_tbs(key, tbs_der: bytes, spec: dict) -> bytes:
+    """Sign the TBS in the token, in the suite's mode; returns the DER signature value."""
+    if spec["signing_mode"] == "prehash":
+        digest = hashlib.new(spec["digest"], tbs_der).digest()
+        return encode_ecdsa_signature(key.sign(digest, mechanism=Mechanism.ECDSA))
+    # Pure: FIPS 204 over the whole TBS, and the signature is already a plain octet string.
+    return key.sign(tbs_der, mechanism=Mechanism.ML_DSA)
 
 
 def main() -> None:
@@ -107,12 +155,8 @@ def main() -> None:
     if profile not in KEY_USAGE:
         fail(f"unknown profile {profile!r}")
 
-    # The suite travels from PHP (ADR-014). Until this driver dispatches on it,
-    # refuse anything but the classical suite rather than silently issuing ECDSA.
-    for key in ("issuer_algorithm", "subject_algorithm"):
-        spec = req.get(key)
-        if spec is not None and (spec.get("spec") != "v1" or spec.get("family") != "ecdsa"):
-            fail("UnsupportedAlgorithm")
+    subject_spec = check_spec(req.get("subject_algorithm", CLASSICAL))
+    issuer_spec = check_spec(req["issuer_algorithm"]) if req.get("issuer_algorithm") else None
 
     lib = pkcs11.lib(req["module"])
     signer = req["signer"]
@@ -124,9 +168,14 @@ def main() -> None:
     subject = name_from(req["subject"])
 
     with token.open(user_pin=signer["pin"]) as session:
+        key = session.get_key(object_class=ObjectClass.PRIVATE_KEY, label=signer["key_label"])
+        if issuer_spec is None:
+            issuer_spec = spec_from_key(key)
+        sig_algo = algos.SignedDigestAlgorithm({"algorithm": issuer_spec["signature_algorithm"]})
+
         if is_ca:
             issuer_name = subject
-            spki = spki_from_token(session, signer["key_label"])
+            spki = spki_from_token(session, signer["key_label"], subject_spec)
         else:
             _, _, issuer_der = pem.unarmor(req["issuer_cert_pem"].encode())
             issuer_cert = x509.Certificate.load(issuer_der)
@@ -135,8 +184,7 @@ def main() -> None:
             sub_token = find_token(lib, req["subject_pubkey"]["token_label"])
             # public objects only — no PIN for the subject's token
             with sub_token.open() as sub_session:
-                spki = spki_from_token(
-                    sub_session, req["subject_pubkey"]["key_label"])
+                spki = spki_from_token(sub_session, req["subject_pubkey"]["key_label"], subject_spec)
 
         extensions = [
             {"extn_id": "basic_constraints", "critical": True,
@@ -149,7 +197,7 @@ def main() -> None:
         tbs = x509.TbsCertificate({
             "version": "v3",
             "serial_number": serial,
-            "signature": SIG_ALGO,
+            "signature": sig_algo,
             "issuer": issuer_name,
             "validity": {
                 "not_before": x509.Time({"utc_time": now}),
@@ -160,15 +208,12 @@ def main() -> None:
             "extensions": extensions,
         })
 
-        key = session.get_key(object_class=ObjectClass.PRIVATE_KEY,
-                              label=signer["key_label"])
-        digest = hashlib.new(DIGEST, tbs.dump()).digest()
-        raw_sig = key.sign(digest, mechanism=Mechanism.ECDSA)
+        signature = sign_tbs(key, tbs.dump(), issuer_spec)
 
     cert = x509.Certificate({
         "tbs_certificate": tbs,
-        "signature_algorithm": SIG_ALGO,
-        "signature_value": encode_ecdsa_signature(raw_sig),
+        "signature_algorithm": sig_algo,
+        "signature_value": core.OctetBitString(signature),
     })
 
     json.dump({
@@ -184,6 +229,9 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
+    except pkcs11.exceptions.MechanismInvalid:
+        # The token does not implement the suite's mechanism.
+        fail("UnsupportedAlgorithm")
     except Exception as exc:  # noqa: BLE001 — boundary: report the type ONLY.
         # The exception message can echo input (e.g. the PIN) and this string is
         # audit-logged by CertificateIssuer, so report only the class name -

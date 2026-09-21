@@ -7,9 +7,10 @@ Symfony app (Signing module) with a JSON request on stdin; emits a JSON
 response on stdout. The PIN travels only via that stdin JSON: never argv,
 never disk (same contract as bin/issue_cert.py).
 
-Produces PAdES-B-T: a PAdES (ETSI.CAdES.detached) signature over SHA-384 with a
-signature timestamp from an RFC 3161 TSA when one is supplied; without a TSA it
-degrades to PAdES-B-B. A visible signature appearance (the Sigil stamp) is drawn
+Produces PAdES-B-T: a PAdES (ETSI.CAdES.detached) signature in the certificate's
+suite (ADR-014: ECDSA P-384 or ML-DSA-65, SHA-384 content digest either way)
+with a signature timestamp from an RFC 3161 TSA when one is supplied; without a
+TSA it degrades to PAdES-B-B. A visible signature appearance (the Sigil stamp) is drawn
 on the chosen page.
 
 Request:
@@ -19,6 +20,7 @@ Request:
   "signer": {"token_label": "...", "key_label": "sign",
              "signing_cert_pem": "-----BEGIN CERTIFICATE-----...", "pin": "..."},
   "ca_chain_pem": "-----BEGIN CERTIFICATE-----...",   // issuer chain to embed
+  "algorithm": <driver spec v1>,                       // the certificate's suite
   "field_name": "Signature1",
   "reason": "..." | null,
   "location": "..." | null,
@@ -41,7 +43,11 @@ import io
 import json
 import sys
 
+import pkcs11
+
 from asn1crypto import algos, pem, x509
+# Registers the ML-DSA OIDs (RFC 9881/9882) in asn1crypto's maps; 1.5.x lacks them.
+import pyhanko_certvalidator.asn1_types  # noqa: F401
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields, signers
@@ -65,11 +71,11 @@ from sigil_stamp import (
     ink_dimensions,
 )
 
-# The MVP suite is ECDSA P-384 + SHA-384 (ADR-006). Soft tokens expose ECDSA as the
-# raw CKM_ECDSA mechanism, so we name the digest+curve pairing explicitly rather
-# than letting pyHanko probe the token.
-MD_ALGORITHM = "sha384"
-ECDSA_SIG_MECHANISM = algos.SignedDigestAlgorithm({"algorithm": "sha384_ecdsa"})
+# What an omitted spec means - the classical suite - so the driver stays usable
+# by hand. The app always sends one (SignatureAlgorithmInterface::toDriverSpec).
+CLASSICAL = {"spec": "v1", "family": "ecdsa", "parameter_set": "secp384r1", "digest": "sha384",
+             "signing_mode": "prehash", "signature_algorithm": "sha384_ecdsa"}
+FAMILIES = ("ecdsa", "ml-dsa")
 
 STAMP_ORIGIN = (36, 36)  # fallback placement when the grid has no free cell
 STAMP_TS_FORMAT = "%d.%m.%Y %H:%M:%S Z"  # display only; the crypto TS is the TSA token
@@ -254,10 +260,10 @@ def place_stamp(writer: IncrementalPdfFileWriter, page: int, signer_name: str) -
 def main() -> None:
     req = json.load(sys.stdin)
 
-    # The certificate's suite travels from PHP (ADR-014). Until this driver
-    # dispatches on it, refuse anything but the classical suite outright.
-    spec = req.get("algorithm")
-    if spec is not None and (spec.get("spec") != "v1" or spec.get("family") != "ecdsa"):
+    # The certificate's suite (ADR-014) decides the CMS signature algorithm, the
+    # content digest and how the token is fed - see the PKCS11Signer below.
+    spec = req.get("algorithm", CLASSICAL)
+    if spec.get("spec") != "v1" or spec.get("family") not in FAMILIES:
         fail("UnsupportedAlgorithm")
 
     signer_req = req["signer"]
@@ -317,11 +323,12 @@ def main() -> None:
             signing_cert=load_cert(signer_req["signing_cert_pem"]),
             key_label=signer_req["key_label"],
             ca_chain=ca_chain,
-            signature_mechanism=ECDSA_SIG_MECHANISM,
-            # kryoptic (and most tokens) expose the raw CKM_ECDSA mechanism,
-            # which signs a pre-computed digest - not CKM_ECDSA_SHA384. Hash here
-            # and hand the token raw bytes, exactly as bin/issue_cert.py does.
-            use_raw_mechanism=True,
+            signature_mechanism=algos.SignedDigestAlgorithm({"algorithm": spec["signature_algorithm"]}),
+            # Prehash (ECDSA): the token exposes raw CKM_ECDSA over a digest
+            # computed here. Pure (ML-DSA): pyHanko hands the token the whole
+            # signed-attributes DER for CKM_ML_DSA (RFC 9882) - raw mode would
+            # sign the wrong bytes, and pyHanko refuses it for ML-DSA anyway.
+            use_raw_mechanism=spec["signing_mode"] == "prehash",
         )
 
         tsa_url = req.get("tsa_url")
@@ -329,7 +336,7 @@ def main() -> None:
 
         signature_meta = signers.PdfSignatureMetadata(
             field_name=field_name,
-            md_algorithm=MD_ALGORITHM,
+            md_algorithm=spec["digest"],
             subfilter=fields.SigSeedSubFilter.PADES,
             reason=req.get("reason") or None,
             location=req.get("location") or None,
@@ -380,6 +387,9 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
+    except pkcs11.exceptions.MechanismInvalid:
+        # The token does not implement the certificate's suite.
+        fail("UnsupportedAlgorithm")
     except Exception as exc:  # noqa: BLE001 — boundary: report the type ONLY.
         # The message can echo input (e.g. the PIN) and this string is
         # audit-logged by the caller, so report only the class name.
