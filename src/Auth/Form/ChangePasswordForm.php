@@ -10,6 +10,7 @@ use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\PasswordStrength;
 
 /**
  * @extends AbstractType<array<string, mixed>>
@@ -35,6 +36,7 @@ class ChangePasswordForm extends AbstractType
             'constraints' => [
                 new NotBlank(message: 'Please enter a new password.'),
                 new Length(min: 10, max: 4096, minMessage: 'Your password must be at least {{ limit }} characters.'),
+                new PasswordStrength(minScore: PasswordStrength::STRENGTH_MEDIUM, message: 'This password is too easy to guess - make it longer or less predictable.'),
             ],
         ]);
     }

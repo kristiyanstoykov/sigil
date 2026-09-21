@@ -90,6 +90,12 @@ abstract class AuthWebTestCase extends WebTestCase
     /** Password + TOTP, so the client ends up FULLY authenticated. */
     protected function loginFully(string $email): void
     {
+        // Tests log the same user in repeatedly within one TOTP period; the
+        // replay guard (one code, one login) would refuse the second. Forget
+        // the last accepted code - the guard has its own test.
+        static::getContainer()->get(EntityManagerInterface::class)->getConnection()
+            ->executeStatement('UPDATE users SET last_totp_code = NULL, last_totp_used_at = NULL WHERE email = :email', ['email' => $email]);
+
         $this->submitLogin($email, self::PASSWORD);
         $crawler = $this->client->request('GET', '/2fa');
         $form = $crawler->filter('form[action$="2fa_check"]')->form([

@@ -18,6 +18,15 @@ framework:
             limit: 10
             interval: '15 minutes'
 
+        # The signer / recipient pickers answer "does this email have an
+        # account, and can it be used" - a deliberate trade for a usable picker,
+        # so the caller is paced to stop it being an enumeration tool. Keyed per
+        # user (they are authenticated).
+        directory_lookup:
+            policy: sliding_window
+            limit: 60
+            interval: '10 minutes'
+
         # Certificate issuance is expensive (token init + keygen + CA
         # signature) — keep it human-paced. Keyed per user.
         certificate_issue:

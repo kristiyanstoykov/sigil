@@ -51,6 +51,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(options: ['default' => false])]
     private bool $totpEnabled = false;
 
+    /**
+     * RFC 6238 §5.2 replay guard: the last code accepted and when. A code is
+     * good for one login; the same six digits presented again inside the
+     * verification window are refused even though the algorithm would accept
+     * them. The value is spent by the time it is stored.
+     */
+    #[ORM\Column(length: 8, nullable: true)]
+    private ?string $lastTotpCode = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $lastTotpUsedAt = null;
+
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
@@ -108,6 +120,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     public function getGoogleAuthenticatorUsername(): string
     {
         return $this->email;
+    }
+
+    /** Whether this exact code was already accepted within the last $windowSeconds. */
+    public function wasTotpCodeUsed(string $code, \DateTimeImmutable $now, int $windowSeconds = 90): bool
+    {
+        return null !== $this->lastTotpCode
+            && null !== $this->lastTotpUsedAt
+            && hash_equals($this->lastTotpCode, $code)
+            && $now->getTimestamp() - $this->lastTotpUsedAt->getTimestamp() < $windowSeconds;
+    }
+
+    public function recordTotpCode(string $code, \DateTimeImmutable $now): void
+    {
+        $this->lastTotpCode = $code;
+        $this->lastTotpUsedAt = $now;
     }
 
     public function getGoogleAuthenticatorSecret(): ?string

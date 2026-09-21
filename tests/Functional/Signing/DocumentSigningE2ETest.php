@@ -180,7 +180,7 @@ class DocumentSigningE2ETest extends AuthWebTestCase
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
             new JsonDriver($projectDir.'/bin'),
             new SuiteCredentials($projectDir.'/var/ca'),
-        new PinHasher(),
+        $c->get(PinHasher::class),
         );
     }
 

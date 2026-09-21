@@ -9,6 +9,7 @@ use App\Certificate\Enum\CertificateStatus;
 use App\Certificate\Exception\CertificateLockedException;
 use App\Certificate\Exception\InvalidPinException;
 use App\Certificate\Service\PinGate;
+use App\Certificate\Service\PinHasher;
 use App\Core\Entity\User;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -51,6 +52,25 @@ class PinGateTest extends AuthWebTestCase
 
         $gate->verify($certificate, '123456');
         self::assertSame(0, $certificate->getFailedPinAttempts());
+    }
+
+    /**
+     * Rows from before 2026-09-21 hold Argon2id straight over the PIN. The gate
+     * still accepts them and, the PIN being in hand, moves the row onto the
+     * peppered form so the table alone stops confirming guesses.
+     */
+    public function testALegacyHashIsAcceptedOnceAndUpgradedToThePepperedForm(): void
+    {
+        $user = $this->createUser($this->uniqueEmail('pepper'));
+        $certificate = $this->makeCertificate($user); // password_hash(): the legacy, unpeppered form
+        self::assertStringStartsWith('$argon2id$', $certificate->getPinHash());
+
+        static::getContainer()->get(PinGate::class)->verify($certificate, '123456');
+
+        self::assertStringStartsWith(PinHasher::PREFIX, $certificate->getPinHash(), 'rehashed with the pepper');
+        // And the peppered row keeps working, while a raw guess against it does not.
+        static::getContainer()->get(PinGate::class)->verify($certificate, '123456');
+        self::assertFalse(password_verify('123456', substr($certificate->getPinHash(), \strlen(PinHasher::PREFIX))));
     }
 
     public function testWrongPinReportsAttemptsRemaining(): void

@@ -32,6 +32,33 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         self::assertResponseIsSuccessful();
     }
 
+    /**
+     * RFC 6238 §5.2: a code that logged someone in once must not log them in
+     * again, even inside the window in which the algorithm still accepts it.
+     * The stolen-over-the-shoulder code is worth exactly one session.
+     */
+    public function testATotpCodeIsAcceptedOnlyOnce(): void
+    {
+        $email = $this->uniqueEmail('replay');
+        $this->createUser($email, verified: true, totpEnabled: true);
+        $code = $this->totpCode(self::TOTP_SECRET);
+
+        $this->submitLogin($email, self::PASSWORD);
+        $crawler = $this->client->request('GET', '/2fa');
+        $this->client->submit($crawler->filter('form[action$="2fa_check"]')->form(['_auth_code' => $code]));
+        self::assertResponseRedirects('/', message: 'first use: accepted');
+
+        // A second session, the same code, seconds later.
+        $this->client->getCookieJar()->clear();
+        $this->submitLogin($email, self::PASSWORD);
+        $crawler = $this->client->request('GET', '/2fa');
+        $this->client->submit($crawler->filter('form[action$="2fa_check"]')->form(['_auth_code' => $code]));
+        $this->client->followRedirect();
+        self::assertStringContainsString('/2fa', $this->client->getRequest()->getUri(), 'replayed: refused');
+        // (That a fresh code still works is testLoginWithTotpEnabledRequiresCodeBeforeDashboard;
+        // the next step's code cannot be used here without waiting out the period.)
+    }
+
     public function testWrongTotpCodeIsRejected(): void
     {
         $email = $this->uniqueEmail('totpwrong');

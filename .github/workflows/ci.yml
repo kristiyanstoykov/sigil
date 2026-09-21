@@ -33,6 +33,12 @@ jobs:
             # restored across runs and only rebuild when the Dockerfile changes. `load: true` puts the
             # sigil-app:latest tag into the daemon so `docker compose run` (below)
             # reuses it instead of rebuilding.
+            # The Python drivers' dependencies are pinned in requirements.txt;
+            # audit them the way composer audit covers the PHP side. Runs on the
+            # runner, not in the image, so the image never carries the auditor.
+            - name: Audit Python dependencies
+              run: pipx run pip-audit --strict -r requirements.txt
+
             - name: Set up Buildx
               uses: docker/setup-buildx-action@v3
 

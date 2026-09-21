@@ -7,6 +7,7 @@ namespace App\Receipt\Service;
 use App\Core\Crypto\EncryptionServiceInterface;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
+use App\Document\Exception\NoAccessException;
 use App\Document\Service\DocumentStorageInterface;
 use App\Document\Service\KeyManagementService;
 use App\Receipt\Entity\DeliveryReceipt;
@@ -34,7 +35,7 @@ final class ReceiptDownloader
     public function download(DeliveryReceipt $receipt, User $user): string
     {
         $grant = $this->grants->findForReceiptAndUser($receipt, $user)
-            ?? throw new DomainException('You do not have access to this receipt.');
+            ?? throw new NoAccessException('You do not have access to this receipt.');
 
         $dek = $this->keys->unwrapDek($user, $grant->getWrappedDek(), $receipt->dekAad());
         try {

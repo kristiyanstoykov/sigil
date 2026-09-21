@@ -20,11 +20,13 @@ use App\Signing\Service\SignerEligibility;
 use App\Signing\Service\SigningRequestService;
 use Psr\Clock\ClockInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -102,9 +104,13 @@ class SigningRequestController extends AbstractController
      * that silently accepts an unusable signer is worse.
      */
     #[Route('/lookup', name: 'app_signing_request_lookup', methods: ['POST'])]
-    public function lookup(string $id, Request $request, SignerEligibility $eligibility, DocumentSignatories $signatories): JsonResponse
+    public function lookup(string $id, Request $request, SignerEligibility $eligibility, DocumentSignatories $signatories, #[Autowire(service: 'limiter.directory_lookup')] RateLimiterFactory $lookupLimiter): JsonResponse
     {
         $document = $this->ownedDocument($id);
+
+        if (!$lookupLimiter->create($this->currentUser->get()->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->json(['ok' => false, 'reason' => 'Too many lookups - please slow down.'], JsonResponse::HTTP_TOO_MANY_REQUESTS);
+        }
 
         $email = trim((string) $request->getPayload()->get('email'));
         $user = '' === $email ? null : $this->users->findOneByEmail($email);

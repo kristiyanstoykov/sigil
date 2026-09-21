@@ -225,7 +225,7 @@ class DeliveryReceiptTest extends AuthWebTestCase
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
             new JsonDriver($projectDir.'/bin'),
             $credentials,
-            new PinHasher(),
+            $c->get(PinHasher::class),
         );
         if (!$issuer->hasCa()) {
             $issuer->bootstrapCa();

@@ -14,6 +14,7 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\PasswordStrength;
 
 /**
  * @extends AbstractType<User>
@@ -56,6 +57,10 @@ class RegistrationForm extends AbstractType
                 'constraints' => [
                     new NotBlank(),
                     new Length(min: 10, max: 4096),
+                    // Entropy, not just length: "password12" is ten characters.
+                    // Estimated offline (no breach-list lookup), medium is the
+                    // floor at which common patterns stop passing.
+                    new PasswordStrength(minScore: PasswordStrength::STRENGTH_MEDIUM, message: 'This password is too easy to guess - make it longer or less predictable.'),
                 ],
             ])
         ;

@@ -15,11 +15,13 @@ use App\Document\Entity\Document;
 use App\Document\Repository\DocumentRepository;
 use App\Document\Security\DocumentVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -83,9 +85,13 @@ class DeliveryController extends AbstractController
      * picker that silently accepts an address nobody can be served at is worse.
      */
     #[Route('/lookup', name: 'app_delivery_lookup', methods: ['POST'])]
-    public function lookup(string $id, Request $request, RecipientEligibility $eligibility): JsonResponse
+    public function lookup(string $id, Request $request, RecipientEligibility $eligibility, #[Autowire(service: 'limiter.directory_lookup')] RateLimiterFactory $lookupLimiter): JsonResponse
     {
         $this->ownedDocument($id);
+
+        if (!$lookupLimiter->create($this->currentUser->get()->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->json(['ok' => false, 'reason' => 'Too many lookups - please slow down.'], JsonResponse::HTTP_TOO_MANY_REQUESTS);
+        }
 
         $email = trim((string) $request->getPayload()->get('email'));
         $user = '' === $email ? null : $this->users->findOneByEmail($email);

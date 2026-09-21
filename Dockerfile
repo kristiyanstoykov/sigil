@@ -41,13 +41,15 @@ RUN mkdir -p /var/lib/kryoptic/tokens
 ENV KRYOPTIC_CONF=/var/lib/kryoptic/token.conf \
     PKCS11_MODULE=/usr/lib/libkryoptic_pkcs11.so
 
-# pyHanko (PAdES signing, ADR-007). tzdata is required — pyHanko resolves a
-# ZoneInfo at import time. image-support extra = Pillow, for visible stamps.
-# Pinned: 0.37 dropped open_pkcs11_session(token_label=) and broke every signature.
+# pyHanko (PAdES signing, ADR-007) and everything it pulls in, pinned to the
+# version in requirements.txt - transitive packages included, so a rebuild
+# cannot float `cryptography` or `python-pkcs11` under the drivers, and CI's
+# pip-audit covers the exact set. tzdata is required: pyHanko resolves a
+# ZoneInfo at import time.
+COPY requirements.txt /tmp/requirements.txt
 RUN apk add --no-cache python3 py3-pip tzdata \
-    && pip3 install --break-system-packages --no-cache-dir \
-        "pyhanko[pkcs11,image-support,qr,opentype]==0.37.0" "pyhanko-cli==0.5.0" \
-    && rm -rf /var/cache/apk/*
+    && pip3 install --break-system-packages --no-cache-dir --no-deps -r /tmp/requirements.txt \
+    && rm -rf /var/cache/apk/* /tmp/requirements.txt
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

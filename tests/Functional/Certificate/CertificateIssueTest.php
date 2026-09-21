@@ -56,7 +56,9 @@ class CertificateIssueTest extends AuthWebTestCase
         self::assertSame('ECDSA-P384-SHA384/v1', $certificate->getAlgorithmId());
         self::assertStringContainsString('BEGIN CERTIFICATE', $certificate->getCertificatePem());
         self::assertNotSame($certificate->getPinHash(), '123456');
-        self::assertTrue(password_verify('123456', $certificate->getPinHash()));
+        // Peppered under the host key, so a raw guess against the stored hash proves nothing.
+        self::assertStringStartsWith(PinHasher::PREFIX, $certificate->getPinHash());
+        self::assertTrue(static::getContainer()->get(PinHasher::class)->verify('123456', $certificate->getPinHash()));
 
         // the certificate chains to the Sigil CA
         $pemFile = (string) tempnam(sys_get_temp_dir(), 'sigil-test-cert-');
@@ -112,7 +114,7 @@ class CertificateIssueTest extends AuthWebTestCase
             (string) ($_ENV['SIGIL_SEAL_PIN'] ?? $_SERVER['SIGIL_SEAL_PIN']),
             new JsonDriver($c->getParameter('kernel.project_dir').'/bin'),
             new SuiteCredentials($c->getParameter('kernel.project_dir').'/var/ca'),
-        new PinHasher(),
+        $c->get(PinHasher::class),
         );
 
         $issuer->revoke($certificate, $user, 'user requested');

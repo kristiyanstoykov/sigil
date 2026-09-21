@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Receipt\Controller;
 
-use App\Core\Exception\DomainException;
+use App\Document\Exception\NoAccessException;
 use App\Core\Http\ContentDisposition;
 use App\Core\Security\CurrentUser;
 use App\Receipt\Entity\DeliveryReceipt;
@@ -41,7 +41,7 @@ class ReceiptController extends AbstractController
 
         try {
             $bytes = $downloader->download($receipt, $this->currentUser->get());
-        } catch (DomainException) {
+        } catch (NoAccessException) {
             throw $this->createNotFoundException();
         }
 

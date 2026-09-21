@@ -34,6 +34,26 @@ class PinGate
     }
 
     /**
+     * The usability half of the gate on its own, for the moment a signature is
+     * committed: the PIN was checked before the token signed, but a hold or a
+     * revocation may have landed since, and it is the row as it is *now* that
+     * decides whether the signature goes on the record.
+     *
+     * @throws CertificateLockedException when the certificate is locked/unusable
+     */
+    public function assertUsable(Certificate $certificate, bool $allowOnHold = false): void
+    {
+        $now = $this->now();
+
+        $usable = $allowOnHold ? $certificate->isWithinValidity($now) : $certificate->isUsable($now);
+        if (!$usable) {
+            throw new CertificateLockedException($certificate->isLocked()
+                ? 'This certificate is locked. Unlock it with your password and a fresh authenticator code.'
+                : 'This certificate is not usable (on hold, revoked or expired).');
+        }
+    }
+
+    /**
      * Verifies the PIN or throws. On success the counter is reset and the
      * caller may open the PKCS#11 session with the (still in-memory) PIN.
      *
@@ -45,14 +65,8 @@ class PinGate
      */
     public function verify(Certificate $certificate, #[\SensitiveParameter] string $pin, bool $allowOnHold = false): void
     {
+        $this->assertUsable($certificate, $allowOnHold);
         $now = $this->now();
-
-        $usable = $allowOnHold ? $certificate->isWithinValidity($now) : $certificate->isUsable($now);
-        if (!$usable) {
-            throw new CertificateLockedException($certificate->isLocked()
-                ? 'This certificate is locked. Unlock it with your password and a fresh authenticator code.'
-                : 'This certificate is not usable (on hold, revoked or expired).');
-        }
 
         if ($this->hasher->verify($pin, $certificate->getPinHash())) {
             $certificate->resetPinCounter();

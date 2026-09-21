@@ -9,6 +9,7 @@ use App\Core\Crypto\EncryptionServiceInterface;
 use App\Core\Entity\User;
 use App\Core\Exception\DomainException;
 use App\Document\Entity\DocumentVersion;
+use App\Document\Exception\NoAccessException;
 use App\Document\Repository\DocumentKeyGrantRepository;
 
 /**
@@ -31,12 +32,13 @@ final class DocumentDownloader
     /**
      * @return string decrypted plaintext bytes
      *
-     * @throws DomainException if the user has no grant, or on any crypto/storage failure
+     * @throws NoAccessException if the user has no grant
+     * @throws DomainException   on any crypto/storage failure
      */
     public function download(DocumentVersion $version, User $user): string
     {
         $grant = $this->grants->findForVersionAndUser($version, $user)
-            ?? throw new DomainException('You do not have access to this document.');
+            ?? throw new NoAccessException('You do not have access to this document.');
 
         $dek = $this->keys->unwrapDek($user, $grant->getWrappedDek(), $version->dekAad());
         try {

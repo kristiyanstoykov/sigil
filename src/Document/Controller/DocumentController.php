@@ -8,6 +8,7 @@ use App\Core\Exception\DomainException;
 use App\Core\Http\ContentDisposition;
 use App\Core\Security\CurrentUser;
 use App\Document\Entity\Document;
+use App\Document\Exception\NoAccessException;
 use App\Document\Entity\DocumentVersion;
 use App\Document\Form\UploadDocumentForm;
 use App\Document\Repository\DocumentRepository;
@@ -185,9 +186,12 @@ class DocumentController extends AbstractController
     ): Response {
         try {
             $bytes = $downloader->download($version, $this->currentUser->get());
-        } catch (DomainException) {
+        } catch (NoAccessException) {
+            // 404, not 403: the id is not confirmed to someone without a grant.
             throw $this->createNotFoundException();
         }
+        // Anything else the downloader throws - storage, decryption - is a real
+        // failure and surfaces as one (500, logged), never as "not found".
 
         return new Response($bytes, Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',

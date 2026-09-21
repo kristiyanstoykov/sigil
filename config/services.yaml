@@ -118,6 +118,9 @@ when@test:
         App\Auth\Security\TotpSecretVault:
             public: true
 
+        App\Certificate\Service\PinHasher:
+            public: true
+
         App\AuditLog\Service\AuditAnchorSigner:
             public: true
 

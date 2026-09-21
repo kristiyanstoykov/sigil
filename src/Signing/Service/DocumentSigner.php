@@ -116,9 +116,12 @@ final class DocumentSigner
         try {
             $this->em->wrapInTransaction(function () use ($document, $actor, $signedPdf, $certificate, $signingRequest, &$version): void {
                 // The token has signed, but the world may have moved while it did:
-                // a delivery or a withdrawal that committed meanwhile. Re-read the
-                // document under lock and ask "may sign" again before minting.
-                RowLock::acquire($this->em, $document);
+                // a delivery, a withdrawal, a hold or a revocation that committed
+                // meanwhile. Re-read the rows under lock and ask both questions
+                // again - may this document be signed, with this certificate -
+                // before anything goes on the record.
+                RowLock::acquire($this->em, $document, $certificate);
+                $this->pinGate->assertUsable($certificate);
                 $this->assertMaySign($document, $this->requests->findPendingForDocument($document), $actor);
 
                 $version = $this->versionWriter->write(
