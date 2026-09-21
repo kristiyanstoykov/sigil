@@ -10,11 +10,12 @@ use App\Core\Crypto\RootKeyProvider;
 use Psr\Clock\ClockInterface;
 
 /**
- * Mints and checks {@see AuditAnchor}s. The MAC key is derived from the root
- * key (ADR-010), so a party with database access but not the root key can
- * neither rewrite the tail nor forge a checkpoint that blesses the rewrite.
- * An attacker holding the root key too is the host compromise ADR-010 already
- * names - the anchor's copy outside the host is the remaining defence.
+ * Mints and checks {@see AuditAnchor}s. The MAC key is derived from
+ * SIGIL_ROOT_KEY - the host-resident application key, not the token's - so a
+ * party with database access but not the host can neither rewrite the tail
+ * nor forge a checkpoint that blesses the rewrite. A host compromise yields
+ * the key; the anchor's copy outside the host is then the remaining defence,
+ * and a token-held HMAC or a seal-key signature the next step (ADR-010).
  */
 final class AuditAnchorSigner
 {

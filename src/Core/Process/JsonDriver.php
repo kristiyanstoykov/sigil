@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Process;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -35,7 +36,13 @@ final class JsonDriver
         $process = new Process(['python3', $this->binDir.'/'.$script]);
         $process->setInput(json_encode($request, \JSON_THROW_ON_ERROR));
         $process->setTimeout($timeout);
-        $process->run();
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            // A hung TSA or token is a driver failure like any other: audited
+            // and explained by the caller, not a bare 500.
+            throw new DriverException($script, 'Timeout');
+        }
 
         /** @var mixed $decoded */
         $decoded = json_decode($process->getOutput(), true);

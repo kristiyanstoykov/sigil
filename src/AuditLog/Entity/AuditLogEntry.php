@@ -104,7 +104,12 @@ class AuditLogEntry
 
         return json_encode([
             'sequence' => (int) $this->sequence,
-            'occurredAt' => $this->occurredAt->format(\DateTimeInterface::RFC3339_EXTENDED),
+            // The column is a naive timestamp holding UTC wall-clock time (the
+            // logger writes UTC). A reload rebuilds it in PHP's default zone, so
+            // converting would shift the hours; hash the wall-clock fields as
+            // stored and stamp the +00:00 they mean. Byte-identical to the
+            // RFC3339_EXTENDED form every existing entry was hashed with.
+            'occurredAt' => $this->occurredAt->format('Y-m-d\TH:i:s.v').'+00:00',
             'actorId' => $this->actorId?->toRfc4122(),
             'action' => $this->action,
             'subjectType' => $this->subjectType,

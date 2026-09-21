@@ -57,7 +57,7 @@ final class DocumentSigner
      */
     public function sign(Document $document, Certificate $certificate, User $actor, #[\SensitiveParameter] string $pin): DocumentVersion
     {
-        if ($certificate->getUser() !== $actor) {
+        if (!$certificate->getUser()->is($actor)) {
             throw new DomainException('You can only sign with your own certificate.');
         }
 
@@ -161,7 +161,7 @@ final class DocumentSigner
             return;
         }
 
-        if ($document->getOwner() !== $actor) {
+        if (!$document->getOwner()->is($actor)) {
             throw new DomainException('You can only sign your own document.');
         }
 

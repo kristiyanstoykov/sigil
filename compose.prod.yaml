@@ -11,7 +11,9 @@
 # nginx, a cloud LB) and set TRUSTED_HOSTS + DEFAULT_URI + MERCURE_PUBLIC_URL to
 # the public name; replace `php -S` (single worker, dev server) with FrankenPHP
 # or php-fpm - the app has no dependency on the runtime; ship
-# SIGIL_AUDIT_ANCHOR_PATH and the kryoptic_tokens volume off the host.
+# SIGIL_AUDIT_ANCHOR_PATH and the kryoptic_tokens volume off the host; run the
+# container as a non-root user (the entrypoint's `composer install` and the
+# token volume's ownership are what stand in the way today).
 services:
   app:
     environment:
@@ -23,6 +25,9 @@ services:
       DEFAULT_URI: "${DEFAULT_URI:?set DEFAULT_URI, e.g. https://sigil.example.com}"
       MERCURE_PUBLIC_URL: "${MERCURE_PUBLIC_URL:?set MERCURE_PUBLIC_URL}"
       MERCURE_JWT_SECRET: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      SIGIL_ROOT_KEY: "${SIGIL_ROOT_KEY:?set SIGIL_ROOT_KEY - it seals TOTP seeds and MACs fingerprints and audit anchors}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}"
       SIGIL_ROOT_TOKEN_PIN: "${SIGIL_ROOT_TOKEN_PIN:?set SIGIL_ROOT_TOKEN_PIN}"
       SIGIL_CA_PIN: "${SIGIL_CA_PIN:?set SIGIL_CA_PIN}"
       SIGIL_SEAL_PIN: "${SIGIL_SEAL_PIN:?set SIGIL_SEAL_PIN}"

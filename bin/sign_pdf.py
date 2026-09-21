@@ -283,7 +283,7 @@ def main() -> None:
     #
     # Sigil accepts that risk deliberately: it is a rendering ambiguity in the
     # *input*, not in what gets signed. The signature covers an exact byte
-    # range, and Sigil independently records SHA-384 of those same bytes on the
+    # range, and Sigil independently records a keyed HMAC-SHA-384 of those same bytes on the
     # DocumentVersion, which the delivery receipt then names - so what was
     # signed stays pinned regardless of how a viewer resolves the xref. See
     # "Hybrid cross-reference PDFs" in CLAUDE.md.

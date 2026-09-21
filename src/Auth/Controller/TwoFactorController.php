@@ -6,7 +6,7 @@ namespace App\Auth\Controller;
 
 use App\Auth\Form\TwoFactorSetupForm;
 use App\Auth\Security\TotpSecretVault;
-use App\Core\Entity\User;
+use App\Core\Security\CurrentUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
@@ -24,16 +24,17 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class TwoFactorController extends AbstractController
 {
     public function __construct(
+        private readonly CurrentUser $currentUser,
         private readonly GoogleAuthenticatorInterface $googleAuthenticator,
         private readonly TotpSecretVault $vault,
         private readonly EntityManagerInterface $em,
-    ) {}
+    ) {
+    }
 
     #[Route('/2fa/setup', name: 'app_2fa_setup')]
     public function setup(Request $request): Response
     {
-        /** @var User $user */
-        $user = $this->getUser();
+        $user = $this->currentUser->get();
 
         if ($user->isGoogleAuthenticatorEnabled()) {
             $this->addFlash('info', 'Two-factor authentication is already active on your account.');

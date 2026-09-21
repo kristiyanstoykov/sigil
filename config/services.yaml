@@ -118,6 +118,12 @@ when@test:
         App\Auth\Security\TotpSecretVault:
             public: true
 
+        App\AuditLog\Service\AuditAnchorSigner:
+            public: true
+
+        App\AuditLog\Repository\AuditLogEntryRepository:
+            public: true
+
         App\Auth\Command\TotpSealCommand:
             public: true
 

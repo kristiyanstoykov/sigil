@@ -163,6 +163,10 @@ def main() -> None:
     token = find_token(lib, signer["token_label"])
 
     now = datetime.datetime.now(datetime.timezone.utc)
+    # Backdated a little, as CAs do: the app checks notBefore on its own clock,
+    # and a few seconds of skew must not make a just-issued certificate "not yet
+    # usable". Validity still ends validity_days from now.
+    not_before = now - datetime.timedelta(minutes=5)
     not_after = now + datetime.timedelta(days=int(req["validity_days"]))
     serial = int.from_bytes(os.urandom(16)) >> 1
     subject = name_from(req["subject"])
@@ -200,7 +204,7 @@ def main() -> None:
             "signature": sig_algo,
             "issuer": issuer_name,
             "validity": {
-                "not_before": x509.Time({"utc_time": now}),
+                "not_before": x509.Time({"utc_time": not_before}),
                 "not_after": x509.Time({"utc_time": not_after}),
             },
             "subject": subject,
@@ -221,7 +225,7 @@ def main() -> None:
         "certificate_pem": pem.armor("CERTIFICATE", cert.dump()).decode(),
         "serial_number": format(serial, "x"),
         "subject_dn": subject.human_friendly,
-        "not_before": now.isoformat(),
+        "not_before": not_before.isoformat(),
         "not_after": not_after.isoformat(),
     }, sys.stdout)
 

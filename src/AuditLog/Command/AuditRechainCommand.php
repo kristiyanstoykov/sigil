@@ -8,6 +8,7 @@ use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Entity\AuditLogEntry;
 use App\AuditLog\Enum\AuditSeverity;
 use App\AuditLog\Repository\AuditLogEntryRepository;
+use App\AuditLog\Service\AuditAnchorSigner;
 use App\AuditLog\Service\AuditChainHasher;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -16,6 +17,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * Repair a chain whose hashes cannot be recomputed from what the database
@@ -36,6 +38,9 @@ final class AuditRechainCommand extends Command
         private readonly AuditLogEntryRepository $repository,
         private readonly AuditLoggerInterface $auditLogger,
         private readonly EntityManagerInterface $em,
+        private readonly AuditAnchorSigner $anchors,
+        #[Autowire('%env(resolve:SIGIL_AUDIT_ANCHOR_PATH)%')]
+        private readonly string $anchorPath,
     ) {
         parent::__construct();
     }
@@ -95,8 +100,37 @@ final class AuditRechainCommand extends Command
             severity: AuditSeverity::Warning,
         );
 
-        $io->success(sprintf('Relinked %d entries (old head %s…, new head %s…); the repair is recorded as audit.rechained. Anchor the new head now.', $count, substr($oldHead, 0, 12), substr($previous, 0, 12)));
+        // Every anchor minted so far names a hash that no longer exists; kept in
+        // place they would read as "history rewritten" forever. Set them aside
+        // and start a fresh file with the new head - the repair entry included.
+        $rotated = $this->rotateAnchors();
+
+        $io->success(sprintf('Relinked %d entries (old head %s…, new head %s…); the repair is recorded as audit.rechained.', $count, substr($oldHead, 0, 12), substr($previous, 0, 12)));
+        if (null !== $rotated) {
+            $io->note(sprintf('Previous anchors moved to %s (they name the old hashes); a fresh anchor of the new head was written.', $rotated));
+        }
 
         return Command::SUCCESS;
+    }
+
+    /** @return string|null where the old anchor file went, if there was one */
+    private function rotateAnchors(): ?string
+    {
+        $rotated = null;
+        if (is_file($this->anchorPath)) {
+            $rotated = sprintf('%s.pre-rechain-%s', $this->anchorPath, date('Ymd-His'));
+            rename($this->anchorPath, $rotated);
+        }
+
+        $anchor = $this->anchors->anchorHead();
+        if (null !== $anchor) {
+            $dir = \dirname($this->anchorPath);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0750, true);
+            }
+            file_put_contents($this->anchorPath, $anchor->toJsonLine(), \FILE_APPEND | \LOCK_EX);
+        }
+
+        return $rotated;
     }
 }

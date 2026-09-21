@@ -7,8 +7,11 @@ namespace App\Signing\Command;
 use App\Document\Service\DocumentEraser;
 use App\Signing\Repository\SigningRequestRepository;
 use App\Signing\Service\SigningRequestService;
+use App\Signing\Entity\SigningRequest;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Psr\Clock\ClockInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -37,6 +40,8 @@ final class SweepSigningRequestsCommand extends Command
         private readonly DocumentEraser $eraser,
         private readonly ClockInterface $clock,
         private readonly EntityManagerInterface $em,
+        private readonly ManagerRegistry $doctrine,
+        private readonly LoggerInterface $logger,
     ) {
         parent::__construct();
     }
@@ -61,8 +66,17 @@ final class SweepSigningRequestsCommand extends Command
 
         $expired = 0;
         $erased = 0;
+        $failed = 0;
 
-        foreach ($overdue as $request) {
+        // One request's failure must not strand the rest of the run: a rolled
+        // back transaction closes the EntityManager, so it is reopened and the
+        // remaining ids are reloaded through it.
+        $ids = array_map(static fn (SigningRequest $r): string => $r->getId()->toRfc4122(), $overdue);
+        foreach ($ids as $id) {
+            $request = $this->requests->find($id);
+            if (null === $request) {
+                continue; // closed by someone else since the query
+            }
             $document = $request->getDocument();
             $title = $document->getTitle();
             $signed = $request->hasAnySignature();
@@ -72,28 +86,35 @@ final class SweepSigningRequestsCommand extends Command
                 continue;
             }
 
-            // Expire first either way: the request must be closed on the record
-            // before its document disappears, and closing also takes the pending
-            // signer's access away.
-            $this->service->expire($request);
+            try {
+                // Expire first either way: the request must be closed on the record
+                // before its document disappears, and closing also takes the pending
+                // signer's access away.
+                $this->service->expire($request);
 
-            if ($signed) {
-                ++$expired;
-                continue;
+                if ($signed) {
+                    ++$expired;
+                    continue;
+                }
+
+                // The request goes first, through the ORM. Its row would vanish with
+                // the document anyway (the FK is onDelete: CASCADE), but a cascade
+                // the database performs is one Doctrine never sees: the request and
+                // its signers would stay managed over deleted rows and abort the
+                // next request's flush, stranding the rest of the run.
+                $requester = $request->getRequester();
+                $this->em->remove($request);
+                $this->em->flush();
+
+                $this->eraser->erase($document, $requester, 'signing request expired unsigned');
+
+                ++$erased;
+            } catch (\Throwable $e) {
+                ++$failed;
+                $this->logger->error('Sweep failed for a signature request; continuing with the rest.', ['requestId' => $id, 'document' => $title, 'exception' => $e]);
+                $io->warning(sprintf('Failed on "%s": %s', $title, $e::class));
+                $this->reopen();
             }
-
-            // The request goes first, through the ORM. Its row would vanish with
-            // the document anyway (the FK is onDelete: CASCADE), but a cascade
-            // the database performs is one Doctrine never sees: the request and
-            // its signers would stay managed over deleted rows and abort the
-            // next request's flush, stranding the rest of the run.
-            $requester = $request->getRequester();
-            $this->em->remove($request);
-            $this->em->flush();
-
-            $this->eraser->erase($document, $requester, 'signing request expired unsigned');
-
-            ++$erased;
         }
 
         if ($dryRun) {
@@ -103,8 +124,20 @@ final class SweepSigningRequestsCommand extends Command
         }
 
         $this->em->flush();
-        $io->success(sprintf('%d request(s) expired, %d unsigned document(s) deleted.', $expired, $erased));
+        $io->success(sprintf('%d request(s) expired, %d unsigned document(s) deleted%s.', $expired, $erased, $failed > 0 ? sprintf(', %d FAILED', $failed) : ''));
 
-        return Command::SUCCESS;
+        return $failed > 0 ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    /**
+     * A rolled-back transaction leaves the EntityManager closed. The registry
+     * reset swaps the instance behind the injected proxy, so every service
+     * holding it - this one, the request service, the eraser - is live again.
+     */
+    private function reopen(): void
+    {
+        if (!$this->em->isOpen()) {
+            $this->doctrine->resetManager();
+        }
     }
 }

@@ -6,9 +6,11 @@ namespace App\Tests\Functional\AuditLog;
 
 use App\AuditLog\AuditLoggerInterface;
 use App\AuditLog\Command\AuditAnchorCommand;
+use App\AuditLog\Command\AuditRechainCommand;
 use App\AuditLog\Command\AuditVerifyCommand;
 use App\AuditLog\Entity\AuditLogEntry;
 use App\AuditLog\Enum\AuditSeverity;
+use App\AuditLog\Service\AuditAnchorSigner;
 use App\AuditLog\Service\AuditChainHasher;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -75,6 +77,27 @@ class AuditChainTest extends KernelTestCase
         $tester = $this->makeVerifyTester();
         self::assertSame(0, $tester->execute([]));
         self::assertStringContainsString('2 entries verified', $tester->getDisplay());
+    }
+
+    /**
+     * The column has no time zone, so a verifier running under another PHP
+     * default zone rebuilds every timestamp with that offset. The canonical
+     * form pins UTC, so the hash is the same wherever it is recomputed.
+     */
+    public function testTheHashDoesNotDependOnThePhpDefaultTimezone(): void
+    {
+        $this->auditLogger->log('test.tz');
+        $this->em->clear();
+
+        $default = date_default_timezone_get();
+        date_default_timezone_set('Europe/Sofia');
+        try {
+            $tester = $this->makeVerifyTester();
+            self::assertSame(0, $tester->execute([]));
+            self::assertStringContainsString('1 entries verified', $tester->getDisplay());
+        } finally {
+            date_default_timezone_set($default);
+        }
     }
 
     public function testVerifyFailsWhenAnEntryIsTampered(): void
@@ -156,6 +179,50 @@ class AuditChainTest extends KernelTestCase
         self::assertSame(1, $tester->execute(['--anchor' => $anchorFile]));
         self::assertStringContainsString('was not minted', $tester->getDisplay());
         @unlink($anchorFile);
+    }
+
+    /**
+     * The repair leaves anchors that name hashes which no longer exist; it must
+     * set them aside and re-anchor the repaired head, or verify --anchor would
+     * read the repair as tampering forever.
+     */
+    public function testRechainRotatesTheAnchorsAndAnchorsTheRepairedHead(): void
+    {
+        $this->auditLogger->log('test.one');
+        $this->auditLogger->log('test.two');
+        $anchorFile = sys_get_temp_dir().'/sigil-rechain-'.bin2hex(random_bytes(4)).'.jsonl';
+        (new CommandTester(static::getContainer()->get(AuditAnchorCommand::class)))->execute(['--path' => $anchorFile]);
+
+        // Break the chain the way the microsecond bug did: a hash that cannot be recomputed.
+        $this->em->getConnection()->executeStatement("UPDATE audit_log_entry SET entry_hash = repeat('0', 64) WHERE action = 'test.two'");
+        $this->em->clear();
+
+        $rechain = new CommandTester($this->rechainCommand($anchorFile));
+        self::assertSame(0, $rechain->execute(['--confirm' => true]));
+        self::assertStringContainsString('Previous anchors moved to', $rechain->getDisplay());
+
+        $moved = glob($anchorFile.'.pre-rechain-*');
+        self::assertNotFalse($moved);
+        self::assertCount(1, $moved, 'the old anchors are kept, not deleted');
+
+        $tester = $this->makeVerifyTester();
+        self::assertSame(0, $tester->execute(['--anchor' => $anchorFile]), 'the fresh anchor names the repaired head');
+        self::assertStringContainsString('1 anchor(s) hold', $tester->getDisplay());
+        @unlink($anchorFile);
+        array_map('unlink', $moved);
+    }
+
+    private function rechainCommand(string $anchorPath): AuditRechainCommand
+    {
+        $c = static::getContainer();
+
+        return new AuditRechainCommand(
+            $c->get(\App\AuditLog\Repository\AuditLogEntryRepository::class),
+            $this->auditLogger,
+            $this->em,
+            $c->get(AuditAnchorSigner::class),
+            $anchorPath,
+        );
     }
 
     public function testEveryEntryNamesItsChainScheme(): void
