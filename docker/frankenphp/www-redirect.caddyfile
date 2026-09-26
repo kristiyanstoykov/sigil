@@ -1,0 +1,6 @@
+# www.<domain> -> <domain>, permanently, path and query kept. Caddy gets a
+# certificate for the www name too, so https://www... works before redirecting.
+# Mounted into sites.d by compose.prod.yaml; needs a www DNS record.
+www.{$SERVER_NAME} {
+	redir https://{$SERVER_NAME}{uri} permanent
+}

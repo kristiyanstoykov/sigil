@@ -22,6 +22,8 @@
 services:
   app:
     restart: unless-stopped
+    volumes:
+      - ./docker/frankenphp/www-redirect.caddyfile:/etc/frankenphp/sites.d/www-redirect.caddyfile:ro
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"

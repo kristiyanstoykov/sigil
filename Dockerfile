@@ -74,6 +74,7 @@ RUN case "$(uname -m)" in \
 ENV TAILWIND_BINARY=/usr/local/bin/tailwindcss
 
 COPY docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
+RUN mkdir -p /etc/frankenphp/sites.d
 
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

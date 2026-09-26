@@ -7,6 +7,8 @@ namespace App\Document\Service;
 use App\Core\Exception\DomainException;
 use AsyncAws\Core\Exception\Http\HttpException;
 use AsyncAws\S3\S3Client;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * S3-compatible storage backend (ADR-009). One instance per backend: MinIO in
@@ -29,6 +31,7 @@ final class S3StorageBackend implements StorageBackendInterface
         private readonly string $accessKey,
         private readonly string $secretKey,
         private readonly bool $pathStyleEndpoint = true,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -46,6 +49,8 @@ final class S3StorageBackend implements StorageBackendInterface
                 'Body' => $ciphertext,
             ])->resolve();
         } catch (HttpException $e) {
+            $this->logFailure('put', $objectKey, $e);
+
             throw new DomainException('Failed to store object.', 0, $e);
         }
     }
@@ -60,6 +65,8 @@ final class S3StorageBackend implements StorageBackendInterface
 
             return $result->getBody()->getContentAsString();
         } catch (HttpException $e) {
+            $this->logFailure('get', $objectKey, $e);
+
             throw new DomainException('Stored document not found.', 0, $e);
         }
     }
@@ -72,6 +79,8 @@ final class S3StorageBackend implements StorageBackendInterface
                 'Key' => $objectKey,
             ])->resolve();
         } catch (HttpException $e) {
+            $this->logFailure('remove', $objectKey, $e);
+
             throw new DomainException('Failed to delete object.', 0, $e);
         }
     }
@@ -128,5 +137,19 @@ final class S3StorageBackend implements StorageBackendInterface
         }
 
         return $this->client = new S3Client($config);
+    }
+
+    /** The user sees a generic message; the operator needs AWS's own code (AccessDenied, NoSuchBucket, ...). */
+    private function logFailure(string $operation, string $objectKey, HttpException $e): void
+    {
+        $this->logger->error('Object storage {operation} failed on backend {backend}: {aws_code} {aws_message}', [
+            'operation' => $operation,
+            'backend' => $this->id,
+            'bucket' => $this->bucket,
+            'key' => $objectKey,
+            'aws_code' => $e->getAwsCode(),
+            'aws_message' => $e->getAwsMessage(),
+            'http_status' => $e->getResponse()->getStatusCode(),
+        ]);
     }
 }

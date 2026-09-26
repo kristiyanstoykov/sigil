@@ -33,3 +33,7 @@
 		php_server
 	}
 }
+
+# Extra sites, only where compose mounts them: prod adds the www -> apex
+# redirect (www-redirect.caddyfile). Empty in dev.
+import sites.d/*.caddyfile
