@@ -12,10 +12,10 @@
 # database / Mercure, image tags you pin explicitly, AWS S3 as the only object
 # store (no MinIO), no local TSA unless asked for, and every secret read from
 # the environment with no dev fallback.
-# What it does NOT do, and a real deployment must: put TLS in front (Caddy,
-# nginx, a cloud LB) and set TRUSTED_HOSTS + DEFAULT_URI + MERCURE_PUBLIC_URL to
-# the public name; replace `php -S` (single worker, dev server) with FrankenPHP
-# or php-fpm - the app has no dependency on the runtime; ship
+# HTTPS: FrankenPHP's Caddy obtains and renews a Let's Encrypt certificate for
+# SERVER_NAME by itself, so the domain's DNS must point here and 80/443 must be
+# open before the first start. Certificates persist on the caddy_data volume.
+# What it does NOT do, and a real deployment must: ship
 # SIGIL_AUDIT_ANCHOR_PATH and the kryoptic_tokens volume off the host; run the
 # container as a non-root user (the entrypoint's `composer install` and the
 # token volume's ownership are what stand in the way today).
@@ -26,6 +26,8 @@ services:
       APP_ENV: prod
       APP_DEBUG: "0"
       APP_SECRET: "${APP_SECRET:?set APP_SECRET}"
+      SERVER_NAME: "${SERVER_NAME:?set SERVER_NAME to the bare domain, e.g. sigil.example.com}"
+      CADDY_GLOBAL_OPTIONS: "${CADDY_GLOBAL_OPTIONS:-}"
       DATABASE_URL: "postgresql://sigil:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/sigil?serverVersion=16&charset=utf8"
       TRUSTED_HOSTS: "${TRUSTED_HOSTS:?set TRUSTED_HOSTS, e.g. ^sigil\\.example\\.com$}"
       DEFAULT_URI: "${DEFAULT_URI:?set DEFAULT_URI, e.g. https://sigil.example.com}"
@@ -43,11 +45,10 @@ services:
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID - a key scoped to this one bucket}"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}"
       SIGIL_TSA_ACTIVE_BACKEND: "${SIGIL_TSA_ACTIVE_BACKEND:?set SIGIL_TSA_ACTIVE_BACKEND (freetsa, or local_uts with --profile local-tsa)}"
-    # Bind the dev server to the internal network only; the reverse proxy
-    # publishes it.
-    ports: !override []
-    expose:
-      - "8000"
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
     depends_on: !override
       db:
         condition: service_healthy

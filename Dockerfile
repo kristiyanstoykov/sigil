@@ -1,4 +1,8 @@
-FROM php:8.4-cli-alpine AS base
+# FrankenPHP: Caddy with PHP embedded (ZTS), so requests run on many threads
+# instead of `php -S`'s one, and Caddy does HTTPS itself (docker/frankenphp/).
+# Keep the minor pinned; the PHP CLI is in the image too.
+ARG FRANKENPHP_VERSION=1.12
+FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php8.4-alpine AS base
 
 # kryoptic (PKCS#11 3.2 soft token, ADR-014) - built from source because Alpine
 # has no package. Built on the runtime image itself so musl and libcrypto.so.3
@@ -19,16 +23,9 @@ RUN apk add --no-cache \
     git \
     unzip \
     curl \
-    libpq-dev \
-    icu-dev \
-    icu-libs \
-    freetype-dev \
-    libjpeg-turbo-dev \
-    libpng-dev \
     sqlite-libs \
     opensc \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_pgsql intl opcache gd \
+    && install-php-extensions pdo_pgsql intl gd \
     && rm -rf /var/cache/apk/*
 
 # kryoptic PKCS#11 token (ADR-005, ADR-014) - keys live in the token, never
@@ -76,9 +73,12 @@ RUN case "$(uname -m)" in \
     && chmod +x /usr/local/bin/tailwindcss
 ENV TAILWIND_BINARY=/usr/local/bin/tailwindcss
 
+COPY docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
+
 COPY docker-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-EXPOSE 8000
+# 8000 = plain HTTP (dev); 80/443 = automatic HTTPS when SERVER_NAME is a domain.
+EXPOSE 8000 80 443 443/udp
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -26,5 +26,5 @@ sh docker/bootstrap.sh "$ENV"
 echo "==> Warming up cache..."
 php bin/console cache:warmup --no-interaction 2>/dev/null || echo "  (skipped)"
 
-echo "==> Symfony ($ENV) server running on :8000"
-exec php -S 0.0.0.0:8000 -t public
+echo "==> Symfony ($ENV) on FrankenPHP, site ${SERVER_NAME:-:8000}"
+exec frankenphp run --config /etc/frankenphp/Caddyfile --adapter caddyfile

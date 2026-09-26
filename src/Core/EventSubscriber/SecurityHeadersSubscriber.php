@@ -15,8 +15,8 @@ use Symfony\Component\HttpKernel\KernelEvents;
  * framing is allowed from 'self' only, not forbidden outright.
  *
  * A full Content-Security-Policy is deliberately not here: Able Pro leans on
- * inline scripts and styles, so it needs nonces first. HSTS belongs on the
- * TLS-terminating proxy (compose.prod.yaml).
+ * inline scripts and styles, so it needs nonces first. HSTS is set by Caddy,
+ * which terminates TLS (docker/frankenphp/Caddyfile).
  */
 final class SecurityHeadersSubscriber implements EventSubscriberInterface
 {

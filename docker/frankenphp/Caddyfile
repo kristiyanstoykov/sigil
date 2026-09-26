@@ -1,0 +1,35 @@
+# FrankenPHP (Caddy + embedded PHP, many threads) serving Sigil.
+#
+# SERVER_NAME decides the TLS mode: a port alone (":8000", dev) serves plain
+# HTTP; a domain ("sigil.example.com", prod) makes Caddy obtain and renew a
+# Let's Encrypt certificate itself, on ports 80/443. Certificates live in /data,
+# which must be a persistent volume or every restart re-issues them.
+{
+	skip_install_trust
+	{$CADDY_GLOBAL_OPTIONS}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+{$SERVER_NAME::8000} {
+	root /app/public
+	encode zstd br gzip
+
+	header {
+		# Ignored by browsers over plain HTTP, so harmless in dev.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# The Mercure hub stays its own container; proxying it here puts it on the
+	# app's origin. Streams are Go-side and never hold a PHP thread.
+	handle /.well-known/mercure* {
+		reverse_proxy {$MERCURE_UPSTREAM:mercure:3000}
+	}
+
+	handle {
+		php_server
+	}
+}

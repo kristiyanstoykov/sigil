@@ -10,8 +10,14 @@ services:
       - .:/app
       - /app/var
       - kryoptic_tokens:/var/lib/kryoptic
+      # Caddy's certificates and state (FrankenPHP). Unused on plain-HTTP dev,
+      # load-bearing in prod: without it every restart re-issues certificates.
+      - caddy_data:/data
+      - caddy_config:/config
     environment:
       APP_ENV: dev
+      # FrankenPHP site address: a bare port = plain HTTP, no certificate.
+      SERVER_NAME: ":8000"
       APP_SECRET: "${APP_SECRET:-sigil_dev_secret_change_in_production}"
       DATABASE_URL: "postgresql://sigil:sigil@db:5432/sigil?serverVersion=16&charset=utf8"
       # MAILER_DSN is intentionally NOT set here: it carries a secret Brevo API key,
@@ -19,10 +25,11 @@ services:
       # env var would override .env.local. Falls back to null://null from .env otherwise.
       MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
       # Live notifications (ADR-013). The app publishes container-internally; the
-      # browser subscribes to the host-exposed address, which .env already holds.
-      # The port is not optional: the hub listens on 3000 inside the network too,
-      # so a portless URL here silently tries 80 and every push fails.
+      # browser subscribes through Caddy on the app's own origin (the Caddyfile
+      # proxies /.well-known/mercure to the hub). The port on MERCURE_URL is not
+      # optional: the hub listens on 3000, so a portless URL silently tries 80.
       MERCURE_URL: "http://mercure:3000/.well-known/mercure"
+      MERCURE_PUBLIC_URL: "http://localhost:8000/.well-known/mercure"
       KRYOPTIC_CONF: /var/lib/kryoptic/token.conf
       PKCS11_MODULE: /usr/lib/libkryoptic_pkcs11.so
       # Object storage (ADR-004/009). Active backend comes from .env / .env.test
@@ -59,8 +66,8 @@ services:
         condition: service_started
 
   # Mercure hub - the live half of the notification inbox (ADR-013). A separate
-  # Go process because an SSE stream held open in PHP would pin the single
-  # `php -S` worker and stall the whole app. It holds no state worth keeping: the
+  # Go process, reached by browsers through the app's Caddy (same origin), so an
+  # SSE stream never holds a PHP thread. It holds no state worth keeping: the
   # notification itself is a row in Postgres, and the browser re-reads from there
   # on every nudge, so restarting the hub loses nothing.
   mercure:
@@ -75,8 +82,6 @@ services:
       # cookie the app signed, or the inbox topics would be world-readable.
       MERCURE_EXTRA_DIRECTIVES: |
         cors_origins http://localhost:8000
-    ports:
-      - "3000:3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
       timeout: 5s
@@ -119,6 +124,8 @@ services:
 
 volumes:
   db_data:
+  caddy_data:
+  caddy_config:
   kryoptic_tokens:
   # Pre-ADR-014 SoftHSM tokens. Kept only so docker/migrate-softhsm.sh can read
   # them; nothing mounts it any more. Remove once every environment has migrated.
