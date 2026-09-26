@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Signing\Form;
 
+use App\Certificate\Service\PinPolicy;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
 /**
@@ -36,8 +38,11 @@ class SignDocumentForm extends AbstractType
             ->add(self::E_PIN, PasswordType::class, [
                 'label' => 'Certificate PIN',
                 'mapped' => false,
-                'attr' => ['autocomplete' => 'off', 'inputmode' => 'numeric', 'maxlength' => 8],
-                'constraints' => [new NotBlank(message: 'Enter your certificate PIN.')],
+                'attr' => ['autocomplete' => 'off', 'maxlength' => PinPolicy::MAX_LENGTH],
+                'constraints' => [
+                    new NotBlank(message: 'Enter your certificate PIN.'),
+                    new Length(max: PinPolicy::MAX_LENGTH, maxMessage: 'That is not a PIN.'),
+                ],
             ]);
     }
 
