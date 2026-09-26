@@ -25,10 +25,10 @@ services:
       MERCURE_URL: "http://mercure:3000/.well-known/mercure"
       KRYOPTIC_CONF: /var/lib/kryoptic/token.conf
       PKCS11_MODULE: /usr/lib/libkryoptic_pkcs11.so
-      # Object storage (ADR-004/009). Active backend comes from .env (dev=minio)
-      # / .env.test (test=local) - NOT overridden here, so tests inside the
-      # container still use the local backend. Only the endpoint must point at
-      # the compose service instead of localhost.
+      # Object storage (ADR-004/009). Active backend comes from .env / .env.test
+      # (test=local) - NOT overridden here, so tests inside the container still
+      # use the local backend. MinIO is opt-in (`--profile minio`, below); these
+      # only point its backend at the compose service instead of localhost.
       MINIO_ENDPOINT: "http://minio:9000"
       MINIO_REGION: us-east-1
       MINIO_BUCKET: sigil-documents
@@ -39,8 +39,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      minio:
-        condition: service_started
       mercure:
         condition: service_started
 
@@ -85,8 +83,13 @@ services:
       retries: 5
       start_period: 20s
 
+  # Opt-in S3-compatible store for offline dev: `docker compose --profile minio up`
+  # with SIGIL_STORAGE_ACTIVE_BACKEND=minio. Off by default - AWS S3 is the
+  # backend in use - and absent in prod. Documents written while it was active
+  # stay readable only while it runs (reads route by the backend in the key).
   minio:
     image: quay.io/minio/minio:latest
+    profiles: ["minio"]
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"   # S3 API

@@ -1,12 +1,17 @@
 # Production overrides - a hardening skeleton, not a turnkey deployment.
 #
-#   docker compose -f compose.yaml -f compose.prod.yaml up -d
+#   cp .env.prod.example .env && chmod 600 .env    # then fill every blank
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --build
 #
-# What it changes against the dev file: APP_ENV=prod with debug off, no host
-# ports on the database / MinIO / Mercure (only the app and the hub are reached,
-# through the reverse proxy you put in front), image tags you pin explicitly
-# (MERCURE_IMAGE_TAG, MINIO_IMAGE_TAG) instead of `latest`, and every secret
-# read from the environment with no dev fallback.
+# The server's .env is the one place the deployment is configured: compose
+# reads it for the ${...:?} checks below, and Symfony reads the same file
+# inside the container. Never copy a dev .env to the server.
+#
+# What it changes against the dev file: APP_ENV=prod with debug off, restart on
+# boot (unattended-upgrades reboots the host at night), no host ports on the
+# database / Mercure, image tags you pin explicitly, AWS S3 as the only object
+# store (no MinIO), no local TSA unless asked for, and every secret read from
+# the environment with no dev fallback.
 # What it does NOT do, and a real deployment must: put TLS in front (Caddy,
 # nginx, a cloud LB) and set TRUSTED_HOSTS + DEFAULT_URI + MERCURE_PUBLIC_URL to
 # the public name; replace `php -S` (single worker, dev server) with FrankenPHP
@@ -16,6 +21,7 @@
 # token volume's ownership are what stand in the way today).
 services:
   app:
+    restart: unless-stopped
     environment:
       APP_ENV: prod
       APP_DEBUG: "0"
@@ -25,35 +31,49 @@ services:
       DEFAULT_URI: "${DEFAULT_URI:?set DEFAULT_URI, e.g. https://sigil.example.com}"
       MERCURE_PUBLIC_URL: "${MERCURE_PUBLIC_URL:?set MERCURE_PUBLIC_URL}"
       MERCURE_JWT_SECRET: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      MAILER_DSN: "${MAILER_DSN:?set MAILER_DSN - invited users cannot verify their email without it}"
+      MAILER_FROM: "${MAILER_FROM:?set MAILER_FROM to a sender verified with the mail provider}"
       SIGIL_ROOT_KEY: "${SIGIL_ROOT_KEY:?set SIGIL_ROOT_KEY - it seals TOTP seeds and MACs fingerprints and audit anchors}"
-      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}"
-      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}"
       SIGIL_ROOT_TOKEN_PIN: "${SIGIL_ROOT_TOKEN_PIN:?set SIGIL_ROOT_TOKEN_PIN}"
       SIGIL_CA_PIN: "${SIGIL_CA_PIN:?set SIGIL_CA_PIN}"
       SIGIL_SEAL_PIN: "${SIGIL_SEAL_PIN:?set SIGIL_SEAL_PIN}"
+      SIGIL_STORAGE_ACTIVE_BACKEND: aws
+      AWS_REGION: "${AWS_REGION:?set AWS_REGION}"
+      AWS_BUCKET: "${AWS_BUCKET:?set AWS_BUCKET}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID - a key scoped to this one bucket}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}"
+      SIGIL_TSA_ACTIVE_BACKEND: "${SIGIL_TSA_ACTIVE_BACKEND:?set SIGIL_TSA_ACTIVE_BACKEND (freetsa, or local_uts with --profile local-tsa)}"
     # Bind the dev server to the internal network only; the reverse proxy
     # publishes it.
     ports: !override []
     expose:
       - "8000"
+    depends_on: !override
+      db:
+        condition: service_healthy
+      mercure:
+        condition: service_started
+
+  # The self-hosted responder signs with a key on this same host, so it proves
+  # little about time; FreeTSA is the default. Opt in with --profile local-tsa.
+  tsa:
+    profiles: ["local-tsa"]
+    restart: unless-stopped
 
   mercure:
     image: "dunglas/mercure:${MERCURE_IMAGE_TAG:?pin a Mercure release tag}"
+    restart: unless-stopped
     environment:
       MERCURE_PUBLISHER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
       MERCURE_SUBSCRIBER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      MERCURE_EXTRA_DIRECTIVES: |
+        cors_origins ${DEFAULT_URI:?set DEFAULT_URI}
     ports: !override []
     expose:
       - "3000"
 
-  minio:
-    image: "quay.io/minio/minio:${MINIO_IMAGE_TAG:?pin a MinIO release tag}"
-    environment:
-      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}"
-      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}"
-    ports: !override []
-
   db:
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
     ports: !override []

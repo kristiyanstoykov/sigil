@@ -1,18 +1,30 @@
 #!/bin/sh
 set -e
 
-echo "==> Installing PHP dependencies..."
-composer install --no-interaction --prefer-dist --optimize-autoloader
+ENV="${APP_ENV:-dev}"
 
-echo "==> Building Tailwind CSS..."
-php bin/console tailwind:build --no-interaction 2>/dev/null || echo "  (skipped)"
+if [ "$ENV" = "prod" ]; then
+    echo "==> Installing PHP dependencies (no dev packages)..."
+    composer install --no-interaction --prefer-dist --no-dev --classmap-authoritative
 
-# Schema, root key, CA, seal, buckets - everything a fresh checkout needs to
+    # Prod serves compiled assets from public/assets; there is no dev asset server.
+    echo "==> Building and compiling assets..."
+    php bin/console tailwind:build --minify --no-interaction
+    php bin/console asset-map:compile --no-interaction
+else
+    echo "==> Installing PHP dependencies..."
+    composer install --no-interaction --prefer-dist --optimize-autoloader
+
+    echo "==> Building Tailwind CSS..."
+    php bin/console tailwind:build --no-interaction 2>/dev/null || echo "  (skipped)"
+fi
+
+# Schema, root key, CA, seal, bucket - everything a fresh checkout needs to
 # sign a document. Idempotent, so it runs on every start. See docker/bootstrap.sh.
-sh docker/bootstrap.sh dev
+sh docker/bootstrap.sh "$ENV"
 
 echo "==> Warming up cache..."
 php bin/console cache:warmup --no-interaction 2>/dev/null || echo "  (skipped)"
 
-echo "==> Symfony dev server running at http://localhost:8000"
+echo "==> Symfony ($ENV) server running on :8000"
 exec php -S 0.0.0.0:8000 -t public

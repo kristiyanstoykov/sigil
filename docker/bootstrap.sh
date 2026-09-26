@@ -25,11 +25,11 @@ console sigil:ca:init --if-missing
 console sigil:seal:init --if-missing
 
 if [ "$ENV" != "test" ]; then
-    # MinIO is only `service_started`, not healthy, when the app comes up; a
-    # bucket check that loses that race is not worth failing the boot for.
-    echo "==> [$ENV] Object storage buckets"
+    # The active backend's bucket. A store still starting (MinIO) or a network
+    # blip is not worth failing the boot for.
+    echo "==> [$ENV] Object storage bucket"
     for i in 1 2 3 4 5; do
         console sigil:storage:init && break
-        [ "$i" = 5 ] && echo "  (storage init skipped - is MinIO up? run: php bin/console sigil:storage:init)" || sleep 2
+        [ "$i" = 5 ] && echo "  (storage init failed - check the storage credentials, then run: php bin/console sigil:storage:init)" || sleep 2
     done
 fi

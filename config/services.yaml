@@ -22,6 +22,14 @@ parameters:
     app.pin_hash.time_cost: 4
     app.pin_hash.threads: 1
 
+    # MinIO is optional (a dev profile, absent in prod): blank defaults keep its
+    # backend constructible when a deployment sets no MINIO_* at all.
+    env(MINIO_ENDPOINT): ''
+    env(MINIO_REGION): 'us-east-1'
+    env(MINIO_BUCKET): ''
+    env(MINIO_ACCESS_KEY): ''
+    env(MINIO_SECRET_KEY): ''
+
 services:
     # default configuration for services in *this* file
     _defaults:

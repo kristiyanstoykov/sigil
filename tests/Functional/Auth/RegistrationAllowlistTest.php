@@ -121,6 +121,33 @@ final class RegistrationAllowlistTest extends AuthWebTestCase
         self::assertTrue($this->allowlistService()->permits($email), 'An admin is on the allowlist');
     }
 
+    public function testTheCreateCommandSeedsALoginReadyAdmin(): void
+    {
+        $email = $this->uniqueEmail('seed');
+        $tester = new CommandTester((new Application(self::$kernel ?? self::bootKernel()))->find('sigil:admin:create'));
+        $tester->setInputs(['Kristiyan', 'Stoykov', 'short', self::PASSWORD, 'mismatch-'.self::PASSWORD, self::PASSWORD, self::PASSWORD]);
+
+        self::assertSame(0, $tester->execute(['email' => strtoupper($email)]), $tester->getDisplay());
+        self::assertStringContainsString('too short', $tester->getDisplay());
+        self::assertStringContainsString('do not match', $tester->getDisplay());
+
+        $this->em()->clear();
+        $user = $this->users()->findOneByEmail($email);
+        self::assertInstanceOf(User::class, $user);
+        self::assertSame($email, $user->getEmail(), 'Stored lower-cased');
+        self::assertTrue($user->isVerified());
+        self::assertContains('ROLE_ADMIN', $user->getRoles());
+        self::assertTrue($this->allowlistService()->permits($email));
+
+        self::assertSame(1, $tester->execute(['email' => $email]), 'A second run must not overwrite the account');
+
+        // The seeded password logs in; TOTP enrolment is what comes next.
+        $this->submitLogin($email, self::PASSWORD);
+        self::assertResponseRedirects();
+        $this->client->followRedirect();
+        self::assertResponseRedirects('/2fa/setup');
+    }
+
     private function loginAsAdmin(): User
     {
         $email = $this->uniqueEmail('admin');

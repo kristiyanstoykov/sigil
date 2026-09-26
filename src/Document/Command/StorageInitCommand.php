@@ -14,13 +14,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Creates the bucket for each S3-compatible backend if it does not exist
- * (idempotent). Run once after bringing up MinIO, or when pointing a backend at
- * a fresh AWS bucket. Non-S3 backends (local filesystem) need no bootstrap.
+ * Creates the active backend's bucket if it is S3-compatible and missing
+ * (idempotent). Only the active one: it is the only one written to, and an
+ * inactive backend may be unconfigured on purpose (no MinIO in prod).
  */
 #[AsCommand(
     name: 'sigil:storage:init',
-    description: 'Ensure the object-storage bucket exists for each configured S3 backend',
+    description: 'Ensure the object-storage bucket exists for the active S3 backend',
 )]
 final class StorageInitCommand extends Command
 {
@@ -32,26 +32,23 @@ final class StorageInitCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $touched = 0;
+        $backend = $this->registry->active();
 
-        foreach ($this->registry->all() as $backend) {
-            if (!$backend instanceof S3StorageBackend) {
-                continue;
-            }
+        if (!$backend instanceof S3StorageBackend) {
+            $io->success(sprintf('[%s] is not S3-compatible; nothing to initialise.', $backend->id()));
 
-            try {
-                $backend->ensureBucket();
-            } catch (DomainException $e) {
-                $io->warning(sprintf('[%s] %s (backend skipped - likely not configured)', $backend->id(), $e->getMessage()));
-
-                continue;
-            }
-
-            $io->writeln(sprintf(' <info>✓</info> [%s] bucket "%s" ready', $backend->id(), $backend->bucket()));
-            ++$touched;
+            return Command::SUCCESS;
         }
 
-        $io->success(sprintf('Storage init complete (%d S3 backend(s) ready).', $touched));
+        try {
+            $backend->ensureBucket();
+        } catch (DomainException $e) {
+            $io->error(sprintf('[%s] %s', $backend->id(), $e->getMessage()));
+
+            return Command::FAILURE;
+        }
+
+        $io->success(sprintf('[%s] bucket "%s" ready.', $backend->id(), $backend->bucket()));
 
         return Command::SUCCESS;
     }
