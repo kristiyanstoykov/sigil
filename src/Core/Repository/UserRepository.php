@@ -36,6 +36,34 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             ->getOneOrNullResult();
     }
 
+    /**
+     * Users by lower-cased email, for many addresses at once.
+     *
+     * @param list<string> $emails lower-cased
+     *
+     * @return array<string, User> keyed by lower-cased email
+     */
+    public function findByEmailsKeyed(array $emails): array
+    {
+        if ([] === $emails) {
+            return [];
+        }
+
+        /** @var list<User> $users */
+        $users = $this->createQueryBuilder('u')
+            ->andWhere('LOWER(u.email) IN (:emails)')
+            ->setParameter('emails', $emails)
+            ->getQuery()
+            ->getResult();
+
+        $keyed = [];
+        foreach ($users as $user) {
+            $keyed[mb_strtolower($user->getEmail())] = $user;
+        }
+
+        return $keyed;
+    }
+
     public function upgradePassword(PasswordAuthenticatedUserInterface $user, string $newHashedPassword): void
     {
         if (!$user instanceof User) {

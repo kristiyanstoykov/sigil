@@ -1,0 +1,124 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Allowlist · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{#
+    Registration is invitation-only: an address not on this list never gets an
+    account. An invitation nobody has used can be withdrawn; a registered row
+    cannot, because removing it would not touch the account.
+#}
+{% block content %}
+<div class="docs-rise mx-auto max-w-5xl">
+
+    <div class="mb-5">
+        <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Registration allowlist</h1>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">Only the addresses on this list can create an account. Everyone else is turned away without being told why.</p>
+    </div>
+
+    {# ── Add ──────────────────────────────────────────────────────────────── #}
+    {% set field_email = constant('App\\Auth\\Form\\AllowlistAddForm::E_EMAIL') %}
+    <div class="card !mb-5 !bg-white/90 px-5 py-4">
+        {{ form_start(form, {action: path('app_admin_allowlist'), attr: {novalidate: 'novalidate'}}) }}
+            {{ form_label(form[field_email], 'Invite an address', {label_attr: {class: 'form-label text-sm font-semibold'}}) }}
+            <div class="flex flex-wrap items-start gap-3">
+                <div class="min-w-0 flex-1">
+                    {{ form_widget(form[field_email], {attr: {class: 'form-control', placeholder: 'name@example.com', autocomplete: 'off'}}) }}
+                    {{ form_errors(form[field_email]) }}
+                </div>
+                <button type="submit" class="btn btn-primary inline-flex items-center gap-2">
+                    <i class="ti ti-user-plus text-base leading-none" aria-hidden="true"></i>
+                    Add to allowlist
+                </button>
+            </div>
+            <p class="mt-2 text-xs text-theme-secondarytextcolor">No email is sent - tell the person yourself that they can register.</p>
+        {{ form_end(form) }}
+    </div>
+
+    {# ── List ─────────────────────────────────────────────────────────────── #}
+    <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-sm font-bold text-theme-headings">On the list</h2>
+        <span class="text-xs text-theme-secondarytextcolor">{{ total }} {{ total == 1 ? 'address' : 'addresses' }} · {{ registered }} registered</span>
+    </div>
+
+    {% if rows is empty %}
+        <div class="card !mb-0 !bg-white/80 p-14 text-center">
+            <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
+                <i class="ti ti-user-check text-3xl leading-none" aria-hidden="true"></i>
+            </div>
+            <h2 class="text-lg font-extrabold text-theme-headings">Nobody can register yet</h2>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">Add an address above to let its owner create an account.</p>
+        </div>
+    {% else %}
+        <div class="card !mb-0 overflow-hidden !bg-white/90">
+            <div class="table-responsive">
+                <table class="table w-full text-left">
+                    <thead class="border-b border-theme-border bg-theme-bodybg/70 text-[11px] font-bold uppercase tracking-wider text-theme-secondarytextcolor">
+                        <tr>
+                            <th class="px-5 py-3 font-bold">Email</th>
+                            <th class="px-5 py-3 font-bold">Status</th>
+                            <th class="px-5 py-3 font-bold">Added</th>
+                            <th class="px-5 py-3 text-right font-bold"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-theme-border/60">
+                        {% for row in rows %}
+                            <tr class="hover:bg-theme-activebg/60">
+                                <td class="px-5 py-3.5" data-label="Email">
+                                    <span class="block text-sm font-semibold text-theme-headings">{{ row.entry.email }}</span>
+                                    {% if row.account %}
+                                        <span class="mt-0.5 block text-xs text-theme-secondarytextcolor">
+                                            {{ row.account.fullName }}{% if 'ROLE_ADMIN' in row.account.roles %} · Admin{% endif %}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-5 py-3.5" data-label="Status">
+                                    {% if row.account %}
+                                        <span class="badge rounded-full bg-success-500/10 text-success-600">Registered</span>
+                                    {% else %}
+                                        <span class="badge rounded-full bg-warning-500/10 text-warning-600">Invited</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Added">
+                                    <span class="whitespace-nowrap">{{ row.entry.createdAt|date('d M Y') }}</span>
+                                    <span class="block text-xs text-theme-secondarytextcolor">
+                                        {% if row.addedBy is null %}by Sigil{% elseif row.addedBy is same as(false) %}by a removed account{% else %}by {{ row.addedBy.fullName }}{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-5 py-3.5" data-label="Actions">
+                                    <div class="flex justify-end">
+                                        {% if row.removeForm %}
+                                            {{ form_start(row.removeForm) }}
+                                                <button type="submit" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-1.5" title="Withdraw the invitation">
+                                                    <i class="ti ti-user-x text-base leading-none" aria-hidden="true"></i>
+                                                    Withdraw
+                                                </button>
+                                            {{ form_end(row.removeForm) }}
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if pages > 1 %}
+            <nav class="mt-4 flex items-center justify-between text-sm" aria-label="Pages">
+                {% if page > 1 %}
+                    <a href="{{ path('app_admin_allowlist', {page: page - 1}) }}" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                        <i class="ti ti-chevron-left text-base leading-none" aria-hidden="true"></i> Newer
+                    </a>
+                {% else %}<span></span>{% endif %}
+                <span class="text-theme-secondarytextcolor">Page {{ page }} of {{ pages }}</span>
+                {% if page < pages %}
+                    <a href="{{ path('app_admin_allowlist', {page: page + 1}) }}" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                        Older <i class="ti ti-chevron-right text-base leading-none" aria-hidden="true"></i>
+                    </a>
+                {% else %}<span></span>{% endif %}
+            </nav>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

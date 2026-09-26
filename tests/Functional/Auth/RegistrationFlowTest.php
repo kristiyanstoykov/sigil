@@ -14,6 +14,7 @@ final class RegistrationFlowTest extends AuthWebTestCase
     public function testRegistrationSendsVerificationEmailAndLinkVerifiesAccount(): void
     {
         $email = $this->uniqueEmail('register');
+        $this->allowlist($email);
 
         $crawler = $this->client->request('GET', '/register');
         self::assertResponseIsSuccessful();
@@ -53,11 +54,14 @@ final class RegistrationFlowTest extends AuthWebTestCase
         $email = $this->uniqueEmail('tamper');
         $this->createUser($email, verified: false);
 
+        $victim = $this->uniqueEmail('victim');
+        $this->allowlist($victim);
+
         $crawler = $this->client->request('GET', '/register');
         $form = $crawler->filter('form')->form([
             'registration_form[firstName]' => 'Bad',
             'registration_form[lastName]' => 'Actor',
-            'registration_form[email]' => $this->uniqueEmail('victim'),
+            'registration_form[email]' => $victim,
             'registration_form[password][first]' => self::PASSWORD,
             'registration_form[password][second]' => self::PASSWORD,
         ]);

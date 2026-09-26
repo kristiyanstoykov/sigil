@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Functional;
 
 use App\Auth\Security\TotpSecretVault;
+use App\Auth\Service\RegistrationAllowlist;
 use App\Core\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -39,6 +40,12 @@ abstract class AuthWebTestCase extends WebTestCase
     protected function uniqueEmail(string $prefix = 'user'): string
     {
         return sprintf('%s+%s@test.sigil.local', $prefix, bin2hex(random_bytes(6)));
+    }
+
+    /** Registration is invitation-only: put an address on the allowlist. */
+    protected function allowlist(string $email): void
+    {
+        static::getContainer()->get(RegistrationAllowlist::class)->add($email);
     }
 
     /** @param non-empty-string $email */

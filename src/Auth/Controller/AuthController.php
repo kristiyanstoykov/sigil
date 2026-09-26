@@ -8,9 +8,11 @@ use App\Auth\EventSubscriber\UnverifiedLoginSubscriber;
 use App\Auth\Form\RegistrationForm;
 use App\Auth\Form\ResendVerificationForm;
 use App\Auth\Service\EmailVerifier;
+use App\Auth\Service\RegistrationAllowlist;
 use App\Core\Entity\User;
 use App\Core\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -24,6 +26,9 @@ use SymfonyCasts\Bundle\VerifyEmail\Exception\VerifyEmailExceptionInterface;
 
 class AuthController extends AbstractController
 {
+    /** Identical for an invited and an uninvited address, so the page does not reveal the allowlist. */
+    private const string REGISTERED_FLASH = 'Check your email for a confirmation link before logging in. Registration is by invitation only - if nothing arrives, this address is not on the list.';
+
     #[Route('/login', name: 'app_login')]
     public function login(AuthenticationUtils $authenticationUtils): Response
     {
@@ -49,6 +54,8 @@ class AuthController extends AbstractController
         UserPasswordHasherInterface $hasher,
         EntityManagerInterface $em,
         EmailVerifier $emailVerifier,
+        RegistrationAllowlist $allowlist,
+        LoggerInterface $logger,
     ): Response {
         if ($this->getUser()) {
             return $this->redirectToRoute('app_dashboard');
@@ -60,6 +67,15 @@ class AuthController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $user->setPassword($hasher->hashPassword($user, $form->get(RegistrationForm::E_PASSWORD)->getData()));
+
+            // Same answer as a successful registration; the allowlist is never confirmed.
+            if (!$allowlist->permits($user->getEmail())) {
+                $logger->notice('Registration refused: address not on the allowlist.');
+                $this->addFlash('success', self::REGISTERED_FLASH);
+
+                return $this->redirectToRoute('app_login');
+            }
+
             $user->setRoles(['ROLE_SIGNER']);
 
             $em->persist($user);
@@ -75,7 +91,7 @@ class AuthController extends AbstractController
                 return $this->redirectToRoute('app_verify_resend');
             }
 
-            $this->addFlash('success', 'Account created. Check your email for a confirmation link before logging in.');
+            $this->addFlash('success', self::REGISTERED_FLASH);
 
             return $this->redirectToRoute('app_login');
         }

@@ -53,6 +53,12 @@ final readonly class SidebarMenuProvider
                 icon: '<path d="M8 6h11M8 12h11M8 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
             ),
             new MenuItem(
+                label: 'Allowlist',
+                route: 'app_admin_allowlist',
+                icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 11l2 2 4-4"/>',
+                role: 'ROLE_ADMIN',
+            ),
+            new MenuItem(
                 label: 'Statistics',
                 route: null, // TODO: app_admin_statistics (privacy-preserving admin stats, last phase)
                 icon: '<path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/>',

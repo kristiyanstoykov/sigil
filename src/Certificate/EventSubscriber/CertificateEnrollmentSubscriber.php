@@ -80,7 +80,9 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
             // behind a wizard for a key they never have to have.
             || str_starts_with($route, 'app_notification')
             // Reading one's own record needs no key either.
-            || str_starts_with($route, 'app_audit_log')) {
+            || str_starts_with($route, 'app_audit_log')
+            // Administering who may register involves no signature.
+            || str_starts_with($route, 'app_admin')) {
             return;
         }
 

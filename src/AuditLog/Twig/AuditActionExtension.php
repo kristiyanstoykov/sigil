@@ -55,6 +55,9 @@ final class AuditActionExtension extends AbstractExtension
         'certificate.unlocked' => ['classes' => self::SUCCESS, 'icon' => 'ti-lock-open', 'label' => 'Certificate unlocked', 'family' => 'certificates'],
         'certificate.pin_desync' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'Token rejected a verified PIN', 'family' => 'certificates'],
         'certificate.token_cleanup_failed' => ['classes' => self::WARNING, 'icon' => 'ti-alert-triangle', 'label' => 'Token cleanup failed', 'family' => 'certificates'],
+        'admin.allowlist_added' => ['classes' => self::PRIMARY, 'icon' => 'ti-user-plus', 'label' => 'Invited an address to register', 'family' => 'admin'],
+        'admin.allowlist_removed' => ['classes' => self::WARNING, 'icon' => 'ti-user-x', 'label' => 'Withdrew an invitation', 'family' => 'admin'],
+        'admin.granted' => ['classes' => self::DANGER, 'icon' => 'ti-crown', 'label' => 'Made an administrator', 'family' => 'admin'],
         'certificate.issuance_failed' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'Issuance failed', 'family' => 'certificates'],
     ];
 
