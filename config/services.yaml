@@ -30,6 +30,9 @@ parameters:
     env(MINIO_ACCESS_KEY): ''
     env(MINIO_SECRET_KEY): ''
 
+    # A default, so a deployment picks DigiCert with SIGIL_TSA_ACTIVE_BACKEND alone.
+    env(SIGIL_TSA_DIGICERT_URL): 'http://timestamp.digicert.com'
+
 services:
     # default configuration for services in *this* file
     _defaults:

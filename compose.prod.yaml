@@ -46,7 +46,7 @@ services:
       AWS_BUCKET: "${AWS_BUCKET:?set AWS_BUCKET}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID - a key scoped to this one bucket}"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}"
-      SIGIL_TSA_ACTIVE_BACKEND: "${SIGIL_TSA_ACTIVE_BACKEND:?set SIGIL_TSA_ACTIVE_BACKEND (freetsa, or local_uts with --profile local-tsa)}"
+      SIGIL_TSA_ACTIVE_BACKEND: "${SIGIL_TSA_ACTIVE_BACKEND:?set SIGIL_TSA_ACTIVE_BACKEND (digicert, freetsa, or local_uts with --profile local-tsa)}"
     ports: !override
       - "80:80"
       - "443:443"
@@ -58,7 +58,7 @@ services:
         condition: service_started
 
   # The self-hosted responder signs with a key on this same host, so it proves
-  # little about time; FreeTSA is the default. Opt in with --profile local-tsa.
+  # little about time; a public TSA (digicert) is the default. Opt in with --profile local-tsa.
   tsa:
     profiles: ["local-tsa"]
     restart: unless-stopped

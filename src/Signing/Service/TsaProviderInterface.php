@@ -15,7 +15,7 @@ use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 #[AutoconfigureTag('app.tsa_provider')]
 interface TsaProviderInterface
 {
-    /** Stable id selected by SIGIL_TSA_ACTIVE_BACKEND, e.g. "freetsa", "none". */
+    /** Stable id selected by SIGIL_TSA_ACTIVE_BACKEND, e.g. "digicert", "freetsa", "none". */
     public function id(): string;
 
     /** RFC-3161 TSA endpoint to timestamp with, or null for none (PAdES-B-B). */
