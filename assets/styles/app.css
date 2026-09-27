@@ -508,6 +508,8 @@ button[aria-busy="true"] {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
+/* The fresh render that replaces a Turbo preview (behaviors/page_rise.js). */
+.no-rise .docs-rise { animation: none; }
 @media (prefers-reduced-motion: reduce) {
     .docs-rise { animation: none; }
 }

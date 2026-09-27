@@ -21,12 +21,14 @@
     <div class="card !mb-5 !bg-white/90 px-5 py-4">
         {{ form_start(form, {action: path('app_admin_allowlist'), attr: {novalidate: 'novalidate'}}) }}
             {{ form_label(form[field_email], 'Invite an address', {label_attr: {class: 'form-label text-sm font-semibold'}}) }}
-            <div class="flex flex-wrap items-start gap-3">
-                <div class="min-w-0 flex-1">
+            {# Stacked on a phone: the input gets the whole row, the button sits under it.
+               Side by side, the button takes the input's padding so both are one height. #}
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div class="min-w-0 sm:flex-1">
                     {{ form_widget(form[field_email], {attr: {class: 'form-control', placeholder: 'name@example.com', autocomplete: 'off'}}) }}
                     {{ form_errors(form[field_email]) }}
                 </div>
-                <button type="submit" class="btn btn-primary inline-flex items-center gap-2">
+                <button type="submit" class="btn btn-primary inline-flex shrink-0 items-center justify-center gap-2 sm:!py-[0.8rem]">
                     <i class="ti ti-user-plus text-base leading-none" aria-hidden="true"></i>
                     Add to allowlist
                 </button>

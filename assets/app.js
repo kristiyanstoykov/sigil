@@ -1,6 +1,7 @@
 import './stimulus_bootstrap.js';
 import './styles/app.css';
 import './behaviors/form_loader.js';
+import './behaviors/page_rise.js';
 import { initAblePro } from './behaviors/able_pro.js';
 import { initFlashToasts } from './behaviors/flash.js';
 
