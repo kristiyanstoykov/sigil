@@ -94,9 +94,11 @@
         </div>
 
         {# ── ② wide panel + rail ────────────────────────────────────────── #}
-        <div class="mb-6 grid gap-4 lg:grid-cols-[1.9fr_1fr]">
+        {# grid-cols-1 + min-w-0: an implicit column grows to fit a long truncated
+           title, pushing the page wider than a phone. #}
+        <div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.9fr_1fr]">
 
-            <div class="flex flex-col gap-4">
+            <div class="flex min-w-0 flex-col gap-4">
 
                 {# Your turn: the only list on this page that is work to do. #}
                 <div class="card !mb-0 overflow-hidden">
@@ -197,8 +199,10 @@
                     series: series|map(s => {label: s.label, token: s.token, values: monthly|map(m => m[s.key])}),
                 } %}
                 <div data-controller="chart" data-chart-data-value="{{ chart_data|json_encode|e('html_attr') }}"></div>
-                {# Screen-reader equivalent of the chart. #}
-                <table class="sr-only">
+                {# Screen-reader equivalent of the chart. sr-only sits on a wrapper: a
+                   table will not shrink to 1px, and would widen the page on a phone. #}
+                <div class="sr-only">
+                <table>
                     <caption>Documents uploaded, signed and delivered per month, last 6 months</caption>
                     <thead><tr><th>Month</th>{% for s in series %}<th>{{ s.label }}</th>{% endfor %}</tr></thead>
                     <tbody>
@@ -207,11 +211,12 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
             </div>
 
             {# RIGHT rail: certificates, then what you have been doing. #}
-            <div class="flex flex-col gap-4">
+            <div class="flex min-w-0 flex-col gap-4">
 
                 <div class="card !mb-0 px-4 pb-3 pt-4" data-controller="slider">
                     <div class="mb-3 flex items-center justify-between">

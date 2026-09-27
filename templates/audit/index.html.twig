@@ -21,31 +21,35 @@
 
     {# ── Chain integrity ─────────────────────────────────────────────────── #}
     <div class="card !mb-5 !bg-white/90 px-5 py-4">
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
-                <i class="ti ti-link text-xl leading-none" aria-hidden="true"></i>
-            </div>
-            <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-theme-headings">Hash chain</p>
-                <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
-                    {% if head %}
-                        {{ head.sequence }} entries in the whole log, head
-                        <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-[11px] text-theme-bodycolor">{{ head.entryHash|slice(0, 12) }}…</code>
-                        <span class="mx-1.5 text-theme-border">·</span>
-                        {% if lastAnchor %}
-                            last anchored at #{{ lastAnchor.sequence }} on {{ lastAnchor.anchoredAt|date('d M Y, H:i') }}
-                            {% if lastAnchor.sequence < head.sequence %}<span class="text-warning-600">({{ head.sequence - lastAnchor.sequence }} newer entries not yet anchored)</span>{% endif %}
+        {# Phone: icon + text on one row, one fact per line, the button full width
+           under them. From sm up the button sits at the right of the same row. #}
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+            <div class="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
+                <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                    <i class="ti ti-link text-xl leading-none" aria-hidden="true"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold text-theme-headings">Hash chain</p>
+                    <p class="mt-0.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                        {% if head %}
+                            <span class="max-sm:block">{{ head.sequence }} entries in the whole log, head
+                            <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-[11px] text-theme-bodycolor">{{ head.entryHash|slice(0, 12) }}…</code></span>
+                            <span class="mx-1.5 text-theme-border max-sm:hidden">·</span>
+                            {% if lastAnchor %}
+                                <span class="max-sm:block">last anchored at #{{ lastAnchor.sequence }} on {{ lastAnchor.anchoredAt|date('d M Y, H:i') }}</span>
+                                {% if lastAnchor.sequence < head.sequence %}<span class="text-warning-600 max-sm:block">({{ head.sequence - lastAnchor.sequence }} newer entries not yet anchored)</span>{% endif %}
+                            {% else %}
+                                <span class="text-warning-600 max-sm:block">never anchored outside the database</span>
+                            {% endif %}
                         {% else %}
-                            <span class="text-warning-600">never anchored outside the database</span>
+                            The log is empty.
                         {% endif %}
-                    {% else %}
-                        The log is empty.
-                    {% endif %}
-                </p>
+                    </p>
+                </div>
             </div>
             {{ form_start(verifyForm, {action: path('app_audit_log_verify'), attr: {class: 'shrink-0'}}) }}
-                <button type="submit" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
-                    <i class="ti ti-shield-search text-base leading-none" aria-hidden="true"></i>
+                <button type="submit" class="btn btn-outline-secondary btn-sm inline-flex items-center justify-center gap-2 max-sm:w-full">
+                    <i class="ti ti-shield-check text-base leading-none" aria-hidden="true"></i>
                     Verify chain now
                 </button>
             {{ form_end(verifyForm) }}
@@ -58,18 +62,53 @@
     </div>
 
     {# ── Filters ─────────────────────────────────────────────────────────── #}
+    {# Server-side, so every item is a plain link to the filtered URL - same
+       dropdown markup as the documents toolbar. #}
     {% set query = {family: family|default(null), severity: severity ? severity.value : null} %}
+    {% set severities = {'': 'Any', 'warning': 'Warnings', 'critical': 'Critical'} %}
+    {% set severity_key = severity ? severity.value : '' %}
     <div class="mb-4 flex flex-wrap items-center gap-2">
-        <span class="text-xs font-medium uppercase tracking-wide text-theme-secondarytextcolor">Show</span>
-        {% for key, label in {'': 'Everything'}|merge(families) %}
-            <a href="{{ path('app_audit_log', query|merge({family: key ?: null, page: null})) }}"
-               class="badge rounded-full {{ family == key ? 'bg-primary-500 text-white' : 'bg-theme-activebg text-theme-bodycolor hover:text-theme-headings' }}">{{ label }}</a>
-        {% endfor %}
-        <span class="mx-2 text-theme-border">·</span>
-        {% for key, label in {'': 'Any severity', 'warning': 'Warnings', 'critical': 'Critical'} %}
-            <a href="{{ path('app_audit_log', query|merge({severity: key ?: null, page: null})) }}"
-               class="badge rounded-full {{ (severity ? severity.value : '') == key ? 'bg-primary-500 text-white' : 'bg-theme-activebg text-theme-bodycolor hover:text-theme-headings' }}">{{ label }}</a>
-        {% endfor %}
+        <div class="dropdown">
+            <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                    class="btn btn-outline-secondary inline-flex items-center gap-2 text-sm">
+                <i class="ti ti-layout-grid text-base leading-none" aria-hidden="true"></i>
+                <span class="text-theme-secondarytextcolor">Show:</span>
+                <span class="font-semibold">{{ family ? families[family]|default(family) : 'Everything' }}</span>
+                <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
+            </button>
+            <div class="dropdown-menu">
+                {% for key, label in {'': 'Everything'}|merge(families) %}
+                    <a href="{{ path('app_audit_log', query|merge({family: key ?: null, page: null})) }}"
+                       class="dropdown-item {{ family == key ? '!text-primary-500 font-semibold' }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="dropdown">
+            <button type="button" data-pc-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                    class="btn btn-outline-secondary inline-flex items-center gap-2 text-sm">
+                <i class="ti ti-filter text-base leading-none" aria-hidden="true"></i>
+                <span class="text-theme-secondarytextcolor">Severity:</span>
+                <span class="font-semibold">{{ severities[severity_key] }}</span>
+                <i class="ti ti-chevron-down text-sm leading-none" aria-hidden="true"></i>
+            </button>
+            <div class="dropdown-menu">
+                {% for key, label in severities %}
+                    <a href="{{ path('app_audit_log', query|merge({severity: key ?: null, page: null})) }}"
+                       class="dropdown-item {{ severity_key == key ? '!text-primary-500 font-semibold' }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if family or severity %}
+            <a href="{{ path('app_audit_log') }}"
+               class="btn btn-outline-secondary inline-flex items-center gap-1.5 text-sm max-sm:!px-2.5"
+               title="Clear filters" aria-label="Clear filters">
+                <i class="ti ti-x text-sm leading-none" aria-hidden="true"></i>
+                <span class="max-sm:hidden">Clear</span>
+            </a>
+        {% endif %}
+
         <span class="ml-auto text-xs text-theme-secondarytextcolor">{{ total }} {{ total == 1 ? 'entry' : 'entries' }}</span>
     </div>
 
@@ -77,7 +116,7 @@
     {% if entries is empty %}
         <div class="card !mb-0 !bg-white/80 p-14 text-center">
             <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 mx-auto">
-                <i class="ti ti-list-details text-3xl leading-none" aria-hidden="true"></i>
+                <i class="ti ti-list-search text-3xl leading-none" aria-hidden="true"></i>
             </div>
             <h2 class="text-lg font-extrabold text-theme-headings">{{ total == 0 and family == '' and severity is null ? 'Nothing recorded yet' : 'Nothing matches' }}</h2>
             <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-theme-secondarytextcolor">

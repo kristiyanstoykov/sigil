@@ -279,7 +279,12 @@
  * overlay that reads as a milky grey wash. A proper dark slate scrim (40% of
  * the headings token) dims the page cleanly and makes the white drawer pop.
  */
-.pc-sidebar .pc-menu-overlay {
+.pc-menu-overlay {
+    /* Sits beside the sidebar (behaviors/able_pro.js), so it restates the
+       vendor's position; same z-index, earlier in the DOM = under the drawer. */
+    position: fixed;
+    inset: 0;
+    z-index: 1026;
     background-color: color-mix(in srgb, var(--color-theme-headings) 40%, transparent);
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);

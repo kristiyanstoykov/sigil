@@ -147,8 +147,11 @@ function bindOnce() {
                 closeMobileSidebar();
             } else {
                 sidebar.classList.add('mob-sidebar-active');
-                sidebar.insertAdjacentHTML('beforeend', '<div class="pc-menu-overlay"></div>');
-                sidebar.querySelector('.pc-menu-overlay').addEventListener('click', closeMobileSidebar);
+                /* A sibling, not a child: the glass sidebar's backdrop-filter
+                   confines fixed children to its own box, so a scrim inside it
+                   never covered the page and a tap outside never closed it. */
+                sidebar.insertAdjacentHTML('beforebegin', '<div class="pc-menu-overlay"></div>');
+                sidebar.previousElementSibling.addEventListener('click', closeMobileSidebar);
             }
             return;
         }

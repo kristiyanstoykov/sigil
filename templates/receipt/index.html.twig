@@ -34,34 +34,40 @@
                         'declined':  {badge: 'bg-danger-500/10 text-danger-600', icon: 'ti-ban'},
                         'cancelled': {badge: 'bg-danger-500/10 text-danger-600', icon: 'ti-x'},
                     }[receipt.outcome.value] %}
-                    <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4">
-                        <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ tone.badge }}">
-                            <i class="ti {{ tone.icon }} text-xl leading-none" aria-hidden="true"></i>
+                    {# Phone: what it is on top, then the outcome and the two actions on
+                       a row of their own. From sm up it is all one row. #}
+                    <li class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+                        <div class="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                            <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ tone.badge }}">
+                                <i class="ti {{ tone.icon }} text-xl leading-none" aria-hidden="true"></i>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-bold text-theme-headings">{{ receipt.documentTitle }}</p>
+                                <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                                    <span class="whitespace-nowrap">Sealed {{ receipt.sealedAt|date('d.m.Y H:i') }}</span>
+                                    <span class="mx-1.5 text-theme-border">·</span>
+                                    <span class="whitespace-nowrap">{{ (receipt.sizeBytes / 1024)|round }} KB</span>
+                                    <span class="mx-1.5 text-theme-border max-sm:hidden">·</span>
+                                    <span class="whitespace-nowrap max-sm:block">{{ receipt.source.label }}</span>
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-bold text-theme-headings">{{ receipt.documentTitle }}</p>
-                            <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
-                                Sealed {{ receipt.sealedAt|date('d.m.Y H:i') }}
-                                <span class="mx-1.5 text-theme-border">·</span>
-                                {{ (receipt.sizeBytes / 1024)|round }} KB
-                                <span class="mx-1.5 text-theme-border">·</span>
-                                {{ receipt.source.label }}
-                            </p>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <span class="badge rounded-full {{ tone.badge }} max-sm:mr-auto">{{ receipt.outcome.label }}</span>
+
+                            <a href="{{ path('app_receipt_verify', {id: receipt.id}) }}"
+                               class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2 max-sm:gap-1.5 max-sm:!px-2.5 max-sm:!py-0.5">
+                                <i class="ti ti-file-check text-base leading-none" aria-hidden="true"></i>
+                                <span>Verify<span class="max-sm:hidden"> a file</span></span>
+                            </a>
+                            <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
+                               class="btn btn-primary btn-sm inline-flex items-center gap-2 max-sm:gap-1.5 max-sm:!px-2.5 max-sm:!py-0.5">
+                                <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
+                                Download
+                            </a>
                         </div>
-
-                        <span class="badge rounded-full {{ tone.badge }}">{{ receipt.outcome.label }}</span>
-
-                        <a href="{{ path('app_receipt_verify', {id: receipt.id}) }}"
-                           class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
-                            <i class="ti ti-file-check text-base leading-none" aria-hidden="true"></i>
-                            Verify a file
-                        </a>
-                        <a href="{{ path('app_receipt_download', {id: receipt.id}) }}" data-turbo="false"
-                           class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
-                            <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
-                            Download
-                        </a>
                     </li>
                 {% endfor %}
             </ul>
