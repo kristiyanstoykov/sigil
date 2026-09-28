@@ -68,12 +68,12 @@ class AuthController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             $user->setPassword($hasher->hashPassword($user, $form->get(RegistrationForm::E_PASSWORD)->getData()));
 
-            // Same answer as a successful registration; the allowlist is never confirmed.
+            // Registration is invitation-only; an uninvited address is told plainly.
             if (!$allowlist->permits($user->getEmail())) {
                 $logger->notice('Registration refused: address not on the allowlist.');
-                $this->addFlash('success', self::REGISTERED_FLASH);
+                $this->addFlash('danger', 'You can\'t create an account at this time.');
 
-                return $this->redirectToRoute('app_login');
+                return $this->redirectToRoute('app_register');
             }
 
             $user->setRoles(['ROLE_SIGNER']);

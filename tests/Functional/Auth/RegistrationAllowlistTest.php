@@ -18,22 +18,21 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class RegistrationAllowlistTest extends AuthWebTestCase
 {
-    public function testAnUninvitedAddressGetsTheSameAnswerAndNoAccount(): void
+    public function testAnUninvitedAddressIsRefusedWithAnErrorAndNoAccount(): void
     {
         $invited = $this->uniqueEmail('invited');
         $this->allowlist($invited);
         $this->register($invited);
         self::assertResponseRedirects('/login');
-        $this->client->followRedirect();
-        $invitedFlash = $this->client->getCrawler()->filter('[data-flash-stack]')->text();
 
         $stranger = $this->uniqueEmail('stranger');
         $this->register($stranger);
-        self::assertResponseRedirects('/login');
-        self::assertEmailCount(0);
+        self::assertResponseRedirects('/register');
         $this->client->followRedirect();
 
-        self::assertSame($invitedFlash, $this->client->getCrawler()->filter('[data-flash-stack]')->text(), 'The page must not reveal whether an address is invited');
+        $flash = $this->client->getCrawler()->filter('[data-flash-stack] .alert-danger');
+        self::assertCount(1, $flash);
+        self::assertStringContainsString("You can't create an account at this time.", $flash->text());
         self::assertNull($this->users()->findOneByEmail($stranger), 'An uninvited address must never get an account');
         self::assertNotNull($this->users()->findOneByEmail($invited));
     }
