@@ -1,7 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 
 /*
- * Row action menu. Flowbite/absolute dropdowns get clipped by the table's
+ * Row action menu. An absolutely positioned dropdown gets clipped by the table's
  * overflow container, so on open this moves the menu into <body> and positions
  * it with `fixed` under the trigger - escaping every overflow/transform
  * ancestor. Closes on outside click, Esc, scroll, or resize.
@@ -18,7 +18,10 @@ export default class extends Controller {
             if (!this.menu.contains(event.target) && !this.button.contains(event.target)) this.close();
         };
         this._onKey = (event) => {
-            if (event.key === 'Escape') this.close();
+            if (event.key === 'Escape') {
+                this.close();
+                this.button.focus();
+            }
         };
         this._reposition = () => this.place();
     }
@@ -37,6 +40,7 @@ export default class extends Controller {
     open() {
         document.body.appendChild(this.menu);
         this.menu.classList.remove('hidden');
+        this.button.setAttribute('aria-expanded', 'true');
         this.place();
         document.addEventListener('click', this._onDoc);
         document.addEventListener('keydown', this._onKey);
@@ -46,6 +50,7 @@ export default class extends Controller {
 
     close() {
         this.menu.classList.add('hidden');
+        this.button.setAttribute('aria-expanded', 'false');
         this.rehome();
         this.detach();
     }
@@ -70,7 +75,8 @@ export default class extends Controller {
         const width = this.menu.offsetWidth || 240; // fallback = the menu's w-60
         const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
         this.menu.style.position = 'fixed';
-        this.menu.style.zIndex = '70'; // above the fixed navbar (z-50)
+        // Above Able Pro's header (1025) and sidebar (1026), below the modal backdrop (1028).
+        this.menu.style.zIndex = '1027';
         this.menu.style.left = `${left}px`;
         this.menu.style.top = `${rect.bottom + 6}px`;
     }

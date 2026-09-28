@@ -7,7 +7,7 @@
 
 {% block content %}
 {% set latest = document.latestVersion %}
-{% set isOwner = document.owner.id == app.user.id %}
+{% set isOwner = document.owner.is(app.user) %}
 {# The owner of a document nobody has been asked to sign yet is the one who
    decides what it is for. Everyone else is here because a request reached them,
    and gets the signature form directly. #}
@@ -112,38 +112,32 @@
             {# Being asked to sign is not being obliged to. The refusal sits next
                to the signature, not hidden away, and closes the request for
                everyone. #}
-            <div data-controller="confirm" class="contents">
-                <button type="button" data-action="confirm#open"
-                        class="btn btn-outline-danger mt-3 inline-flex w-full items-center justify-center gap-2">
-                    <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
-                    Decline to sign
-                </button>
+            <button type="button" data-pc-toggle="modal" data-pc-target="#decline-{{ signingRequest.id }}"
+                    class="btn btn-outline-danger mt-3 inline-flex w-full items-center justify-center gap-2">
+                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
+                Decline to sign
+            </button>
 
-                <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-                     data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-                     class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
-                    <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
-                        <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
-                            <i class="ti ti-x text-xl leading-none" aria-hidden="true"></i>
-                        </div>
-                        <h2 class="mb-2 text-lg font-semibold text-theme-headings">Decline to sign this document?</h2>
-                        <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
-                            The request closes for everyone - nobody after you is asked to sign - and you lose
-                            access to the document. {{ signingRequest.requester.fullName }} is told.
-                        </p>
-                        {{ form_start(declineForm, {
-                            action: path('app_signing_request_decline', {id: signingRequest.id}),
-                            attr: {class: 'space-y-4'}
-                        }) }}
+            {% embed 'components/modal.html.twig' with {id: 'decline-' ~ signingRequest.id, icon: 'ti-x', title: 'Decline to sign this document?'} %}
+                {% block content %}
+                    {{ form_start(declineForm, {
+                        action: path('app_signing_request_decline', {id: signingRequest.id}),
+                        attr: {class: 'contents'}
+                    }) }}
+                        <div class="modal-body space-y-4">
+                            <p class="text-sm leading-relaxed text-theme-secondarytextcolor">
+                                The request closes for everyone - nobody after you is asked to sign - and you lose
+                                access to the document. {{ signingRequest.requester.fullName }} is told.
+                            </p>
                             {{ form_row(declineForm.reason) }}
-                            <div class="flex gap-2.5">
-                                <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
-                                <button type="submit" class="btn btn-danger flex-1">Decline</button>
-                            </div>
-                        {{ form_end(declineForm) }}
-                    </div>
-                </div>
-            </div>
+                        </div>
+                        <div class="modal-footer gap-2">
+                            <button type="button" data-pc-modal-dismiss="#decline-{{ signingRequest.id }}" class="btn btn-outline-secondary">Go back</button>
+                            <button type="submit" class="btn btn-danger">Decline</button>
+                        </div>
+                    {{ form_end(declineForm) }}
+                {% endblock %}
+            {% endembed %}
 
             <div class="mt-6">
                 <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-theme-secondarytextcolor">Signing order</h2>

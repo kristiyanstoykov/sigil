@@ -246,15 +246,16 @@
 /*
  * .btn-primary hover — the vendor hovers 500→600, but the Sigil 600 stop
  * (#1E40AF) is nearly the same luminance as the 500 anchor (#1E3A8A), so the
- * state change was invisible. Hover/focus go to the darker 700 pressed stop,
- * and :active one step beyond it.
+ * state change was invisible. Hover and keyboard focus go to the darker 700
+ * pressed stop, and :active one step beyond it. :focus-visible, not :focus -
+ * otherwise a mouse click leaves the button dark until the next click.
  */
 @media (hover: hover) {
     .btn-primary:hover {
         background-color: var(--primary-700);
     }
 }
-.btn-primary:focus {
+.btn-primary:focus-visible {
     background-color: var(--primary-700);
 }
 .btn-primary:active {
@@ -448,38 +449,9 @@ button[aria-busy="true"] {
     }
 }
 
-/*
- * Confirm-dialog open/close animations (assets/controllers/confirm_controller.js
- * toggles the -out classes while closing). Animation only — the dialog surface
- * itself is styled with Able Pro/utility classes in the template.
- */
-.modal-card {
-    animation: modal-pop 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
-@keyframes modal-pop {
-    from { opacity: 0; transform: translateY(14px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.modal-backdrop-fade {
-    animation: modal-backdrop-fade 0.2s ease-out both;
-}
-@keyframes modal-backdrop-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-.modal-card.modal-card-out {
-    animation: modal-pop-out 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
-}
-@keyframes modal-pop-out {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(14px) scale(0.98); }
-}
-.modal-backdrop-fade.modal-backdrop-out {
-    animation: modal-backdrop-fade 0.2s ease-in both reverse;
-}
+/* Able Pro's modal slides and fades in; its transition ignores reduced motion. */
 @media (prefers-reduced-motion: reduce) {
-    .modal-card, .modal-backdrop-fade,
-    .modal-card.modal-card-out, .modal-backdrop-fade.modal-backdrop-out { animation: none; }
+    .modal-dialog { transition: none; }
 }
 
 /* Turbo's built-in progress bar (slow page navigations) in brand color. */
@@ -504,8 +476,8 @@ button[aria-busy="true"] {
 /* A subtle rise-in for the docs surfaces on the gradient. */
 /* backwards, not both: a filling animation keeps applying transform after it
    ends, and even an identity matrix makes the element a containing block for
-   position:fixed children - which pins the confirm dialogs nested inside
-   .docs-rise to this element instead of the viewport. */
+   position:fixed children - which pins the modals nested inside .docs-rise
+   to this element instead of the viewport. */
 .docs-rise {
     animation: docs-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
@@ -517,54 +489,6 @@ button[aria-busy="true"] {
 .no-rise .docs-rise { animation: none; }
 @media (prefers-reduced-motion: reduce) {
     .docs-rise { animation: none; }
-}
-
-/*
- * Native <dialog> modal (documents upload). Renders in the browser top layer,
- * so it is always above the navbar/sidebar with no z-index juggling. The
- * ::backdrop is the frosted-glass overlay behind the popup.
- */
-dialog.docs-modal {
-    /* Preflight resets `margin:0` on every element, which cancels the UA
-       `dialog { margin:auto }` centering — restore it explicitly. */
-    position: fixed;
-    inset: 0;
-    margin: auto;
-    height: fit-content;
-    max-width: 32rem;
-    width: calc(100% - 2rem);
-    max-height: calc(100dvh - 2rem);
-    padding: 0;
-    border: 0;
-    border-radius: 0.75rem;
-    background: transparent;
-    overflow: visible;
-}
-dialog.docs-modal::backdrop {
-    background: rgba(17, 24, 39, 0.35);
-    -webkit-backdrop-filter: blur(5px) saturate(1.05);
-    backdrop-filter: blur(5px) saturate(1.05);
-}
-/* Lock background scroll while open (no shift thanks to scrollbar-gutter). */
-html:has(dialog.docs-modal[open]) {
-    overflow: hidden;
-}
-dialog.docs-modal[open] {
-    animation: docs-modal-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-}
-dialog.docs-modal[open]::backdrop {
-    animation: docs-backdrop-in 0.2s ease-out;
-}
-@keyframes docs-modal-in {
-    from { opacity: 0; transform: translateY(10px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes docs-backdrop-in {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-    dialog.docs-modal[open], dialog.docs-modal[open]::backdrop { animation: none; }
 }
 
 /*

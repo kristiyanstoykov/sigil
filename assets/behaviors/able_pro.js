@@ -78,14 +78,47 @@ function targetOf(trigger) {
 function closeDropdowns() {
     document.querySelectorAll('.dropdown.drp-show, .btn-group.drp-show').forEach((el) => {
         el.classList.remove('drp-show');
+        el.querySelector('[data-pc-toggle="dropdown"]')?.setAttribute('aria-expanded', 'false');
     });
+}
+
+/* Storage can throw (blocked site data, some private modes); the sidebar
+   state is a convenience and must never stop the rest of the page init. */
+function readStorage(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+function writeStorage(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        /* not persisted - the toggle still works for this page */
+    }
 }
 
 /* ------------------------------ modals ----------------------------- */
 
-function openModal(modal, animation) {
+/* Able Pro's modal, plus what its script leaves out: aria-hidden, focus moved
+   in on open and back to the opener on close, and Tab kept inside. */
+const FOCUSABLE = 'input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+let modalOpener = null;
+
+/* The visible focusable elements under `scope` inside the modal. */
+function focusables(modal, scope) {
+    const selector = FOCUSABLE.split(', ').map((one) => `${scope} ${one}`).join(', ');
+    return [...modal.querySelectorAll(selector)].filter((el) => el.offsetParent !== null);
+}
+
+export function openModal(modal, animation) {
     if (animation) modal.classList.add('anim-' + animation);
+    modalOpener = document.activeElement;
     modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    (focusables(modal, '.modal-body')[0] || focusables(modal, '.modal-content')[0] || modal).focus({ preventScroll: true });
     window.setTimeout(() => modal.classList.add('animate'), 100);
     if (!document.getElementById('modaloverlay')) {
         const overlay = document.createElement('div');
@@ -96,10 +129,13 @@ function openModal(modal, animation) {
     }
 }
 
-function closeModal(modal) {
+export function closeModal(modal) {
     modal = modal || document.querySelector('.modal.show');
     if (!modal) return;
     modal.classList.remove('animate');
+    modal.setAttribute('aria-hidden', 'true');
+    modalOpener?.focus?.({ preventScroll: true });
+    modalOpener = null;
     window.setTimeout(() => {
         modal.classList.remove('show');
         [...modal.classList].forEach((c) => c.startsWith('anim-') && modal.classList.remove(c));
@@ -160,7 +196,7 @@ function bindOnce() {
             event.preventDefault();
             const collapsed = document.querySelector('.pc-sidebar')?.classList.toggle('pc-sidebar-hide');
             /* Persist across Turbo visits — each navigation renders a fresh body. */
-            localStorage.setItem('sigil.sidebar', collapsed ? 'collapsed' : 'open');
+            writeStorage('sigil.sidebar', collapsed ? 'collapsed' : 'open');
             return;
         }
 
@@ -182,7 +218,10 @@ function bindOnce() {
             const dropdown = trigger.closest('.dropdown, .btn-group') || trigger.parentNode;
             const wasOpen = dropdown.classList.contains('drp-show');
             closeDropdowns();
-            if (!wasOpen) dropdown.classList.add('drp-show');
+            if (!wasOpen) {
+                dropdown.classList.add('drp-show');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
             return;
         }
 
@@ -232,8 +271,21 @@ function bindOnce() {
     });
 
     document.addEventListener('keydown', (event) => {
+        /* Tab and Shift+Tab wrap around inside the open modal. */
+        const modal = event.key === 'Tab' && document.querySelector('.modal.show');
+        if (modal) {
+            const items = focusables(modal, '.modal-content');
+            const edge = event.shiftKey ? items[0] : items[items.length - 1];
+            if (items.length && (document.activeElement === edge || !modal.contains(document.activeElement))) {
+                event.preventDefault();
+                (event.shiftKey ? items[items.length - 1] : items[0]).focus();
+            }
+        }
         if (event.key === 'Escape') {
+            /* Focus goes back to the button of a dropdown Esc closed. */
+            const open = document.querySelector('.dropdown.drp-show, .btn-group.drp-show');
             closeDropdowns();
+            if (open?.contains(document.activeElement)) open.querySelector('[data-pc-toggle="dropdown"]')?.focus();
             closeModal();
         }
     });
@@ -246,6 +298,7 @@ function bindOnce() {
         document.body.classList.remove('modal-open');
         document.querySelectorAll('.modal.show').forEach((m) => {
             m.classList.remove('show', 'animate');
+            m.setAttribute('aria-hidden', 'true');
         });
     });
 }
@@ -255,8 +308,12 @@ function bindOnce() {
 export function initAblePro() {
     bindOnce();
 
+    /* A modal the server marked to open with the page (a return to a flow). */
+    const onLoad = document.querySelector('.modal[data-pc-open-on-load]:not(.show)');
+    if (onLoad) openModal(onLoad);
+
     /* Re-apply the persisted sidebar collapse state (rail mode). */
-    if (localStorage.getItem('sigil.sidebar') === 'collapsed') {
+    if (readStorage('sigil.sidebar') === 'collapsed') {
         document.querySelector('.pc-sidebar')?.classList.add('pc-sidebar-hide');
     }
 

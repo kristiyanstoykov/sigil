@@ -21,7 +21,7 @@
         {% if unread > 0 %}
             {{ form_start(markAllForm) }}
                 <button type="submit" class="btn btn-outline-secondary btn-sm">
-                    <i class="ti ti-circle-check"></i> Mark all read
+                    <i class="ti ti-circle-check" aria-hidden="true"></i> Mark all read
                 </button>
             {{ form_end(markAllForm) }}
         {% endif %}
@@ -50,7 +50,7 @@
             <div class="mt-4 flex items-center justify-between text-sm">
                 {% if page > 1 %}
                     <a href="{{ path('app_notifications', {page: page - 1}) }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="ti ti-chevron-left"></i> Newer
+                        <i class="ti ti-chevron-left" aria-hidden="true"></i> Newer
                     </a>
                 {% else %}<span></span>{% endif %}
 
@@ -58,7 +58,7 @@
 
                 {% if page < pages %}
                     <a href="{{ path('app_notifications', {page: page + 1}) }}" class="btn btn-outline-secondary btn-sm">
-                        Older <i class="ti ti-chevron-right"></i>
+                        Older <i class="ti ti-chevron-right" aria-hidden="true"></i>
                     </a>
                 {% else %}<span></span>{% endif %}
             </div>

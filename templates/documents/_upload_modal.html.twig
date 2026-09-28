@@ -1,22 +1,20 @@
 {#
-    Upload modal as a native <dialog> (top layer, frosted ::backdrop). Open/close
-    is driven by the documents-upload Stimulus controller on the wrapping element
-    in layout/app.html.twig - no theme modal instance, so nothing to desync.
+    Upload modal on Able Pro's .modal markup, rendered once by layout/app.html.twig.
+    Any button with data-pc-toggle="modal" data-pc-target="#upload-modal" opens it;
+    the documents-upload controller only runs the dropzone and the ?upload=1 open.
 #}
-<dialog data-documents-upload-target="dialog"
-        data-action="click->documents-upload#backdropClose cancel->documents-upload#onCancel"
-        class="docs-modal" aria-labelledby="upload-modal-title">
-    <div class="relative rounded-xl bg-white shadow-2xl">
+<div id="upload-modal" data-documents-upload-target="modal" class="modal fade" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
 
-        <div class="flex items-start justify-between gap-4 border-b border-theme-border p-5">
+        <div class="modal-header items-start gap-4">
             <div>
-                <h3 id="upload-modal-title" class="text-lg font-bold text-theme-headings">Upload document</h3>
+                <h5 id="upload-modal-title" class="modal-title">Upload document</h5>
                 <p class="mt-0.5 text-sm text-theme-secondarytextcolor">PDF only, up to 10 MB. Your file is encrypted before it's stored.</p>
             </div>
-            <button type="button" data-action="documents-upload#close"
-                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-secondarytextcolor hover:bg-theme-activebg hover:text-theme-headings">
-                <span class="sr-only">Close</span>
-                <i class="ti ti-x text-base leading-none" aria-hidden="true"></i>
+            <button type="button" data-pc-modal-dismiss="#upload-modal" aria-label="Close"
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-lg text-theme-secondarytextcolor hover:bg-danger-500/10 hover:text-danger-500">
+                <i class="ti ti-x" aria-hidden="true"></i>
             </button>
         </div>
 
@@ -27,10 +25,10 @@
         {% set E_RETURN = constant('App\\Document\\Form\\UploadDocumentForm::E_RETURN') %}
         {{ form_start(uploadForm, {
             action: path('app_document_upload'),
-            attr: {novalidate: 'novalidate', 'data-action': 'submit->documents-upload#validate'}
+            attr: {novalidate: 'novalidate', class: 'contents', 'data-action': 'submit->documents-upload#validate'}
         }) }}
             {{ form_widget(uploadForm[E_RETURN], {value: app.request.requestUri|split('?')|first}) }}
-            <div class="p-5">
+            <div class="modal-body">
                 <label data-dropzone
                        data-action="dragover->documents-upload#dragover dragleave->documents-upload#dragleave drop->documents-upload#drop"
                        class="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-theme-inputborder bg-theme-bodybg/70 px-6 py-10 text-center transition-colors hover:bg-theme-activebg">
@@ -68,8 +66,8 @@
                 </p>
             </div>
 
-            <div class="flex justify-end gap-3 border-t border-theme-border p-5">
-                <button type="button" data-action="documents-upload#close" class="btn btn-outline-secondary">Cancel</button>
+            <div class="modal-footer gap-3">
+                <button type="button" data-pc-modal-dismiss="#upload-modal" class="btn btn-outline-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary inline-flex items-center gap-2">
                     <i class="ti ti-upload text-base leading-none" aria-hidden="true"></i>
                     Upload
@@ -77,4 +75,5 @@
             </div>
         {{ form_end(uploadForm) }}
     </div>
-</dialog>
+    </div>
+</div>

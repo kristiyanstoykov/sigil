@@ -36,7 +36,7 @@
                             <code class="rounded bg-theme-activebg px-1.5 py-0.5 font-mono text-[11px] text-theme-bodycolor">{{ head.entryHash|slice(0, 12) }}…</code></span>
                             <span class="mx-1.5 text-theme-border max-sm:hidden">·</span>
                             {% if lastAnchor %}
-                                <span class="max-sm:block">last anchored at #{{ lastAnchor.sequence }} on {{ lastAnchor.anchoredAt|date('d M Y, H:i') }}</span>
+                                <span class="max-sm:block">last anchored at #{{ lastAnchor.sequence }} on {{ lastAnchor.anchoredAt|date('d M Y, H:i') }} UTC</span>
                                 {% if lastAnchor.sequence < head.sequence %}<span class="text-warning-600 max-sm:block">({{ head.sequence - lastAnchor.sequence }} newer entries not yet anchored)</span>{% endif %}
                             {% else %}
                                 <span class="text-warning-600 max-sm:block">never anchored outside the database</span>

@@ -54,7 +54,7 @@
                                 <td class="px-5 py-3.5 text-sm text-theme-bodycolor" data-label="Your part">
                                     {{ me ? 'Signer ' ~ me.position ~ ' of ' ~ total : 'Requester' }}
                                 </td>
-                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor whitespace-nowrap" data-label="Closed">{{ request.closedAt|date('d M Y H:i') }}</td>
+                                <td class="px-5 py-3.5 text-sm text-theme-bodycolor whitespace-nowrap" data-label="Closed">{{ request.closedAt|date('d M Y H:i') }} UTC</td>
                                 <td class="px-5 py-3.5" data-label="View">
                                     <div class="flex justify-end">
                                         {# The theme's square icon button, in the same outline as the row actions elsewhere. #}

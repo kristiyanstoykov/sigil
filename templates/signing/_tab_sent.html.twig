@@ -62,35 +62,31 @@
                             Open document
                         </a>
 
-                        <div data-controller="confirm" class="contents">
-                            <button type="button" data-action="confirm#open"
-                                    class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
-                                <i class="ti ti-arrow-back-up text-sm leading-none" aria-hidden="true"></i>
-                                Withdraw
-                            </button>
+                        <button type="button" data-pc-toggle="modal" data-pc-target="#withdraw-{{ request.id }}"
+                                class="btn btn-sm btn-outline-danger inline-flex items-center gap-1.5">
+                            <i class="ti ti-arrow-back-up text-sm leading-none" aria-hidden="true"></i>
+                            Withdraw
+                        </button>
 
-                            <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-                                 data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-                                 class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
-                                <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
-                                    <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
-                                        <i class="ti ti-arrow-back-up text-xl leading-none" aria-hidden="true"></i>
+                        {% embed 'components/modal.html.twig' with {id: 'withdraw-' ~ request.id, icon: 'ti-arrow-back-up', title: 'Withdraw the request on "' ~ request.document.title ~ '"?'} %}
+                            {% block content %}
+                                {{ form_start(withdrawForm, {
+                                    action: path('app_signing_request_withdraw', {id: request.id}),
+                                    attr: {class: 'contents'}
+                                }) }}
+                                    <div class="modal-body">
+                                        <p class="text-sm leading-relaxed text-theme-secondarytextcolor">
+                                            Nobody is asked to sign it again and {{ current ? current.user.fullName : 'the current signer' }}
+                                            loses access. Signatures already collected are kept as versions of the document.
+                                        </p>
                                     </div>
-                                    <h2 class="mb-2 text-lg font-semibold text-theme-headings">Withdraw the request on "{{ request.document.title }}"?</h2>
-                                    <p class="mb-4 text-sm leading-relaxed text-theme-secondarytextcolor">
-                                        Nobody is asked to sign it again and {{ current ? current.user.fullName : 'the current signer' }}
-                                        loses access. Signatures already collected are kept as versions of the document.
-                                    </p>
-                                    {{ form_start(withdrawForm, {
-                                        action: path('app_signing_request_withdraw', {id: request.id}),
-                                        attr: {class: 'flex gap-2.5'}
-                                    }) }}
-                                        <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Go back</button>
-                                        <button type="submit" class="btn btn-danger flex-1">Withdraw</button>
-                                    {{ form_end(withdrawForm) }}
-                                </div>
-                            </div>
-                        </div>
+                                    <div class="modal-footer gap-2">
+                                        <button type="button" data-pc-modal-dismiss="#withdraw-{{ request.id }}" class="btn btn-outline-secondary">Go back</button>
+                                        <button type="submit" class="btn btn-danger">Withdraw</button>
+                                    </div>
+                                {{ form_end(withdrawForm) }}
+                            {% endblock %}
+                        {% endembed %}
                     </div>
                 </div>
             </div>

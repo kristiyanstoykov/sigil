@@ -114,7 +114,7 @@
                         </span>
                         <span class="shrink-0 text-right">
                             {# Seconds matter: this is the evidentiary record, not a feed. #}
-                            <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ signature.signedAt|date('d M Y, H:i:s') }}</span>
+                            <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ signature.signedAt|date('d M Y, H:i:s') }} UTC</span>
                             <span class="block text-[11px] text-theme-secondarytextcolor">
                                 v{{ signature.versionNumber }} · {{ signature.viaRequest ? 'by request' : 'signed by the owner' }}
                             </span>
@@ -143,7 +143,7 @@
                                 <span class="block truncate text-xs text-theme-secondarytextcolor">{{ recipient.user.email }}</span>
                             </span>
                             <span class="shrink-0 text-right">
-                                <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ recipient.deliveredAt|date('d M Y, H:i:s') }}</span>
+                                <span class="block whitespace-nowrap font-mono text-xs text-theme-bodycolor">{{ recipient.deliveredAt|date('d M Y, H:i:s') }} UTC</span>
                                 <span class="block text-[11px] text-theme-secondarytextcolor">served v{{ recipient.version.versionNumber }}</span>
                             </span>
                         </li>

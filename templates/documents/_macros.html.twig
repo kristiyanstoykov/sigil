@@ -69,6 +69,7 @@
 {% macro row_menu(document, owned = true) %}
     <div data-controller="menu" class="inline-block">
         <button type="button" data-action="menu#toggle" data-menu-target="button"
+                aria-haspopup="true" aria-expanded="false"
                 class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-theme-border bg-white text-theme-secondarytextcolor hover:bg-theme-activebg">
             <span class="sr-only">More actions</span>
             <i class="ti ti-dots-vertical text-base leading-none" aria-hidden="true"></i>

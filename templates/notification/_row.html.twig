@@ -13,7 +13,7 @@
     <button type="submit" data-no-loader
             class="w-full text-left flex items-start gap-3 px-3 py-3 transition-colors hover:bg-theme-activebg {{ unread ? 'bg-primary-500/[0.04]' : '' }}">
         <span class="shrink-0 w-8 h-8 rounded-full inline-flex items-center justify-center {{ notification.type.toneClass }}">
-            <i class="ti {{ notification.type.icon }} text-base leading-none"></i>
+            <i class="ti {{ notification.type.icon }} text-base leading-none" aria-hidden="true"></i>
         </span>
 
         <span class="min-w-0 grow">
@@ -33,7 +33,7 @@
             {% endif %}
 
             <span class="block text-xs text-theme-secondarytextcolor mt-1">
-                {{ notification.createdAt|date('d M Y, H:i') }}
+                {{ notification.createdAt|date('d M Y, H:i') }} UTC
             </span>
         </span>
     </button>

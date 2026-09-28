@@ -44,7 +44,7 @@
             <dd class="min-w-0 truncate text-theme-bodycolor">{{ receipt.documentTitle }}</dd>
 
             <dt class="font-semibold text-theme-headings">Receipt</dt>
-            <dd class="text-theme-bodycolor">{{ receipt.source.label }} · {{ receipt.outcome.label|lower }} · sealed {{ receipt.sealedAt|date('d M Y, H:i') }}</dd>
+            <dd class="text-theme-bodycolor">{{ receipt.source.label }} · {{ receipt.outcome.label|lower }} · sealed {{ receipt.sealedAt|date('d M Y, H:i') }} UTC</dd>
 
             <dt class="font-semibold text-theme-headings">Fingerprint</dt>
             <dd class="min-w-0">

@@ -1,47 +1,23 @@
 import { Controller } from '@hotwired/stimulus';
+import { openModal } from '../behaviors/able_pro.js';
 
 /*
- * Documents upload modal - drives a native <dialog> (top layer, frosted
- * ::backdrop from CSS). No Flowbite modal instance, so open/close never
- * desync. Also handles the dropzone (filename display + drag-and-drop) and
- * auto-opens when the page is reached via ?upload=1 (the sidebar CTA).
+ * The upload modal's dropzone (filename, size check, drag-and-drop), and its
+ * auto-open when the page is reached via ?upload=1. Opening and closing
+ * otherwise belong to Able Pro's modal (behaviors/able_pro.js).
  */
 export default class extends Controller {
-    static targets = ['dialog', 'input', 'prompt', 'selected', 'filename', 'filesize', 'error'];
+    static targets = ['modal', 'input', 'prompt', 'selected', 'filename', 'filesize', 'error'];
     static values = { open: Boolean, max: Number };
 
     connect() {
-        if (this.openValue && this.hasDialogTarget) {
-            this.open();
+        if (this.openValue && this.hasModalTarget) {
+            openModal(this.modalTarget);
             // Clean ?upload=1 from the URL so a refresh/back doesn't reopen it.
             if (window.history.replaceState) {
                 window.history.replaceState({}, '', window.location.pathname);
             }
         }
-    }
-
-    open() {
-        if (this.hasDialogTarget && !this.dialogTarget.open) {
-            this.dialogTarget.showModal();
-        }
-    }
-
-    close() {
-        if (this.hasDialogTarget && this.dialogTarget.open) {
-            this.dialogTarget.close();
-        }
-    }
-
-    // Click on the dialog element itself (the backdrop area) closes it.
-    backdropClose(event) {
-        if (event.target === this.dialogTarget) {
-            this.close();
-        }
-    }
-
-    // Esc fires the dialog's native `cancel` event; let it close cleanly.
-    onCancel() {
-        this.close();
     }
 
     selected() {

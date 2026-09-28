@@ -4,36 +4,31 @@
 
 {% block title %}Certificate - Sigil{% endblock %}
 
-{# PIN-confirmed action dialog (hold / resume / revoke). Lives inside its own
-   data-controller="confirm" scope together with the button that opens it. #}
-{% macro action_modal(form_action, form, icon_wrap_class, icon_class, title, body, submit_label, submit_class, with_pin) %}
-    <div data-confirm-target="dialog" tabindex="-1" aria-hidden="true"
-         data-action="click->confirm#backdropClose keydown.esc@window->confirm#close"
-         class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-[1050] flex justify-center items-center w-full h-full bg-theme-headings/40 backdrop-blur-sm modal-backdrop-fade">
-        {# solid white on phones - the 85% glass card over the dark scrim read grey; desktop keeps a near-solid glass #}
-        <div data-confirm-target="card" class="relative w-full max-w-md p-6 m-5 glass-card !bg-white sm:!bg-white/90 modal-card">
-            <div class="inline-flex w-11 h-11 items-center justify-center rounded-lg {{ icon_wrap_class }} mb-4">
-                <i class="{{ icon_class }} text-xl leading-none" aria-hidden="true"></i>
-            </div>
-            <h2 class="text-lg font-semibold text-theme-headings mb-2">{{ title }}</h2>
-            <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">{{ body }}</p>
-            {{ form_start(form, {action: form_action, attr: {novalidate: 'novalidate', class: 'space-y-4'}}) }}
-                {% if with_pin %}
-                    {% set E_PIN = constant('App\\Certificate\\Form\\CertificateActionForm::E_PIN') %}
-                    <label class="block">
-                        <span class="form-label !inline-block text-sm font-semibold">Certificate PIN</span>
-                        {{ form_widget(form[E_PIN], {attr: {
-                            class: 'form-control !bg-white/60 text-center font-mono tracking-[0.3em]'
-                        }}) }}
-                    </label>
-                {% endif %}
-                <div class="flex gap-2.5">
-                    <button type="button" data-action="confirm#close" class="btn btn-outline-secondary flex-1">Cancel</button>
-                    <button type="submit" class="btn {{ submit_class }} flex-1">{{ submit_label }}</button>
+{# PIN-confirmed action dialog (hold / resume / revoke), opened by a button
+   with data-pc-toggle="modal" data-pc-target="#<id>". #}
+{% macro action_modal(id, form_action, form, tone, icon, title, body, submit_label, submit_class, with_pin) %}
+    {% embed 'components/modal.html.twig' with {id: id, tone: tone, icon: icon, title: title} %}
+        {% block content %}
+            {{ form_start(form, {action: form_action, attr: {novalidate: 'novalidate', class: 'contents'}}) }}
+                <div class="modal-body space-y-4">
+                    <p class="text-sm leading-relaxed text-theme-secondarytextcolor">{{ body }}</p>
+                    {% if with_pin %}
+                        {% set E_PIN = constant('App\\Certificate\\Form\\CertificateActionForm::E_PIN') %}
+                        <label class="block">
+                            <span class="form-label !inline-block text-sm font-semibold">Certificate PIN</span>
+                            {{ form_widget(form[E_PIN], {attr: {
+                                class: 'form-control text-center font-mono tracking-[0.3em]'
+                            }}) }}
+                        </label>
+                    {% endif %}
+                </div>
+                <div class="modal-footer gap-2">
+                    <button type="button" data-pc-modal-dismiss="#{{ id }}" class="btn btn-outline-secondary">Cancel</button>
+                    <button type="submit" class="btn {{ submit_class }}">{{ submit_label }}</button>
                 </div>
             {{ form_end(form) }}
-        </div>
-    </div>
+        {% endblock %}
+    {% endembed %}
 {% endmacro %}
 
 {% block content %}
@@ -148,32 +143,34 @@
 
                         {% if status.active %}
                             {# 72h hold - the "certificateHold" story: pause signing without burning the identity #}
-                            <div data-controller="confirm" class="contents">
-                                <button type="button" data-action="confirm#open"
+                            <div class="contents">
+                                <button type="button" data-pc-toggle="modal" data-pc-target="#cert-hold"
                                         class="btn {{ helpers.action_class('hold') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
                                     <i class="ti ti-player-pause text-base leading-none" aria-hidden="true"></i>
                                     Hold
                                 </button>
                                 {{ ui.action_modal(
+                                    'cert-hold',
                                     path('app_certificate_hold', {id: certificate.id}),
                                     holdForm,
-                                    'bg-warning-500/10 text-warning-600', 'ti ti-player-pause',
+                                    'warning', 'ti-player-pause',
                                     'Put this certificate on hold?',
                                     'Signing with this certificate will be disabled for the next ' ~ constant('App\\Certificate\\Entity\\Certificate::HOLD_HOURS') ~ ' hours. It resumes automatically after that - or earlier, with your PIN. Confirm with your PIN to place the hold.',
                                     'Put on hold', 'btn-warning', true
                                 ) }}
                             </div>
                         {% elseif status.onHold %}
-                            <div data-controller="confirm" class="contents">
-                                <button type="button" data-action="confirm#open"
+                            <div class="contents">
+                                <button type="button" data-pc-toggle="modal" data-pc-target="#cert-resume"
                                         class="btn {{ helpers.action_class('resume') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
                                     <i class="ti ti-player-play text-base leading-none" aria-hidden="true"></i>
                                     Resume
                                 </button>
                                 {{ ui.action_modal(
+                                    'cert-resume',
                                     path('app_certificate_resume', {id: certificate.id}),
                                     resumeForm,
-                                    'bg-success-500/10 text-success-600', 'ti ti-player-play',
+                                    'success', 'ti-player-play',
                                     'Resume this certificate?',
                                     'The hold ends now and signing with this certificate is enabled again. Confirm with your PIN.',
                                     'Resume', 'btn-success', true
@@ -183,16 +180,17 @@
 
                         {# PIN required while the certificate is otherwise usable; a locked/expired
                            one is revocable without it (the PIN may be lost - re-issue starts here) #}
-                        <div data-controller="confirm" class="contents">
-                            <button type="button" data-action="confirm#open"
+                        <div class="contents">
+                            <button type="button" data-pc-toggle="modal" data-pc-target="#cert-revoke"
                                     class="btn {{ helpers.action_class('revoke') }} inline-flex items-center justify-center gap-2 max-sm:grow max-sm:basis-[calc(50%-0.25rem)]">
                                 <i class="ti ti-ban text-base leading-none" aria-hidden="true"></i>
                                 Revoke
                             </button>
                             {{ ui.action_modal(
+                                'cert-revoke',
                                 path('app_certificate_revoke', {id: certificate.id}),
                                 revokeForm,
-                                'bg-danger-500/10 text-danger-600', 'ti ti-alert-triangle',
+                                'danger', 'ti-alert-triangle',
                                 'Revoke this certificate?',
                                 'Revoking is permanent. This signing identity will immediately stop working and can\'t be reactivated - you\'d need to issue a new one.' ~ (status.pinGuarded ? ' Confirm with your PIN.' : ''),
                                 'Revoke certificate', 'btn-danger', status.pinGuarded

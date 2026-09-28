@@ -45,7 +45,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm font-bold text-theme-headings">{{ receipt.documentTitle }}</p>
                                 <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
-                                    <span class="whitespace-nowrap">Sealed {{ receipt.sealedAt|date('d.m.Y H:i') }}</span>
+                                    <span class="whitespace-nowrap">Sealed {{ receipt.sealedAt|date('d.m.Y H:i') }} UTC</span>
                                     <span class="mx-1.5 text-theme-border">·</span>
                                     <span class="whitespace-nowrap">{{ (receipt.sizeBytes / 1024)|round }} KB</span>
                                     <span class="mx-1.5 text-theme-border max-sm:hidden">·</span>

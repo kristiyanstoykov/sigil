@@ -28,7 +28,7 @@
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                             {{ docs.status_badge(v.kind) }}
-                            <span class="text-sm text-theme-secondarytextcolor whitespace-nowrap">{{ docs.filesize(v.sizeBytes) }} · {{ v.createdAt|date('d M Y, H:i') }}</span>
+                            <span class="text-sm text-theme-secondarytextcolor whitespace-nowrap">{{ docs.filesize(v.sizeBytes) }} · {{ v.createdAt|date('d M Y, H:i') }} UTC</span>
                         </div>
                         <p class="mt-1 text-xs text-theme-secondarytextcolor">
                             {%- if signedBy[v.versionNumber] is defined -%}

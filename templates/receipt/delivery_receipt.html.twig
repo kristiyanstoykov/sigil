@@ -39,7 +39,7 @@
    why, or the receipt cannot explain why the request stopped where it did. #}
 
 <h1>{{ delivered ? 'Delivery receipt' : 'Signature request receipt' }}</h1>
-<p class="brand">Sigil &mdash; Signum Veritatis &middot; issued {{ sealedAt|date('d.m.Y H:i:s e') }}</p>
+<p class="brand">Sigil &mdash; Signum Veritatis &middot; issued {{ sealedAt|date('d.m.Y H:i:s e') }} &middot; all times in this receipt are UTC</p>
 <div class="rule"></div>
 
 <table class="meta">

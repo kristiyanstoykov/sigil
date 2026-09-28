@@ -21,7 +21,7 @@
     data-notifications-refresh-url-value="{{ path('app_notifications_bell') }}">
     <a class="pc-head-link dropdown-toggle me-2 relative" data-pc-toggle="dropdown" href="#"
        role="button" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
-        <i class="ti ti-bell" data-notifications-target="bell"></i>
+        <i class="ti ti-bell" data-notifications-target="bell" aria-hidden="true"></i>
         <span data-notifications-target="badge" aria-live="polite">{{ include('notification/_bell_badge.html.twig') }}</span>
     </a>
 

@@ -31,7 +31,7 @@
                                 {{ receipt.source.isDelivery ? 'Delivery' : 'Signature request' }} · {{ receipt.outcome.label|lower }}
                             </p>
                             <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
-                                Sealed {{ receipt.sealedAt|date('d M Y, H:i') }} · {{ docs.filesize(receipt.sizeBytes) }}
+                                Sealed {{ receipt.sealedAt|date('d M Y, H:i') }} UTC · {{ docs.filesize(receipt.sizeBytes) }}
                             </p>
                         </div>
                     </div>

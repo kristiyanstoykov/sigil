@@ -194,8 +194,8 @@ final class SigningControllerTest extends AuthWebTestCase
 
     /**
      * The document page's Sign button has always meant "sign it myself", so it
-     * links with ?purpose=self and the chooser opens on that panel - the modal
-     * is pure CSS, so the radio has to arrive pre-checked.
+     * links with ?purpose=self and the chooser opens that panel's modal with
+     * the page, so the server marks it to open on load.
      */
     public function testPurposeSelfOpensTheSignPanelDirectly(): void
     {
@@ -203,14 +203,14 @@ final class SigningControllerTest extends AuthWebTestCase
 
         $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign?purpose=self');
         self::assertResponseIsSuccessful();
-        self::assertSame(1, $crawler->filter('#pp-self[checked]')->count());
-        self::assertSame(0, $crawler->filter('#pp-none[checked]')->count());
+        self::assertSame(1, $crawler->filter('#purpose-self[data-pc-open-on-load]')->count());
+        self::assertSame(1, $crawler->filter('.modal[data-pc-open-on-load]')->count(), 'only that one opens');
 
         // Without it the chooser rests on "nothing chosen".
         $crawler = $this->client->request('GET', '/documents/'.$documentId.'/sign');
         self::assertResponseIsSuccessful();
-        self::assertSame(0, $crawler->filter('#pp-self[checked]')->count());
-        self::assertSame(1, $crawler->filter('#pp-none[checked]')->count());
+        self::assertSame(1, $crawler->filter('#purpose-self')->count());
+        self::assertSame(0, $crawler->filter('.modal[data-pc-open-on-load]')->count());
     }
 
     public function testWrongPinIsRejectedAtTheGate(): void
@@ -226,8 +226,8 @@ final class SigningControllerTest extends AuthWebTestCase
         $this->client->submit($form);
 
         // Redirects back (PRG) so the flash shows under Turbo; no signed version.
-        // ?purpose=self reopens the chooser's sign panel, which is pure CSS and
-        // would otherwise be closed on the way back.
+        // ?purpose=self reopens the chooser's sign panel, whose modal would
+        // otherwise be closed on the way back.
         self::assertResponseRedirects('/documents/'.$documentId.'/sign?purpose=self');
         $crawler = $this->client->followRedirect();
         self::assertStringContainsString('Incorrect PIN', $crawler->html());
