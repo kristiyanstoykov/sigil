@@ -7,6 +7,9 @@ if [ "$ENV" = "prod" ]; then
     echo "==> Installing PHP dependencies (no dev packages)..."
     composer install --no-interaction --prefer-dist --no-dev --classmap-authoritative
 
+    # var/ outlives the container, and prod never checks its cache for freshness.
+    rm -rf var/cache/prod
+
     # Prod serves compiled assets from public/assets; there is no dev asset server.
     echo "==> Building and compiling assets..."
     php bin/console tailwind:build --minify --no-interaction
