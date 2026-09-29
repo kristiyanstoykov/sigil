@@ -71,22 +71,26 @@ services:
   # notification itself is a row in Postgres, and the browser re-reads from there
   # on every nudge, so restarting the hub loses nothing.
   mercure:
-    image: dunglas/mercure:latest
+    # Protocol 1.0 (config/packages/mercure.yaml). Pinned, and the same tag as
+    # MERCURE_IMAGE_TAG in prod: a hub upgrade is a protocol decision, not a pull.
+    image: dunglas/mercure:v1.0.2
     environment:
       SERVER_NAME: ":3000"
       # auto_https off: dev serves plain HTTP on localhost.
       GLOBAL_OPTIONS: "auto_https off"
+      # The one token issuer the hub trusts: the app's iss claim (DEFAULT_URI).
+      MERCURE_TRUSTED_ISSUERS: "http://localhost:8000"
       MERCURE_PUBLISHER_JWT_KEY: "sigil_dev_mercure_jwt_secret_change_in_production"
       MERCURE_SUBSCRIBER_JWT_KEY: "sigil_dev_mercure_jwt_secret_change_in_production"
       # No `anonymous` directive on purpose: every subscriber must present the
       # cookie the app signed, or the inbox topics would be world-readable.
+      # resource_identifier pins the token audience to the public URL, which the
+      # app also publishes under from inside the network. The cookie drops its
+      # __Secure- prefix because dev is plain HTTP.
       MERCURE_EXTRA_DIRECTIVES: |
         cors_origins http://localhost:8000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+        resource_identifier http://localhost:8000/.well-known/mercure
+        cookie_name mercure_access_token
 
   # Opt-in S3-compatible store for offline dev: `docker compose --profile minio up`
   # with SIGIL_STORAGE_ACTIVE_BACKEND=minio. Off by default - AWS S3 is the

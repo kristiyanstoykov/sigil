@@ -133,7 +133,7 @@ class LivePushTest extends AuthWebTestCase
 
         $cookie = null;
         foreach ($this->client->getResponse()->headers->getCookies() as $candidate) {
-            if ('mercureAuthorization' === $candidate->getName()) {
+            if ('mercure_access_token' === $candidate->getName()) {
                 $cookie = $candidate;
             }
         }
@@ -146,12 +146,23 @@ class LivePushTest extends AuthWebTestCase
         // cross from :8000 to :3000 in the first place.
         self::assertSame('/.well-known/mercure', $cookie->getPath());
 
+        // One Mercure 1.0 grant: subscribe, on this reader's inbox, nothing else.
         $claims = $this->jwtClaims((string) $cookie->getValue());
         self::assertSame(
-            ['subscribe' => [InboxTopic::for($reader)]],
-            $claims['mercure'] ?? null,
+            [[
+                'type' => 'https://mercure.rocks/authorization-detail',
+                'actions' => ['subscribe'],
+                'topics' => [['match' => InboxTopic::for($reader)]],
+            ]],
+            $claims['authorization_details'] ?? null,
         );
-        self::assertArrayNotHasKey('publish', $claims['mercure']);
+        self::assertArrayNotHasKey('mercure', $claims, 'The legacy claim is gone under protocol 1.0.');
+
+        // An RFC 9068 access token naming its holder, bound to this app and this hub.
+        self::assertSame($reader->getId()->toRfc4122(), $claims['sub'] ?? null);
+        self::assertSame($_SERVER['DEFAULT_URI'] ?? null, $claims['iss'] ?? null);
+        self::assertSame($this->hub()->getPublicUrl(), $claims['aud'] ?? null);
+        self::assertArrayHasKey('exp', $claims);
     }
 
     /**

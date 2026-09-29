@@ -67,10 +67,13 @@ services:
     image: "dunglas/mercure:${MERCURE_IMAGE_TAG:?pin a Mercure release tag}"
     restart: unless-stopped
     environment:
+      MERCURE_TRUSTED_ISSUERS: "${DEFAULT_URI:?set DEFAULT_URI}"
       MERCURE_PUBLISHER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
       MERCURE_SUBSCRIBER_JWT_KEY: "${MERCURE_JWT_SECRET:?set MERCURE_JWT_SECRET}"
+      # Replaces dev's list whole, so prod keeps the __Secure- cookie default.
       MERCURE_EXTRA_DIRECTIVES: |
         cors_origins ${DEFAULT_URI:?set DEFAULT_URI}
+        resource_identifier ${MERCURE_PUBLIC_URL:?set MERCURE_PUBLIC_URL}
     ports: !override []
     expose:
       - "3000"
