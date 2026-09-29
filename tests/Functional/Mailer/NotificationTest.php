@@ -123,6 +123,58 @@ final class NotificationTest extends AuthWebTestCase
         self::assertStringContainsString('signed', (string) $email->getSubject());
     }
 
+    public function testADeclineTellsOnlyTheRequester(): void
+    {
+        $owner = $this->createUser($this->uniqueEmail('mail-decline-owner'));
+        $first = $this->withCertificate($this->createUser($this->uniqueEmail('mail-decline-first')));
+        $second = $this->withCertificate($this->createUser($this->uniqueEmail('mail-decline-second')));
+        $document = static::getContainer()->get(DocumentUploader::class)->upload($owner, self::MINIMAL_PDF, 'Lease.pdf');
+
+        $service = static::getContainer()->get(SigningRequestService::class);
+        $request = $service->create($document, $owner, [$first, $second], new \DateTimeImmutable('+7 days'));
+        $service->decline($request, $first, 'Wrong rent.');
+
+        self::assertSame('Signature request declined: Lease.pdf', $this->messageTo($owner->getEmail())->getSubject());
+        self::assertSame(
+            ['Your signature is requested: Lease.pdf'],
+            $this->subjectsTo($first->getEmail()),
+            'the decliner is not told about their own refusal',
+        );
+        self::assertSame([], $this->subjectsTo($second->getEmail()));
+    }
+
+    public function testAWithdrawalStillTellsTheSignerHoldingTheTurn(): void
+    {
+        $owner = $this->createUser($this->uniqueEmail('mail-withdraw-owner'));
+        $signer = $this->withCertificate($this->createUser($this->uniqueEmail('mail-withdraw-signer')));
+        $document = static::getContainer()->get(DocumentUploader::class)->upload($owner, self::MINIMAL_PDF, 'Offer.pdf');
+
+        $service = static::getContainer()->get(SigningRequestService::class);
+        $request = $service->create($document, $owner, [$signer], new \DateTimeImmutable('+7 days'));
+        $service->cancel($request, $owner);
+
+        self::assertSame('Signature request cancelled: Offer.pdf', $this->messageTo($signer->getEmail())->getSubject());
+        self::assertSame('Signature request cancelled: Offer.pdf', $this->messageTo($owner->getEmail())->getSubject());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function subjectsTo(string $address): array
+    {
+        $subjects = [];
+        foreach (self::getMailerMessages() as $message) {
+            \assert($message instanceof \Symfony\Component\Mime\Email);
+            foreach ($message->getTo() as $to) {
+                if ($to->getAddress() === $address) {
+                    $subjects[] = (string) $message->getSubject();
+                }
+            }
+        }
+
+        return $subjects;
+    }
+
     private function certificateOf(User $user): Certificate
     {
         return static::getContainer()->get(CertificateRepository::class)->findByUser($user)[0];

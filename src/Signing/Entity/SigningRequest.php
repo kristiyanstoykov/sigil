@@ -169,6 +169,38 @@ class SigningRequest
         return null;
     }
 
+    /**
+     * Who is told a non-completed request closed: the requester, plus the signer
+     * whose turn it ended - unless they ended it by declining. Nobody is told
+     * about their own refusal.
+     *
+     * @return list<User>
+     */
+    public function closingAudience(): array
+    {
+        $decliner = $this->declinedBy()?->getUser();
+        $audience = [];
+
+        $candidates = [$this->requester];
+        if (null === $decliner && null !== ($pending = $this->currentSigner())) {
+            $candidates[] = $pending->getUser();
+        }
+
+        foreach ($candidates as $user) {
+            if ($decliner?->is($user)) {
+                continue;
+            }
+            foreach ($audience as $already) {
+                if ($already->is($user)) {
+                    continue 2;
+                }
+            }
+            $audience[] = $user;
+        }
+
+        return $audience;
+    }
+
     public function hasAnySignature(): bool
     {
         return $this->signedCount() > 0;

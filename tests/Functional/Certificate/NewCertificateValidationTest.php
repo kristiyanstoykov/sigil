@@ -35,7 +35,7 @@ final class NewCertificateValidationTest extends AuthWebTestCase
         self::assertStringContainsString('Please choose a PIN.', (string) $this->client->getResponse()->getContent());
     }
 
-    public function testAWeakPinShowsThePolicyError(): void
+    public function testAShortPinShowsThePolicyError(): void
     {
         $email = $this->uniqueEmail('pinfmt');
         $this->createUser($email, verified: true, totpEnabled: true);
@@ -49,12 +49,12 @@ final class NewCertificateValidationTest extends AuthWebTestCase
 
         $crawler = $this->client->request('GET', '/certificates/new');
         $form = $crawler->selectButton('Generate my certificate')->form([
-            'new_certificate_form[pin][first]' => '13579024',
-            'new_certificate_form[pin][second]' => '13579024',
+            'new_certificate_form[pin][first]' => '13579',
+            'new_certificate_form[pin][second]' => '13579',
         ]);
         $this->client->submit($form);
 
         self::assertResponseStatusCodeSame(422);
-        self::assertStringContainsString('This PIN is too easy to guess', (string) $this->client->getResponse()->getContent());
+        self::assertStringContainsString('The PIN must be 6 to 64 characters.', (string) $this->client->getResponse()->getContent());
     }
 }

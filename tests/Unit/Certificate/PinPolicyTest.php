@@ -14,6 +14,8 @@ final class PinPolicyTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function acceptable(): iterable
     {
+        yield 'six digits' => ['135790'];
+        yield 'long digits' => ['1234567890123456'];
         yield 'mixed ascii' => ['Sigil-2026!'];
         yield 'passphrase with spaces' => ['correct horse battery 7'];
         yield 'cyrillic' => ['Стойков-2026'];
@@ -21,7 +23,7 @@ final class PinPolicyTest extends TestCase
     }
 
     #[DataProvider('acceptable')]
-    public function testAcceptsAPinWithEnoughEntropy(string $pin): void
+    public function testAcceptsAPinOfTheRightShape(string $pin): void
     {
         $this->expectNotToPerformAssertions();
         PinPolicy::assert($pin);
@@ -30,12 +32,8 @@ final class PinPolicyTest extends TestCase
     /** @return iterable<string, array{string, string}> */
     public static function rejected(): iterable
     {
-        yield 'the old phone-style pin' => ['123456', 'must be 8 to 64 characters'];
-        yield 'eight digits' => ['13579024', 'too easy to guess'];
-        yield 'long but digits only' => ['1234567890123456', 'too easy to guess'];
-        yield 'letters only, short' => ['abcdefgh', 'too easy to guess'];
-        yield 'one character repeated' => [str_repeat('a', 20), 'too easy to guess'];
-        yield 'over the maximum' => [str_repeat('Ab3!', 17), 'must be 8 to 64 characters'];
+        yield 'five digits' => ['13579', 'must be 6 to 64 characters'];
+        yield 'over the maximum' => [str_repeat('Ab3!', 17), 'must be 6 to 64 characters'];
         yield 'control character' => ["Sigil-2026\t!", 'cannot be typed'];
         yield 'invalid utf-8' => ["Sigil-2026\xff!", 'cannot be typed'];
     }

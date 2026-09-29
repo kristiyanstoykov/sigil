@@ -74,14 +74,28 @@ class CertificateIssueTest extends AuthWebTestCase
         self::assertTrue($manager->tokenExists($certificate->getTokenLabel()));
     }
 
+    /** The shortest PIN the policy allows must also be one the token accepts. */
+    public function testASixDigitPinOpensARealToken(): void
+    {
+        $user = $this->createUser($this->uniqueEmail('cert'));
+        $certificate = static::getContainer()->get(CertificateIssuer::class)->issueForUser($user, '135790');
+        $this->tokensToCleanUp[] = $certificate->getTokenLabel();
+
+        // Issuance logged in with it; a PIN change logs in again, both ways.
+        $manager = static::getContainer()->get(Pkcs11TokenManager::class);
+        $manager->changeUserPin($certificate->getTokenLabel(), '135790', '246801');
+        $manager->changeUserPin($certificate->getTokenLabel(), '246801', '135790');
+        $this->addToAssertionCount(1);
+    }
+
     public function testPinPolicyIsEnforced(): void
     {
         $user = $this->createUser($this->uniqueEmail('cert'));
         $issuer = static::getContainer()->get(CertificateIssuer::class);
 
         $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('too easy to guess');
-        $issuer->issueForUser($user, '13579024');
+        $this->expectExceptionMessage('must be 6 to 64 characters');
+        $issuer->issueForUser($user, '13579');
     }
 
     /**

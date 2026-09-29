@@ -22,6 +22,11 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         // Submit the real current TOTP code through the scheb form.
         $crawler = $this->client->request('GET', '/2fa');
         self::assertResponseIsSuccessful();
+
+        // Six digits submit the form by themselves; the button stays the no-JS path.
+        self::assertCount(1, $crawler->filter('input[name="_auth_code"][data-controller="otp-autosubmit"]'));
+        self::assertCount(1, $crawler->filter('form[action$="2fa_check"] button[type="submit"]'));
+
         $form = $crawler->filter('form[action$="2fa_check"]')->form([
             '_auth_code' => $this->totpCode(self::TOTP_SECRET),
         ]);
@@ -112,6 +117,7 @@ final class TwoFactorLoginTest extends AuthWebTestCase
 
         $crawler = $this->client->request('GET', '/2fa/setup');
         self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-controller="otp-autosubmit"]'), 'enrolment is confirmed by hand');
 
         $form = $crawler->filter('form')->form(['two_factor_setup_form[code]' => '000000']);
         $crawler = $this->client->submit($form);

@@ -86,8 +86,7 @@ final class SigningRequestNotifier
     }
 
     /**
-     * Expired, cancelled or declined: the requester always hears about it, and so
-     * does the signer who was holding the turn when it closed.
+     * Expired, cancelled or declined, told to SigningRequest::closingAudience().
      */
     public function notifyClosed(SigningRequest $request, SigningRequestStatus $status): void
     {
@@ -104,16 +103,10 @@ final class SigningRequestNotifier
             default => 'Signature request cancelled',
         };
 
-        $recipients = [$request->getRequester()->getEmail()];
-        $pending = $request->currentSigner();
-        if (null !== $pending) {
-            $recipients[] = $pending->getUser()->getEmail();
-        }
-
-        foreach (array_unique($recipients) as $recipient) {
+        foreach ($request->closingAudience() as $recipient) {
             $this->mailer->trySend(
                 (new TemplatedEmail())
-                    ->to($recipient)
+                    ->to($recipient->getEmail())
                     ->subject(sprintf('%s: %s', $subject, $document->getTitle()))
                     ->htmlTemplate('emails/signing_closed.html.twig')
                     ->context([
