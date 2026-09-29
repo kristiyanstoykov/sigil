@@ -61,7 +61,12 @@ final class MercureCookieSubscriber
         }
 
         try {
-            $this->authorization->setCookie($event->getRequest(), [InboxTopic::for($user)]);
+            // sub names the holder (RFC 9068), overriding the app-wide default.
+            $this->authorization->setCookie(
+                $event->getRequest(),
+                [InboxTopic::for($user)],
+                additionalClaims: ['sub' => $user->getId()->toRfc4122()],
+            );
         } catch (\Throwable $e) {
             // A misconfigured hub must not take the page down with it; the bell
             // still renders from the database, just without the live push.

@@ -5,6 +5,9 @@
 # on its own: a JWT the app signs with a key both sides hold. The app's own
 # publish token is minted from this config; the per-user subscribe token is
 # minted per response by MercureCookieSubscriber.
+#
+# Protocol 1.0: every token is an RFC 9068 access token (typ at+jwt, iss, aud,
+# exp), and the hub trusts only this issuer (MERCURE_TRUSTED_ISSUERS in compose).
 mercure:
     hubs:
         default:
@@ -12,8 +15,28 @@ mercure:
             # the browser opens an EventSource to. They differ under Docker.
             url: '%env(MERCURE_URL)%'
             public_url: '%env(MERCURE_PUBLIC_URL)%'
+            protocol_version: '1.0'
             jwt:
                 secret: '%env(MERCURE_JWT_SECRET)%'
                 # The app may announce on any topic. Subscribers may not - each
                 # gets exactly their own inbox topic and nothing else.
                 publish: ['*']
+                # aud defaults to public_url; the hub pins the same value as its
+                # resource_identifier, so publishing via the internal url passes too.
+                claims:
+                    iss: '%env(DEFAULT_URI)%'
+                    sub: sigil
+                    client_id: sigil
+
+# The __Secure- cookie prefix needs HTTPS; dev and the tests run plain HTTP.
+when@dev:
+    mercure:
+        hubs:
+            default:
+                cookie_name: mercure_access_token
+
+when@test:
+    mercure:
+        hubs:
+            default:
+                cookie_name: mercure_access_token
