@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Notification\EventSubscriber;
 
-use App\Core\Entity\User;
 use App\Document\Entity\Document;
 use App\Notification\Enum\NotificationType;
 use App\Notification\Service\Notifier;
@@ -80,8 +79,8 @@ final class NotifyOnSigningEvent
     }
 
     /**
-     * Completed goes to the requester; any other ending also goes to whoever was
-     * holding the turn when it closed, which is the same audience the mail has.
+     * Completed goes to the requester; any other ending to the request's
+     * closingAudience(), the same audience the mail has.
      */
     #[AsEventListener(event: SigningRequestClosed::class, priority: 0)]
     public function onRequestClosed(SigningRequestClosed $event): void
@@ -116,21 +115,7 @@ final class NotifyOnSigningEvent
             default => 'The requester withdrew it.',
         };
 
-        $audience = [$request->getRequester()];
-        $pending = $request->currentSigner();
-        if (null !== $pending) {
-            $audience[] = $pending->getUser();
-        }
-
-        /** @var list<User> $audience */
-        $seen = [];
-        foreach ($audience as $user) {
-            $id = $user->getId()->toRfc4122();
-            if (isset($seen[$id])) {
-                continue;
-            }
-            $seen[$id] = true;
-
+        foreach ($request->closingAudience() as $user) {
             $this->guard(function () use ($user, $document, $status, $body): void {
                 $this->notifier->notify(
                     recipient: $user,

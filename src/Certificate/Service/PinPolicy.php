@@ -6,26 +6,22 @@ namespace App\Certificate\Service;
 
 use App\Core\Exception\DomainException;
 use Symfony\Component\Validator\Constraints\Callback;
-use Symfony\Component\Validator\Constraints\PasswordStrength;
-use Symfony\Component\Validator\Constraints\PasswordStrengthValidator;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
  * What a certificate PIN must look like, spelled once: the forms and
  * CertificateIssuer both ask here, so the browser and the server agree.
  *
- * A PIN opens a software token whose file can be copied and attacked offline
- * (ADR-014), so digits alone are not enough: 8-64 printable characters with an
- * entropy floor, estimated the same way the account password is. Only a NEW
- * PIN is held to this - an existing one is whatever it was when it was set.
+ * 6-64 printable characters, digits alone allowed - a PIN people can remember.
+ * The cost is stated in ADR-014: a copied token file can be searched offline,
+ * so a short numeric PIN only holds while the token volume stays on the host.
  */
 final class PinPolicy
 {
-    public const MIN_LENGTH = 8;
+    public const MIN_LENGTH = 6;
     public const MAX_LENGTH = 64;
-    public const MIN_STRENGTH = PasswordStrength::STRENGTH_WEAK;
 
-    public const HINT = '8-64 characters - mix letters, digits or symbols';
+    public const HINT = '6-64 characters - digits are fine';
 
     public static function assert(#[\SensitiveParameter] string $pin): void
     {
@@ -35,9 +31,6 @@ final class PinPolicy
         }
         if (!mb_check_encoding($pin, 'UTF-8') || 1 === preg_match('/\p{C}/u', $pin)) {
             throw new DomainException('The PIN contains characters that cannot be typed.');
-        }
-        if (PasswordStrengthValidator::estimateStrength($pin) < self::MIN_STRENGTH) {
-            throw new DomainException('This PIN is too easy to guess - make it longer, or mix letters, digits and symbols.');
         }
     }
 

@@ -81,6 +81,45 @@ class InAppNotificationTest extends AuthWebTestCase
         self::assertSame([], $this->inbox()->findRecentFor($owner));
     }
 
+    public function testADeclineReachesOnlyTheRequestersInbox(): void
+    {
+        $owner = $this->user('decline-owner');
+        $first = $this->user('decline-first');
+        $second = $this->user('decline-second');
+        $this->giveCertificate($first);
+        $this->giveCertificate($second);
+        $document = $this->upload($owner);
+
+        $service = static::getContainer()->get(SigningRequestService::class);
+        $request = $service->create($document, $owner, [$first, $second], (new \DateTimeImmutable())->modify('+7 days'));
+        $service->decline($request, $first, 'Wrong rent.');
+
+        $ownerRows = $this->inbox()->findRecentFor($owner);
+        self::assertCount(1, $ownerRows);
+        self::assertSame(NotificationType::SigningClosed, $ownerRows[0]->getType());
+        self::assertStringContainsString('Reason: Wrong rent.', (string) $ownerRows[0]->getBody());
+
+        $firstRows = $this->inbox()->findRecentFor($first);
+        self::assertCount(1, $firstRows, 'the decliner is not told about their own refusal');
+        self::assertSame(NotificationType::SignatureRequested, $firstRows[0]->getType());
+        self::assertSame([], $this->inbox()->findRecentFor($second));
+    }
+
+    public function testAnOwnerDecliningTheirOwnTurnIsToldNothing(): void
+    {
+        $owner = $this->user('self-decline-owner');
+        $this->giveCertificate($owner);
+        $document = $this->upload($owner);
+
+        $service = static::getContainer()->get(SigningRequestService::class);
+        $request = $service->create($document, $owner, [$owner], (new \DateTimeImmutable())->modify('+7 days'));
+        $service->decline($request, $owner, null);
+
+        foreach ($this->inbox()->findRecentFor($owner) as $row) {
+            self::assertNotSame(NotificationType::SigningClosed, $row->getType());
+        }
+    }
+
     /**
      * The ADR-012 boundary. readAt belongs to the recipient's inbox: reading a
      * notification records nothing about the document, so it is not a read
