@@ -18,6 +18,10 @@ final class RegistrationFlowTest extends AuthWebTestCase
 
         $crawler = $this->client->request('GET', '/register');
         self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            "By creating an account, you agree to Sigil's Terms of Service and Privacy Policy.",
+            $crawler->filter('form')->text(),
+        );
 
         $form = $crawler->filter('form')->form([
             'registration_form[firstName]' => 'Ana',
