@@ -35,6 +35,7 @@
         <input type="text" name="{{ authCodeParameterName }}"
                inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
                autocomplete="one-time-code" autofocus placeholder="000000"
+               aria-label="Authentication code"
                data-controller="otp-autosubmit"
                data-action="input->otp-autosubmit#check paste->otp-autosubmit#paste"
                class="form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85 !p-3 text-center !text-2xl tracking-[0.5em] font-mono">
