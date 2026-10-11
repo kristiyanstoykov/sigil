@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/frankenphp/www-redirect.caddyfile:/etc/frankenphp/sites.d/www-redirect.caddyfile:ro
-    environment:
+    environment: &app-env
       APP_ENV: prod
       APP_DEBUG: "0"
       APP_SECRET: "${APP_SECRET:?set APP_SECRET}"
@@ -56,6 +56,16 @@ services:
         condition: service_healthy
       mercure:
         condition: service_started
+
+  # Same environment as the app (the anchor above), so the worker unwraps KEKs
+  # with the same root token and writes to the same bucket.
+  worker:
+    environment:
+      <<: *app-env
+      SIGIL_EXPORT_SCRATCH_DIR: /export-scratch
+    depends_on: !override
+      app:
+        condition: service_healthy
 
   # The self-hosted responder signs with a key on this same host, so it proves
   # little about time; a public TSA (digicert) is the default. Opt in with --profile local-tsa.

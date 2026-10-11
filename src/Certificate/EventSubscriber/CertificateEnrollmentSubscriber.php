@@ -18,8 +18,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
  * the dashboard, the document pages (uploading/storing/viewing needs no signing
  * key - only signing does), the signature-request pages (asking someone else to
  * sign needs no key either), the delivery pages (nobody signs anything in a
- * delivery), the receipt pages, the notification inbox, and the certificate
- * pages. Everything else
+ * delivery), the receipt pages, the notification inbox, the data export, and
+ * the certificate pages. Everything else
  * redirects to the wizard. Mirrors TwoFactorEnrollmentSubscriber, which runs
  * first - this gate stays silent until 2FA enrollment is complete.
  */
@@ -82,7 +82,10 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
             // Reading one's own record needs no key either.
             || str_starts_with($route, 'app_audit_log')
             // Administering who may register involves no signature.
-            || str_starts_with($route, 'app_admin')) {
+            || str_starts_with($route, 'app_admin')
+            // Taking one's data out (ADR-015) - a recipient with no key has data too.
+            || str_starts_with($route, 'app_account')
+            || str_starts_with($route, 'app_temp_download')) {
             return;
         }
 

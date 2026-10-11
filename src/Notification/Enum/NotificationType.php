@@ -29,6 +29,10 @@ enum NotificationType: string
     /** A document was served on you. Nothing is asked of you (ADR-012). */
     case DocumentDelivered = 'document_delivered';
 
+    /** Your data export finished - ready to download, or failed (ADR-015). */
+    case DataExportReady = 'data_export_ready';
+    case DataExportFailed = 'data_export_failed';
+
     public function icon(): string
     {
         return match ($this) {
@@ -36,6 +40,8 @@ enum NotificationType: string
             self::DocumentSigned, self::SigningCompleted => 'ti-circle-check',
             self::SigningClosed => 'ti-alert-triangle',
             self::DocumentDelivered => 'ti-mail-forward',
+            self::DataExportReady => 'ti-file-zip',
+            self::DataExportFailed => 'ti-alert-triangle',
         };
     }
 
@@ -47,6 +53,8 @@ enum NotificationType: string
             self::DocumentSigned, self::SigningCompleted => 'bg-success-500/10 text-success-600',
             self::SigningClosed => 'bg-danger-500/10 text-danger-600',
             self::DocumentDelivered => 'bg-info-500/10 text-info-600',
+            self::DataExportReady => 'bg-success-500/10 text-success-600',
+            self::DataExportFailed => 'bg-danger-500/10 text-danger-600',
         };
     }
 

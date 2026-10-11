@@ -30,11 +30,18 @@
             <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Documents</h1>
             <p class="mt-1 text-sm text-theme-secondarytextcolor">Everything you can open - what you uploaded, and what reached you.</p>
         </div>
-        <button type="button" data-pc-toggle="modal" data-pc-target="#upload-modal"
-                class="btn btn-primary inline-flex shrink-0 items-center gap-2 max-sm:ml-auto">
-            <i class="ti ti-upload text-base leading-none" aria-hidden="true"></i>
-            Upload document
-        </button>
+        <div class="flex shrink-0 items-center gap-2 max-sm:ml-auto">
+            <a href="{{ path('app_account_export') }}"
+               class="btn btn-outline-secondary inline-flex items-center gap-2">
+                <i class="ti ti-file-zip text-base leading-none" aria-hidden="true"></i>
+                Download all
+            </a>
+            <button type="button" data-pc-toggle="modal" data-pc-target="#upload-modal"
+                    class="btn btn-primary inline-flex items-center gap-2">
+                <i class="ti ti-upload text-base leading-none" aria-hidden="true"></i>
+                Upload document
+            </button>
+        </div>
     </div>
 
     {% if documents is empty %}

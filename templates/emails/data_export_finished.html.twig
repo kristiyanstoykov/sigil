@@ -1,0 +1,28 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}{{ ready ? 'Your export is ready' : 'Your export could not be prepared' }}{% endblock %}
+
+{% block preheader %}{{ ready ? 'Your Sigil documents are ready to download for the next 24 hours.' : 'Your Sigil export could not be prepared.' }}{% endblock %}
+
+{% block body %}
+    {% if ready %}
+        <p style="margin:0 0 16px;">
+            Your export holds {{ files }} {{ files == 1 ? 'file' : 'files' }}
+            in {{ parts }} {{ parts == 1 ? 'archive' : 'archives' }}, each with a manifest
+            listing what it contains.
+        </p>
+        <p style="margin:0 0 16px;">
+            Each archive can be downloaded <strong>once</strong>, while signed in, and
+            everything is deleted <strong>24 hours</strong> after it was prepared.
+            You can request a new export at any time.
+        </p>
+    {% else %}
+        <p style="margin:0 0 16px;">
+            Something went wrong while preparing your export, and nothing was kept.
+            Please request a new one; if it fails again, contact the administrator.
+        </p>
+    {% endif %}
+{% endblock %}
+
+{% block action_url %}{{ url }}{% endblock %}
+{% block action_label %}{{ ready ? 'Download your export' : 'Open the export page' }}{% endblock %}
