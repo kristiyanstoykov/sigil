@@ -59,10 +59,14 @@ final class AuditActionExtension extends AbstractExtension
         'admin.allowlist_removed' => ['classes' => self::WARNING, 'icon' => 'ti-user-x', 'label' => 'Withdrew an invitation', 'family' => 'admin'],
         'admin.granted' => ['classes' => self::DANGER, 'icon' => 'ti-crown', 'label' => 'Made an administrator', 'family' => 'admin'],
         'certificate.issuance_failed' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'Issuance failed', 'family' => 'certificates'],
+        'data_export.requested' => ['classes' => self::INFO, 'icon' => 'ti-file-zip', 'label' => 'Requested a data export', 'family' => 'account'],
+        'data_export.ready' => ['classes' => self::SUCCESS, 'icon' => 'ti-file-zip', 'label' => 'A data export was prepared', 'family' => 'account'],
+        'data_export.failed' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'A data export failed', 'family' => 'account'],
+        'temp_download.downloaded' => ['classes' => self::NEUTRAL, 'icon' => 'ti-download', 'label' => 'Downloaded an export archive', 'family' => 'account'],
     ];
 
     /** Families a reader can filter by, in display order. */
-    public const array FAMILIES = ['documents' => 'Documents', 'signing' => 'Signing', 'delivery' => 'Delivery', 'receipts' => 'Receipts', 'certificates' => 'Certificates'];
+    public const array FAMILIES = ['documents' => 'Documents', 'signing' => 'Signing', 'delivery' => 'Delivery', 'receipts' => 'Receipts', 'certificates' => 'Certificates', 'account' => 'Account'];
 
     public function getFunctions(): array
     {

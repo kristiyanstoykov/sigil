@@ -25,7 +25,7 @@ RUN apk add --no-cache \
     curl \
     sqlite-libs \
     opensc \
-    && install-php-extensions pdo_pgsql intl gd \
+    && install-php-extensions pdo_pgsql intl gd zip \
     && rm -rf /var/cache/apk/*
 
 # kryoptic PKCS#11 token (ADR-005, ADR-014) - keys live in the token, never

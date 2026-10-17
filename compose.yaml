@@ -49,6 +49,41 @@ services:
       mercure:
         condition: service_started
 
+  # Messenger worker (ADR-015): builds data exports and sweeps one-time
+  # downloads on its schedule. The app image and code; its own var/, so a
+  # `local` storage backend would not be shared with the app (dev uses S3).
+  # Export zips are assembled in a tmpfs, so decrypted files never touch a disk.
+  worker:
+    image: sigil-app:latest
+    pull_policy: never
+    entrypoint: ["sh", "docker/worker.sh"]
+    # The image's check probes Caddy, which the worker does not run.
+    healthcheck:
+      disable: true
+    volumes:
+      - .:/app
+      - /app/var
+      - kryoptic_tokens:/var/lib/kryoptic
+    tmpfs:
+      - /export-scratch:size=160m,mode=1700
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: "postgresql://sigil:sigil@db:5432/sigil?serverVersion=16&charset=utf8"
+      MESSENGER_TRANSPORT_DSN: "doctrine://default?auto_setup=0"
+      MERCURE_URL: "http://mercure:3000/.well-known/mercure"
+      MERCURE_PUBLIC_URL: "http://localhost:8000/.well-known/mercure"
+      KRYOPTIC_CONF: /var/lib/kryoptic/token.conf
+      PKCS11_MODULE: /usr/lib/libkryoptic_pkcs11.so
+      SIGIL_EXPORT_SCRATCH_DIR: /export-scratch
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_REGION: us-east-1
+      MINIO_BUCKET: sigil-documents
+      MINIO_ACCESS_KEY: sigil
+      MINIO_SECRET_KEY: sigil_minio_dev
+    depends_on:
+      app:
+        condition: service_healthy
+
   # Local RFC-3161 timestamp responder (dev). Gives fast, offline PAdES-B-T
   # timestamps so signing does not wait on a public TSA. Reuses the app image
   # (has openssl + python3); the app talks to it at http://tsa:8318 when

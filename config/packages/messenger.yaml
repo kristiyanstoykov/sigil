@@ -19,11 +19,19 @@ framework:
 
         routing:
             # Mail is sent synchronously (transactional auth emails must go out
-            # immediately, and no worker runs in the MVP). Only the dedicated
+            # immediately; the worker only builds data exports). Only the dedicated
             # App\...\Message classes are routed async — see messenger.yaml notes
             # in CLAUDE.md. Do NOT route SendEmailMessage to async without a worker.
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
 
-            # Route your messages to the transports
-            # 'App\Message\YourMessage': async
+            # Built by the worker service (ADR-015 §7). The message carries the
+            # export id only - never a secret.
+            'App\Account\Message\BuildDataExport': async
+
+when@test:
+    framework:
+        messenger:
+            transports:
+                # Tests run the handler themselves; nothing reaches the database queue.
+                async: 'in-memory://'

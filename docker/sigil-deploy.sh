@@ -66,5 +66,8 @@ until curl -fsS -o /dev/null --max-time 10 --resolve "$DOMAIN:443:127.0.0.1" "ht
     sleep 5
 done
 
+# The worker is long-running PHP: it only sees the new code once restarted.
+dc up -d --no-deps --force-recreate worker
+
 docker image prune -f >/dev/null
 echo "==> Deployed $sha"

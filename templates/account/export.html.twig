@@ -1,0 +1,102 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'documents/_macros.html.twig' as docs %}
+
+{% block title %}Download all · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set status = export ? export.status.value : null %}
+<div class="docs-rise mx-auto max-w-3xl">
+
+    <div class="mb-5">
+        <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Download all your documents</h1>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">
+            The latest version of every document you can open, packed as zip archives with a manifest.
+            Large exports are split into parts of up to 50 MB.
+        </p>
+    </div>
+
+    <div class="card !mb-5 !bg-white/90 p-5">
+        <ul class="space-y-2 text-sm text-theme-bodycolor">
+            <li class="flex items-start gap-2"><i class="ti ti-clock mt-0.5 text-base leading-none text-primary-500" aria-hidden="true"></i><span>We prepare it in the background and let you know in your inbox and by email when it is ready.</span></li>
+            <li class="flex items-start gap-2"><i class="ti ti-download mt-0.5 text-base leading-none text-primary-500" aria-hidden="true"></i><span>Each archive can be downloaded <strong>once</strong>, while you are signed in.</span></li>
+            <li class="flex items-start gap-2"><i class="ti ti-trash mt-0.5 text-base leading-none text-primary-500" aria-hidden="true"></i><span>Everything is deleted <strong>24 hours</strong> after it is prepared. You can request a new export at any time.</span></li>
+        </ul>
+    </div>
+
+    {% if status in ['queued', 'building'] %}
+        <div role="status" class="alert alert-info !mb-5 flex items-center gap-3 text-sm" data-export-status="{{ status }}">
+            {% include 'components/s_loader.html.twig' with {size: 36, class: 'shrink-0'} only %}
+            <div><strong>Preparing your export.</strong> Requested on {{ export.createdAt|date('d.m.Y') }} at {{ export.createdAt|date('H:i') }} UTC. You can leave this page; we will let you know when it is ready.</div>
+        </div>
+    {% elseif status == 'failed' %}
+        <div role="status" class="alert alert-danger !mb-5 flex items-start gap-3 text-sm" data-export-status="failed">
+            <i class="ti ti-alert-triangle mt-0.5 shrink-0 text-base leading-none" aria-hidden="true"></i>
+            <div><strong>Your last export could not be prepared.</strong> Nothing was kept. Please request a new one.</div>
+        </div>
+    {% elseif status == 'ready' and files is not empty %}
+        <div class="card !mb-5 overflow-hidden !bg-white/90" data-export-status="ready" data-controller="temp-download">
+            <div class="border-b border-theme-border/60 px-5 py-3 text-sm text-theme-secondarytextcolor">
+                Prepared on {{ export.finishedAt|date('d.m.Y') }} at {{ export.finishedAt|date('H:i') }} UTC · {{ export.fileCount }} {{ export.fileCount == 1 ? 'file' : 'files' }}
+            </div>
+            <ul class="divide-y divide-theme-border/60">
+                {% for file in files %}
+                    <li class="flex flex-wrap items-center gap-3 px-5 py-4">
+                        <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+                            <i class="ti ti-file-zip text-xl leading-none" aria-hidden="true"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-bold text-theme-headings">{{ file.download.filename }}</p>
+                            <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
+                                {{ docs.filesize(file.download.sizeBytes) }}
+                                {% if file.available %}
+                                    <span class="mx-1.5 text-theme-border">·</span>available until {{ file.download.expiresAt|date('d.m.Y H:i') }} UTC
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% if file.available %}
+                            {# Taken over by temp-download (loader + progress); without JS a native POST, since Turbo cannot render a file. #}
+                            {{ form_start(file.form, {action: path('app_temp_download', {id: file.download.id}), attr: {'data-turbo': 'false', 'data-action': 'submit->temp-download#take', 'data-filename': file.download.filename}}) }}
+                                <button type="submit" data-no-loader class="btn btn-primary btn-sm inline-flex items-center gap-2">
+                                    <i class="ti ti-download text-base leading-none" aria-hidden="true"></i>
+                                    Download
+                                </button>
+                            {{ form_end(file.form) }}
+                        {% elseif file.download.consumed %}
+                            <span class="badge rounded-full bg-success-500/10 text-success-600">Downloaded</span>
+                        {% else %}
+                            <span class="badge rounded-full bg-theme-activebg text-theme-secondarytextcolor">Expired</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            {# Page loader for the download, shown by temp-download. #}
+            <div data-temp-download-target="overlay"
+                 class="hidden fixed inset-0 z-[1100] flex flex-col items-center justify-center gap-4 bg-white/85 px-4 text-center backdrop-blur-sm"
+                 role="status" aria-live="polite">
+                {{ include('components/s_loader.html.twig', {size: 64, class: 'text-primary-500'}) }}
+                <div class="w-full max-w-sm">
+                    <p class="text-sm font-bold text-theme-headings" data-temp-download-target="title">Preparing your archive…</p>
+                    <p class="mt-1 text-xs text-theme-secondarytextcolor" data-temp-download-target="detail"></p>
+                    <div class="mt-3 hidden h-1.5 w-full overflow-hidden rounded-full bg-theme-activebg" data-temp-download-target="track">
+                        <div class="h-full w-0 rounded-full bg-primary-500 transition-[width] duration-200" data-temp-download-target="bar"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-4 hidden" data-temp-download-target="close" data-action="temp-download#close">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if status not in ['queued', 'building'] %}
+        {{ form_start(request_form) }}
+            <button type="submit" class="btn btn-primary inline-flex items-center gap-2">
+                <i class="ti ti-file-zip text-base leading-none" aria-hidden="true"></i>
+                {{ export ? 'Prepare a new export' : 'Prepare my export' }}
+            </button>
+        {{ form_end(request_form) }}
+    {% endif %}
+</div>
+{% endblock %}
