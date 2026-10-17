@@ -25,9 +25,10 @@
     </div>
 
     {% if status in ['queued', 'building'] %}
-        <div role="status" class="alert alert-info !mb-5 flex items-center gap-3 text-sm" data-export-status="{{ status }}">
+        <div role="status" class="alert alert-info !mb-5 flex items-center gap-3 text-sm" data-export-status="{{ status }}"
+             data-controller="export-status" data-action="sigil:notification@window->export-status#reload">
             {% include 'components/s_loader.html.twig' with {size: 36, class: 'shrink-0'} only %}
-            <div><strong>Preparing your export.</strong> Requested on {{ export.createdAt|date('d.m.Y') }} at {{ export.createdAt|date('H:i') }} UTC. You can leave this page; we will let you know when it is ready.</div>
+            <div><strong>Preparing your export.</strong> Requested on {{ export.createdAt|date('d.m.Y') }} at {{ export.createdAt|date('H:i') }} UTC. This page updates by itself when it is ready, and we will also let you know in your inbox and by email.</div>
         </div>
     {% elseif status == 'failed' %}
         <div role="status" class="alert alert-danger !mb-5 flex items-start gap-3 text-sm" data-export-status="failed">

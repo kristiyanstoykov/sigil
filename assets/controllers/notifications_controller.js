@@ -33,11 +33,13 @@ export default class extends Controller {
         this.source.addEventListener('message', () => {
             this.ring();
             this.refresh();
+            this.announce();
         });
         this.source.addEventListener('open', () => {
             // Not the first open: we were disconnected and may have missed one.
             if (this.opened) {
                 this.refresh();
+                this.announce();
             }
             this.opened = true;
         });
@@ -47,6 +49,12 @@ export default class extends Controller {
         this.source?.close();
         this.source = null;
         clearTimeout(this.pending);
+    }
+
+    // Re-broadcast the nudge for pages waiting on something (the export page).
+    // Still content-free: listeners re-read the server, never the event.
+    announce() {
+        window.dispatchEvent(new CustomEvent('sigil:notification'));
     }
 
     // Rung only for a live arrival, never on page load: the point is to catch

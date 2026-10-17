@@ -225,7 +225,7 @@ class DataExportTest extends AuthWebTestCase
 
         $export = $this->requestExportThroughThePage();
         $crawler = $this->client->request('GET', '/account/export');
-        self::assertCount(1, $crawler->filter('[data-export-status="queued"]'));
+        self::assertCount(1, $crawler->filter('[data-export-status="queued"][data-controller="export-status"]'), 'the banner refreshes itself when the export is ready');
         self::assertCount(0, $crawler->filter('form[action$="/account/export"]'), 'no second button while one is queued');
 
         $this->runBuild($export);
