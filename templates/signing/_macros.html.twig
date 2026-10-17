@@ -14,6 +14,7 @@
     {% set style = {
         'completed': {classes: 'bg-success-500/10 text-success-600', icon: 'ti-circle-check'},
         'declined':  {classes: 'bg-danger-500/10 text-danger-600',   icon: 'ti-ban'},
+        'signer_deleted': {classes: 'bg-danger-500/10 text-danger-600', icon: 'ti-user-off'},
         'expired':   {classes: 'bg-warning-500/10 text-warning-600', icon: 'ti-alert-triangle'},
         'cancelled': {classes: 'bg-theme-activebg text-theme-secondarytextcolor', icon: 'ti-arrow-back-up'},
         'pending':   {classes: 'bg-primary-500/10 text-primary-500', icon: 'ti-clock'},
@@ -146,7 +147,7 @@
 {% macro request_timeline(request, heading = true, subtitle = null) %}
     {% import 'signing/_macros.html.twig' as signing %}
     {% set total = request.signers|length %}
-    {% set declined = request.declinedBy %}
+    {% set declined = request.declinedBy ?? request.deletedSigner %}
     {% set ordered = request.orderedSigners %}
 
     <div class="card !mb-0 overflow-hidden !bg-white/90">
@@ -156,7 +157,7 @@
                     {{ heading ? request.document.title : 'Signature request' }}
                 </p>
                 <p class="mt-0.5 text-xs text-theme-secondarytextcolor">
-                    {{ subtitle ?? 'Sent to ' ~ total ~ ' signer' ~ (total == 1 ? '' : 's') }} ·
+                    {{ subtitle ?? ('Sent to ' ~ total ~ ' signer' ~ (total == 1 ? '' : 's')) }} ·
                     deadline {{ request.isPending ? '' : 'was ' }}{{ request.deadline|date('d M Y') }}
                 </p>
             </div>
@@ -214,6 +215,19 @@
                             {% endif %}
                         </div>
                     </li>
+                {% elseif signer.accountDeletedAt %}
+                    <li class="flex gap-3 p-5">
+                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger-500/10 text-danger-600">
+                            <i class="ti ti-user-off text-sm leading-none" aria-hidden="true"></i>
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-theme-headings">{{ signer.user.fullName }} deleted their account</p>
+                            <p class="mt-0.5 font-mono text-xs text-theme-secondarytextcolor">{{ signer.accountDeletedAt|date('d M Y, H:i:s') }} UTC</p>
+                            <p class="mt-1.5 text-xs leading-relaxed text-theme-secondarytextcolor">
+                                Signer {{ signer.position }} of {{ total }}. A turn that can never be reached closes the whole request.
+                            </p>
+                        </div>
+                    </li>
                 {% endif %}
             {% endfor %}
 
@@ -237,6 +251,7 @@
                 {% set closing = {
                     'completed': {icon: 'ti-circle-check', classes: 'bg-success-500/10 text-success-600', title: 'Closed as completed · receipt sealed', body: 'Everyone on the list signed. The receipt names the audience as sent, and the request cannot be re-opened or re-sent.'},
                     'declined':  {icon: 'ti-ban', classes: 'bg-danger-500/10 text-danger-600', title: 'Closed as declined · receipt sealed', body: 'A refusal closes the whole queue. Signatures already collected are kept as versions of the document.'},
+                    'signer_deleted': {icon: 'ti-user-off', classes: 'bg-danger-500/10 text-danger-600', title: "Closed - a signer's account was deleted · receipt sealed", body: 'Nobody after them can be asked. Signatures already collected are kept as versions of the document.'},
                     'expired':   {icon: 'ti-alert-triangle', classes: 'bg-warning-500/10 text-warning-600', title: 'Deadline passed · request expired', body: 'With at least one signature the document is kept and marked Expired. With none at all it is destroyed, and the receipt is the only surviving record.'},
                     'cancelled': {icon: 'ti-arrow-back-up', classes: 'bg-theme-activebg text-theme-secondarytextcolor', title: 'Withdrawn · receipt sealed', body: 'The sender closed their own request. Whoever held the turn lost access; signatures already made were kept.'},
                 }[request.status.value] %}

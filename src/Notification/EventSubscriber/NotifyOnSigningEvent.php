@@ -112,6 +112,10 @@ final class NotifyOnSigningEvent
                 $declined?->getUser()->getFullName() ?? 'A signer',
                 null !== $declined?->getDeclineReason() ? ' Reason: '.$declined->getDeclineReason() : '',
             ),
+            SigningRequestStatus::SignerDeleted => sprintf(
+                "%s deleted their account, so the request cannot continue.",
+                $request->deletedSigner()?->getUser()->getFullName() ?? 'A signer',
+            ),
             default => 'The requester withdrew it.',
         };
 
@@ -120,7 +124,7 @@ final class NotifyOnSigningEvent
                 $this->notifier->notify(
                     recipient: $user,
                     type: NotificationType::SigningClosed,
-                    title: sprintf('Signature request %s: %s', $status->value, $document->getTitle()),
+                    title: sprintf('Signature request %s: %s', SigningRequestStatus::SignerDeleted === $status ? 'closed' : $status->value, $document->getTitle()),
                     // The document may be unreadable to a decliner once the grant
                     // is revoked, so point at the request's own history instead.
                     url: $this->urls->generate('app_signing_requests', ['tab' => 'history'], UrlGeneratorInterface::ABSOLUTE_URL),

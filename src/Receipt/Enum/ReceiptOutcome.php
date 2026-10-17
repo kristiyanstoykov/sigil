@@ -17,6 +17,7 @@ enum ReceiptOutcome: string
     case Expired = 'expired';
     case Cancelled = 'cancelled';
     case Declined = 'declined';
+    case SignerDeleted = 'signer_deleted';
 
     /** Served on its recipients. The only outcome a delivery can have. */
     case Delivered = 'delivered';
@@ -28,6 +29,7 @@ enum ReceiptOutcome: string
             SigningRequestStatus::Expired => self::Expired,
             SigningRequestStatus::Cancelled => self::Cancelled,
             SigningRequestStatus::Declined => self::Declined,
+            SigningRequestStatus::SignerDeleted => self::SignerDeleted,
             // A receipt is only sealed once the request is closed, so Pending
             // cannot reach here.
             SigningRequestStatus::Pending => self::Cancelled,
@@ -41,6 +43,7 @@ enum ReceiptOutcome: string
             self::Expired => 'Expired',
             self::Cancelled => 'Cancelled',
             self::Declined => 'Declined',
+            self::SignerDeleted => "Closed - a signer's account was deleted",
             self::Delivered => 'Delivered',
         };
     }

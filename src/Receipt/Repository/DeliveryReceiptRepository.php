@@ -54,7 +54,7 @@ final class DeliveryReceiptRepository extends ServiceEntityRepository
     public function findReadableBy(User $user): array
     {
         return $this->createQueryBuilder('r')
-            ->join(DeliveryReceiptKeyGrant::class, 'g', Join::WITH, 'g.receipt = r AND g.user = :user')
+            ->join(DeliveryReceiptKeyGrant::class, 'g', Join::ON, 'g.receipt = r AND g.user = :user')
             ->setParameter('user', $user)
             ->orderBy('r.sealedAt', 'DESC')
             ->getQuery()

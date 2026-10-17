@@ -55,6 +55,10 @@ final class DocumentStatusResolver
             if (SigningRequestStatus::Declined === $request->getStatus()) {
                 return DocumentDisplayStatus::Declined;
             }
+
+            if (SigningRequestStatus::SignerDeleted === $request->getStatus()) {
+                return DocumentDisplayStatus::SignerDeleted;
+            }
         }
 
         return $document->getDisplayStatus();
