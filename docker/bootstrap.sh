@@ -1,6 +1,6 @@
 #!/bin/sh
 # Bring one Symfony environment to a working state, idempotently: schema, root
-# wrapping key, CA, delivery seal, storage buckets. Run on every container
+# wrapping key, CA, delivery seal, archive key, storage buckets. Run on every container
 # start for dev (var/ is an anonymous volume, so the cert PEMs vanish on each
 # recreate while the tokens survive on their named volume) and by hand for
 # test - `docker compose exec app sh docker/bootstrap.sh test` - before a first
@@ -23,6 +23,10 @@ fi
 echo "==> [$ENV] Certificate authority and delivery seal"
 console sigil:ca:init --if-missing
 console sigil:seal:init --if-missing
+
+# Every env, test included: the deletion tests archive real KEKs (ADR-015).
+echo "==> [$ENV] Archive key (PKCS#11 token)"
+console sigil:archive:init
 
 if [ "$ENV" != "test" ]; then
     # The active backend's bucket. A store still starting (MinIO) or a network
