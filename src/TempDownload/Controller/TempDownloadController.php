@@ -47,7 +47,11 @@ class TempDownloadController extends AbstractController
         }
 
         // A 50 MB part fetched from object storage can outlast the 30 s web default.
-        set_time_limit(self::TIME_LIMIT_SECONDS);
+        // Only ever raise it: 0 means unlimited (CLI, tests) and must stay so.
+        $limit = (int) ini_get('max_execution_time');
+        if ($limit > 0 && $limit < self::TIME_LIMIT_SECONDS) {
+            set_time_limit(self::TIME_LIMIT_SECONDS);
+        }
 
         try {
             $bytes = $service->take($download, $currentUser->get());

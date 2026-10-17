@@ -60,6 +60,7 @@ services:
   # Same environment as the app (the anchor above), so the worker unwraps KEKs
   # with the same root token and writes to the same bucket.
   worker:
+    restart: unless-stopped
     environment:
       <<: *app-env
       SIGIL_EXPORT_SCRATCH_DIR: /export-scratch

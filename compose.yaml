@@ -56,7 +56,6 @@ services:
   worker:
     image: sigil-app:latest
     pull_policy: never
-    restart: unless-stopped
     entrypoint: ["sh", "docker/worker.sh"]
     # The image's check probes Caddy, which the worker does not run.
     healthcheck:
