@@ -96,7 +96,10 @@ final class ReceiptWriter
     {
         $unique = [];
         foreach ($users as $user) {
-            $unique[$user->getId()->toRfc4122()] = $user;
+            // A deleted account's KEK is archived (ADR-015 §2): no new grants.
+            if (!$user->isDeleted()) {
+                $unique[$user->getId()->toRfc4122()] = $user;
+            }
         }
 
         return array_values($unique);

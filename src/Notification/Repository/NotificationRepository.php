@@ -97,6 +97,21 @@ final class NotificationRepository extends ServiceEntityRepository
         return \count($unread);
     }
 
+    /** Removes every row in $user's inbox, through the unit of work. */
+    public function deleteFor(User $user): int
+    {
+        $rows = $this->findBy(['recipient' => $user]);
+        foreach ($rows as $notification) {
+            $this->getEntityManager()->remove($notification);
+        }
+
+        if ([] !== $rows) {
+            $this->getEntityManager()->flush();
+        }
+
+        return \count($rows);
+    }
+
     private function inboxQuery(User $user): \Doctrine\ORM\QueryBuilder
     {
         return $this->createQueryBuilder('n')

@@ -5,3 +5,8 @@ services:
         decorates: mercure.hub.default
         arguments: ['@.inner']
         public: true
+
+    # No controller reaches the deleter until the deletion page exists.
+    App\Account\Service\AccountDeleter:
+        autowire: true
+        public: true

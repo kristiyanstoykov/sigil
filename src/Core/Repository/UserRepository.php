@@ -30,6 +30,7 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
     {
         return $this->createQueryBuilder('u')
             ->andWhere('LOWER(u.email) = :email')
+            ->andWhere('u.deletedAt IS NULL')
             ->setParameter('email', mb_strtolower(trim($email)))
             ->getQuery()
             ->setMaxResults(1)
