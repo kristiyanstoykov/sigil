@@ -155,7 +155,7 @@ abstract class AuthWebTestCase extends WebTestCase
         $out = '';
         foreach (str_split($bits, 8) as $byte) {
             if (strlen($byte) === 8) {
-                $out .= chr((int) bindec($byte));
+                $out .= chr((int) bindec($byte) & 0xFF);
             }
         }
 

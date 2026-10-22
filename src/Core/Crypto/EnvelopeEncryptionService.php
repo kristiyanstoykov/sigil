@@ -36,8 +36,13 @@ final class EnvelopeEncryptionService implements EncryptionServiceInterface
     {
         $cipher = $this->registry->active();
         $algoId = $cipher->id();
+        $algoIdLen = \strlen($algoId);
+        if ($algoIdLen > 255) {
+            // The header stores the length in one byte.
+            throw new \LogicException('Cipher id is too long for the envelope header.');
+        }
 
-        $header = \chr(self::FORMAT_VERSION).\chr(\strlen($algoId)).$algoId;
+        $header = \chr(self::FORMAT_VERSION).\chr($algoIdLen).$algoId;
         $nonce = random_bytes($cipher->nonceLength());
         $ciphertext = $cipher->encrypt($plaintext, $nonce, $key, $this->bindAad($algoId, $aad));
 

@@ -251,8 +251,9 @@ class DataExportTest extends AuthWebTestCase
         self::assertResponseRedirects('/account/export');
 
         $messages = $this->transport()->getSent();
-        self::assertNotEmpty($messages);
-        $message = $messages[array_key_last($messages)]->getMessage();
+        $last = array_key_last($messages);
+        self::assertNotNull($last);
+        $message = $messages[$last]->getMessage();
         self::assertInstanceOf(BuildDataExport::class, $message);
 
         return static::getContainer()->get(DataExportRepository::class)->find($message->exportId) ?? self::fail('no export row');

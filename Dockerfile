@@ -1,8 +1,10 @@
 # FrankenPHP: Caddy with PHP embedded (ZTS), so requests run on many threads
 # instead of `php -S`'s one, and Caddy does HTTPS itself (docker/frankenphp/).
-# Keep the minor pinned; the PHP CLI is in the image too.
-ARG FRANKENPHP_VERSION=1.12
-FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php8.4-alpine AS base
+# PHP is pinned to the patch, so a stale tag cannot keep a vulnerable build
+# (8.5.12: CVE-2026-109618/109619). The PHP CLI is in the image too.
+ARG FRANKENPHP_VERSION=1.13.2
+ARG PHP_VERSION=8.5.12
+FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION}-alpine AS base
 
 # kryoptic (PKCS#11 3.2 soft token, ADR-014) - built from source because Alpine
 # has no package. Built on the runtime image itself so musl and libcrypto.so.3
