@@ -31,7 +31,6 @@ from pyhanko.pdf_utils.layout import BoxConstraints
 BLUE = (0x1E / 255, 0x3A / 255, 0x8A / 255)   # primary-500 #1E3A8A
 INK = (0x0F / 255, 0x17 / 255, 0x2A / 255)    # headings   #0F172A
 GREY = (0x47 / 255, 0x55 / 255, 0x69 / 255)   # secondary  #475569
-WHITE = (1, 1, 1)
 
 DEFAULT_SCALE = 0.78   # a touch smaller than the reference box
 BASE_H = 67.0          # frame height at scale 1 (matches the reference box)
@@ -182,12 +181,9 @@ def _text(x, y, size, color, font, text) -> str:
             f"1 0 0 1 {_num(x)} {_num(y)} Tm ({_esc(text)}) Tj ET")
 
 
-def _rect(x, y, w, h, color) -> str:
-    return f"{_rgb('rg', color)} {_num(x)} {_num(y)} {_num(w)} {_num(h)} re f"
-
-
 def _hgap(x_left, x_right, line_y, h) -> str:
-    return _rect(x_left, line_y - h / 2, x_right - x_left, h, WHITE)
+    """A rectangle path (no paint) around a stretch of a frame line."""
+    return f"{_num(x_left)} {_num(line_y - h / 2)} {_num(x_right - x_left)} {_num(h)} re"
 
 
 def _logo(ox, oy, unit, line_w) -> str:
@@ -275,13 +271,7 @@ def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE,
 
     right_x = W - pad - RIGHT_INSET * s   # right edge for "Signum"/"Compliant"
 
-    # 1. Rounded brand-blue frame (top/bottom edges are the header/footer lines).
-    ops.append(_rgb("RG", BLUE))
-    ops.append(f"{_num(1.1 * s)} w")
-    ops.append(_rounded_rect(3 * s, bot_y, W - 3 * s, top_y, 8 * s))
-    ops.append("S")
-
-    # 2. Header geometry.
+    # 1. Header geometry.
     unit = 11.5 * s / 108.0
     logo_ox = pad - 52 * unit
     wordmark_x = pad + (234 - 52) * unit + 6 * s
@@ -289,11 +279,21 @@ def stamp_ops(signer_name: str, timestamp: str, scale: float = DEFAULT_SCALE,
     tag_w = _measure("Signum Veritatis", FS_TAG, "italic") * s
     footer_w = _measure("Compliant with eIDAS.", FS_FOOTER, "reg") * s
 
-    # 3. White gaps breaking the frame stroke behind header/footer.
+    # 2. Rounded brand-blue frame (top/bottom edges are the header/footer lines),
+    #    clipped (even-odd) so it breaks behind the header/footer. Nothing is
+    #    filled, so the page under the stamp stays visible.
     gh = 13 * s
+    ops.append("q")
+    ops.append(f"0 0 {_num(W)} {_num(H)} re")
     ops.append(_hgap(pad - 4 * s, wordmark_x + sigil_w + 5 * s, top_y, gh))
     ops.append(_hgap(right_x - tag_w - 5 * s, right_x + 5 * s, top_y, gh))
     ops.append(_hgap(right_x - footer_w - 5 * s, right_x + 5 * s, bot_y, gh))
+    ops.append("W* n")
+    ops.append(_rgb("RG", BLUE))
+    ops.append(f"{_num(1.1 * s)} w")
+    ops.append(_rounded_rect(3 * s, bot_y, W - 3 * s, top_y, 8 * s))
+    ops.append("S")
+    ops.append("Q")
 
     # 4. Header on the top line: logo + bold-italic "Sigil" (left),
     #    italic (cursive) "Signum Veritatis" (right).

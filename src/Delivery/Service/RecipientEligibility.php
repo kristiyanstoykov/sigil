@@ -21,6 +21,10 @@ final readonly class RecipientEligibility
 
     public function reasonWhyNot(User $user): ?string
     {
+        if ($user->isDeleted()) {
+            return 'That account has been deleted.';
+        }
+
         if (!$user->isVerified()) {
             return sprintf('%s has not verified their email address yet.', $user->getEmail());
         }

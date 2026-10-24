@@ -31,6 +31,9 @@ class Certificate
     public const int PIN_WINDOW_SECONDS = 3600;
     public const int HOLD_HOURS = 72;
 
+    /** RFC 5280 §5.3.1: the owner left, the key was not compromised (ADR-015 §3). */
+    public const string REVOCATION_CESSATION_OF_OPERATION = 'cessationOfOperation';
+
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
     private User $user;

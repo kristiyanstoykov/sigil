@@ -282,6 +282,51 @@ final class SigningRequestService
         }
     }
 
+    /**
+     * Close a request because $user is deleting their account (ADR-015 §3).
+     * One they started is withdrawn; one they still have to sign closes as
+     * SignerDeleted, at any position, since their turn could never come. An
+     * overdue one simply expires, as the sweep would have done.
+     *
+     * @return SigningRequestStatus|null how it closed, or null when it needs nothing (they already signed)
+     */
+    public function closeForDeletedAccount(SigningRequest $request, User $user): ?SigningRequestStatus
+    {
+        if (!$request->isPending()) {
+            return null;
+        }
+
+        if ($request->isOverdue($this->clock->now())) {
+            $this->expire($request);
+
+            return SigningRequestStatus::Expired;
+        }
+
+        if ($request->getRequester()->is($user)) {
+            $this->close($request, SigningRequestStatus::Cancelled, $user, ['reason' => 'account_deleted']);
+
+            return SigningRequestStatus::Cancelled;
+        }
+
+        $entry = $request->signerFor($user);
+        if (null === $entry || $entry->hasSigned()) {
+            return null;
+        }
+
+        $this->close($request, SigningRequestStatus::SignerDeleted, $user, [
+            'signer' => $user->getEmail(),
+            'position' => $entry->getPosition(),
+        ], function () use ($request, $user): void {
+            $entry = $request->signerFor($user);
+            if (null === $entry || $entry->hasSigned()) {
+                throw new DomainException('This request changed while the account was being deleted. Please try again.');
+            }
+            $entry->markAccountDeleted($this->clock->now());
+        });
+
+        return SigningRequestStatus::SignerDeleted;
+    }
+
     /** Close an overdue request. Called by the sweep, so the actor is the requester. */
     public function expire(SigningRequest $request): void
     {

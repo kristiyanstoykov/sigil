@@ -29,6 +29,12 @@ enum SigningRequestStatus: string
      */
     case Declined = 'declined';
 
+    /**
+     * A signer deleted their account (ADR-015 §3). Closes the request at any
+     * queue position, since a later turn could never be reached.
+     */
+    case SignerDeleted = 'signer_deleted';
+
     public function label(): string
     {
         return match ($this) {
@@ -37,6 +43,7 @@ enum SigningRequestStatus: string
             self::Expired => 'Expired',
             self::Cancelled => 'Cancelled',
             self::Declined => 'Declined',
+            self::SignerDeleted => "Closed - a signer's account was deleted",
         };
     }
 

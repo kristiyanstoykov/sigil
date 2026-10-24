@@ -86,7 +86,8 @@ final class SigningRequestNotifier
     }
 
     /**
-     * Expired, cancelled or declined, told to SigningRequest::closingAudience().
+     * Expired, cancelled, declined or closed by a signer's account deletion,
+     * told to SigningRequest::closingAudience().
      */
     public function notifyClosed(SigningRequest $request, SigningRequestStatus $status): void
     {
@@ -96,10 +97,12 @@ final class SigningRequestNotifier
 
         $document = $request->getDocument();
         $declined = $request->declinedBy();
+        $deleted = $request->deletedSigner();
 
         $subject = match ($status) {
             SigningRequestStatus::Expired => 'Signature request expired',
             SigningRequestStatus::Declined => 'Signature request declined',
+            SigningRequestStatus::SignerDeleted => 'Signature request closed',
             default => 'Signature request cancelled',
         };
 
@@ -118,6 +121,7 @@ final class SigningRequestNotifier
                         'signed' => $request->signedCount(),
                         'declinedBy' => $declined?->getUser()->getFullName(),
                         'declineReason' => $declined?->getDeclineReason(),
+                        'deletedSigner' => $deleted?->getUser()->getFullName(),
                     ]),
             );
         }

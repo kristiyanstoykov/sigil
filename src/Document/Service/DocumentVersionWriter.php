@@ -149,9 +149,12 @@ final class DocumentVersionWriter
 
         // Dedupe by id: the same user arrives here by more than one route
         // (owner uploading, owner signing their own document, ...).
+        // A deleted account's KEK is archived (ADR-015 §2): it gets no new grants.
         $unique = [];
         foreach ($grantees as $grantee) {
-            $unique[$grantee->getId()->toRfc4122()] = $grantee;
+            if (!$grantee->isDeleted()) {
+                $unique[$grantee->getId()->toRfc4122()] = $grantee;
+            }
         }
 
         return array_values($unique);

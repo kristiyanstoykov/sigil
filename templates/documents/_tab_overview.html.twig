@@ -37,6 +37,10 @@
     {% set banner = {tone: 'danger', icon: 'ti-ban',
         title: 'A signer refused, and that closed the request',
         body: 'Nobody after them was asked. Signatures already collected are kept as versions, and the refusal is on the record under History.'} %}
+{% elseif status.signerDeleted %}
+    {% set banner = {tone: 'danger', icon: 'ti-user-off',
+        title: "A signer's account was deleted, and that closed the request",
+        body: 'Nobody after them can be asked. Signatures already collected are kept as versions, and the closure is on the record under History.'} %}
 {% elseif status.expired %}
     {% set banner = {tone: 'warning', icon: 'ti-alert-triangle',
         title: 'The deadline passed before everyone signed',

@@ -39,6 +39,7 @@ final class AuditActionExtension extends AbstractExtension
         'signing_request.completed' => ['classes' => self::SUCCESS, 'icon' => 'ti-circle-check', 'label' => 'A request completed', 'family' => 'signing'],
         'signing_request.declined' => ['classes' => self::DANGER, 'icon' => 'ti-ban', 'label' => 'A request was declined', 'family' => 'signing'],
         'signing_request.expired' => ['classes' => self::WARNING, 'icon' => 'ti-alert-triangle', 'label' => 'A request expired', 'family' => 'signing'],
+        'signing_request.signer_deleted' => ['classes' => self::DANGER, 'icon' => 'ti-user-off', 'label' => "A signer's account was deleted", 'family' => 'signing'],
         'signing_request.cancelled' => ['classes' => self::NEUTRAL, 'icon' => 'ti-arrow-back-up', 'label' => 'A request was withdrawn', 'family' => 'signing'],
         'signing_request.access_revoked' => ['classes' => self::WARNING, 'icon' => 'ti-user-x', 'label' => "A signer's key was taken back", 'family' => 'signing'],
         'delivery.served' => ['classes' => self::PRIMARY, 'icon' => 'ti-mail-forward', 'label' => 'Delivered a document', 'family' => 'delivery'],
@@ -62,6 +63,7 @@ final class AuditActionExtension extends AbstractExtension
         'data_export.requested' => ['classes' => self::INFO, 'icon' => 'ti-file-zip', 'label' => 'Requested a data export', 'family' => 'account'],
         'data_export.ready' => ['classes' => self::SUCCESS, 'icon' => 'ti-file-zip', 'label' => 'A data export was prepared', 'family' => 'account'],
         'data_export.failed' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'A data export failed', 'family' => 'account'],
+        'account.deleted' => ['classes' => self::DANGER, 'icon' => 'ti-user-off', 'label' => 'Deleted the account', 'family' => 'account'],
         'temp_download.downloaded' => ['classes' => self::NEUTRAL, 'icon' => 'ti-download', 'label' => 'Downloaded an export archive', 'family' => 'account'],
     ];
 

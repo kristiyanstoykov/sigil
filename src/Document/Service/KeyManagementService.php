@@ -40,6 +40,12 @@ final class KeyManagementService
      */
     public function userKek(User $user): string
     {
+        // Never mint a fresh KEK for a deleted account, or a grant could land
+        // under a key nobody will ever restore (ADR-015 §2).
+        if ($user->isDeleted()) {
+            throw new DomainException('This account has been deleted; its key is archived.');
+        }
+
         $record = $this->keys->findForUser($user);
 
         if (null === $record) {

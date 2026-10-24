@@ -50,6 +50,10 @@ class SigningRequestSigner
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $declineReason = null;
 
+    /** When this signer's account was deleted, which closed the request (ADR-015 §3). */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $accountDeletedAt = null;
+
     public function __construct(SigningRequest $request, User $user, int $position)
     {
         $this->initUuid();
@@ -114,6 +118,21 @@ class SigningRequestSigner
     {
         $this->declinedAt = $at;
         $this->declineReason = ('' === trim((string) $reason)) ? null : trim((string) $reason);
+    }
+
+    public function getAccountDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->accountDeletedAt;
+    }
+
+    public function hasAccountDeleted(): bool
+    {
+        return null !== $this->accountDeletedAt;
+    }
+
+    public function markAccountDeleted(\DateTimeImmutable $at): void
+    {
+        $this->accountDeletedAt = $at;
     }
 
     public function isUser(User $user): bool

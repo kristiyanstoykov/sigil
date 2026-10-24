@@ -3,6 +3,8 @@
 {% block heading %}
     {% if status == 'declined' %}
         A signature request was declined
+    {% elseif status == 'signer_deleted' %}
+        A signature request was closed
     {% elseif expired %}
         A signature request expired
     {% else %}
@@ -16,6 +18,8 @@
         The request to sign <strong>{{ title }}</strong> is closed
         {% if status == 'declined' %}
             because {{ declinedBy }} declined to sign it.
+        {% elseif status == 'signer_deleted' %}
+            because {{ deletedSigner }}, one of the signers, deleted their account.
         {% elseif expired %}
             because its deadline of {{ deadline|date('j M Y, H:i') }} UTC passed before everyone signed.
         {% else %}
@@ -31,6 +35,8 @@
             <p style="margin:0 0 16px;">They did not give a reason.</p>
         {% endif %}
         <p style="margin:0 0 16px;">Nobody further down the list was asked to sign.</p>
+    {% elseif status == 'signer_deleted' %}
+        <p style="margin:0 0 16px;">A signer who has left cannot be reached, so nobody further down the list will be asked to sign.</p>
     {% endif %}
 
     {% if signed > 0 %}

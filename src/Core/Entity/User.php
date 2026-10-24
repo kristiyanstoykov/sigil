@@ -66,6 +66,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
+    /** Set when the account is deleted (ADR-015 §1); the row itself is kept forever. */
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $deletedAt = null;
+
+    /** The deleted account's address, kept only as a self-describing keyed MAC. */
+    #[ORM\Column(length: 200, unique: true, nullable: true)]
+    private ?string $emailFingerprint = null;
+
+    /** Peppered Argon2id hash of the recovery code that gates a restore (ADR-015 §4). */
+    #[ORM\Column(nullable: true)]
+    private ?string $recoveryCodeHash = null;
+
     /**
      * What goes into the session. The password hash is replaced by its crc32c
      * (Symfony compares that to invalidate sessions on a password change) and
@@ -209,6 +221,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     public function getFullName(): string
     {
+        if ($this->isDeleted()) {
+            return 'A removed account';
+        }
+
         return $this->firstName . ' ' . $this->lastName;
     }
 
@@ -273,5 +289,46 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         $this->isVerified = $isVerified;
 
         return $this;
+    }
+
+    public function isDeleted(): bool
+    {
+        return null !== $this->deletedAt;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    public function getEmailFingerprint(): ?string
+    {
+        return $this->emailFingerprint;
+    }
+
+    public function getRecoveryCodeHash(): ?string
+    {
+        return $this->recoveryCodeHash;
+    }
+
+    /**
+     * Strips everything personal and leaves the row as the anchor for the
+     * foreign keys that must outlive the account (ADR-015 §1).
+     */
+    public function tombstone(\DateTimeImmutable $at, string $emailFingerprint, string $recoveryCodeHash): void
+    {
+        $this->deletedAt = $at;
+        $this->emailFingerprint = $emailFingerprint;
+        $this->recoveryCodeHash = $recoveryCodeHash;
+        $this->email = 'deleted-'.$this->getId()->toRfc4122().'@invalid';
+        $this->password = '';
+        $this->firstName = '';
+        $this->lastName = '';
+        $this->company = null;
+        $this->position = null;
+        $this->googleAuthenticatorSecret = null;
+        $this->totpEnabled = false;
+        $this->lastTotpCode = null;
+        $this->lastTotpUsedAt = null;
     }
 }

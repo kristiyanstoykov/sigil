@@ -47,8 +47,8 @@ final class DocumentRepository extends ServiceEntityRepository
         // LEFT JOINs plus an OR rather than a UNION: Doctrine has no UNION, and
         // grouping on the PK dedupes the row-per-granted-version fan-out.
         return $this->createQueryBuilder('d')
-            ->leftJoin(DocumentVersion::class, 'v', Join::WITH, 'v.document = d')
-            ->leftJoin(DocumentKeyGrant::class, 'g', Join::WITH, 'g.version = v AND g.user = :user')
+            ->leftJoin(DocumentVersion::class, 'v', Join::ON, 'v.document = d')
+            ->leftJoin(DocumentKeyGrant::class, 'g', Join::ON, 'g.version = v AND g.user = :user')
             ->andWhere('d.owner = :user OR g.id IS NOT NULL')
             ->setParameter('user', $user)
             ->groupBy('d.id')
@@ -70,8 +70,8 @@ final class DocumentRepository extends ServiceEntityRepository
         // join yields a row per shared version, and deduping a Document row is
         // cheaper and safer done on its id.
         return $this->createQueryBuilder('d')
-            ->join(DocumentVersion::class, 'v', Join::WITH, 'v.document = d')
-            ->join(DocumentKeyGrant::class, 'g', Join::WITH, 'g.version = v AND g.user = :user')
+            ->join(DocumentVersion::class, 'v', Join::ON, 'v.document = d')
+            ->join(DocumentKeyGrant::class, 'g', Join::ON, 'g.version = v AND g.user = :user')
             ->andWhere('d.owner != :user')
             ->setParameter('user', $user)
             ->groupBy('d.id')

@@ -110,6 +110,9 @@
                     {% else %}
                         <span class="muted">No reason given</span>
                     {% endif %}
+                {% elseif row.signer.hasAccountDeleted %}
+                    <span class="badge bad">ACCOUNT DELETED</span>
+                    {{ row.signer.accountDeletedAt|date('d.m.Y H:i:s') }}
                 {% else %}
                     <span class="muted">Not signed</span>
                 {% endif %}

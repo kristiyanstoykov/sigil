@@ -6,7 +6,6 @@ namespace App\Core\Crypto;
 
 use App\Core\Crypto\Exception\DecryptionFailedException;
 use App\Core\Exception\DomainException;
-use App\Core\Process\DriverException;
 use App\Core\Process\JsonDriver;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -45,26 +44,26 @@ final class Pkcs11RootKeyWrapper implements RootKeyWrapperSchemeInterface
     /** Scheme marker for token-wrapped KEKs; distinguishes them from env 0x01 blobs. */
     private const SCHEME_BYTE = "\x02";
 
-    private const TIMEOUT_SECONDS = 30;
+    private readonly Pkcs11WrappingKey $key;
 
     public function __construct(
         #[Autowire(env: 'PKCS11_MODULE')]
-        private readonly string $modulePath,
+        string $modulePath,
         #[Autowire(env: 'SIGIL_ROOT_TOKEN_LABEL')]
-        private readonly string $tokenLabel,
+        string $tokenLabel,
         #[Autowire(env: 'SIGIL_ROOT_KEY_LABEL')]
-        private readonly string $keyLabel,
+        string $keyLabel,
         #[Autowire(env: 'SIGIL_ROOT_TOKEN_PIN')]
-        private readonly string $pin,
-        private readonly JsonDriver $driver,
+        #[\SensitiveParameter]
+        string $pin,
+        JsonDriver $driver,
     ) {
+        $this->key = new Pkcs11WrappingKey($modulePath, $tokenLabel, $keyLabel, $pin, $driver, 'root-key');
     }
 
     public function wrapKek(#[\SensitiveParameter] string $rawKek, string $aad): string
     {
-        $blob = $this->runDriver('wrap', $rawKek, $aad);
-
-        return self::SCHEME_BYTE.$blob;
+        return self::SCHEME_BYTE.$this->key->wrap($rawKek, $aad);
     }
 
     public function unwrapKek(string $wrappedKek, string $aad): string
@@ -76,7 +75,7 @@ final class Pkcs11RootKeyWrapper implements RootKeyWrapperSchemeInterface
         }
 
         try {
-            return $this->runDriver('unwrap', substr($wrappedKek, 1), $aad);
+            return $this->key->unwrap(substr($wrappedKek, 1), $aad);
         } catch (DomainException) {
             throw new DecryptionFailedException();
         }
@@ -89,51 +88,6 @@ final class Pkcs11RootKeyWrapper implements RootKeyWrapperSchemeInterface
      */
     public function provisionKey(): bool
     {
-        $response = $this->invoke([
-            'mode' => 'init',
-            'module' => $this->modulePath,
-            'token_label' => $this->tokenLabel,
-            'key_label' => $this->keyLabel,
-            'pin' => $this->pin,
-        ]);
-
-        return true === ($response['created'] ?? false);
-    }
-
-    /** Run a wrap/unwrap op and return the raw resulting bytes. */
-    private function runDriver(string $mode, #[\SensitiveParameter] string $data, string $aad): string
-    {
-        $response = $this->invoke([
-            'mode' => $mode,
-            'module' => $this->modulePath,
-            'token_label' => $this->tokenLabel,
-            'key_label' => $this->keyLabel,
-            'pin' => $this->pin,
-            'aad' => base64_encode($aad),
-            'data' => base64_encode($data),
-        ]);
-
-        $out = base64_decode((string) ($response['data'] ?? ''), true);
-        if (false === $out) {
-            throw new DomainException('PKCS#11 root-key driver returned malformed data.');
-        }
-
-        return $out;
-    }
-
-    /**
-     * @param array<string, string> $request
-     *
-     * @return array<string, mixed>
-     */
-    private function invoke(#[\SensitiveParameter] array $request): array
-    {
-        try {
-            return $this->driver->run('wrap_key.py', $request, timeout: self::TIMEOUT_SECONDS);
-        } catch (DriverException $e) {
-            // The driver reports only an exception class name, never input - safe
-            // to surface for diagnostics without leaking the PIN or key bytes.
-            throw new DomainException(sprintf('PKCS#11 root-key operation failed (%s).', $e->error));
-        }
+        return $this->key->provision();
     }
 }

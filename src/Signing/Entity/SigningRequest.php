@@ -169,25 +169,39 @@ class SigningRequest
         return null;
     }
 
+    /** The signer whose account deletion closed this request, if that is how it closed. */
+    public function deletedSigner(): ?SigningRequestSigner
+    {
+        foreach ($this->signers as $signer) {
+            if ($signer->hasAccountDeleted()) {
+                return $signer;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Who is told a non-completed request closed: the requester, plus the signer
-     * whose turn it ended - unless they ended it by declining. Nobody is told
-     * about their own refusal.
+     * whose turn it ended - unless they ended it by declining or by deleting
+     * their account. Nobody is told about their own refusal or departure.
      *
      * @return list<User>
      */
     public function closingAudience(): array
     {
-        $decliner = $this->declinedBy()?->getUser();
+        // A deleted signer may sit anywhere in the queue, so the one holding
+        // the turn is still told even when someone else closed it.
+        $leaver = $this->declinedBy()?->getUser() ?? $this->deletedSigner()?->getUser();
         $audience = [];
 
         $candidates = [$this->requester];
-        if (null === $decliner && null !== ($pending = $this->currentSigner())) {
+        if (null !== ($pending = $this->currentSigner())) {
             $candidates[] = $pending->getUser();
         }
 
         foreach ($candidates as $user) {
-            if ($decliner?->is($user)) {
+            if ($leaver?->is($user)) {
                 continue;
             }
             foreach ($audience as $already) {

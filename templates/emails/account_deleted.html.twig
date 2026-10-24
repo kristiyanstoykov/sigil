@@ -1,0 +1,30 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}Your account has been deleted{% endblock %}
+
+{% block preheader %}Keep the recovery code in this email if you may want your documents back.{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 16px;">
+        {{ name }}, your Sigil account was deleted on {{ deletedAt|date('j M Y, H:i') }} UTC.
+        You can no longer sign in.
+    </p>
+    <p style="margin:0 0 16px;">
+        {{ requestsClosed }} open signature {{ requestsClosed == 1 ? 'request was' : 'requests were' }} closed,
+        {{ certificatesRevoked }} {{ certificatesRevoked == 1 ? 'certificate was' : 'certificates were' }} revoked
+        and {{ draftsErased }} unshared {{ draftsErased == 1 ? 'draft was' : 'drafts were' }} erased.
+        Signatures you made stay valid.
+    </p>
+    <p style="margin:0 0 16px;">
+        {{ documentsRetained }} {{ documentsRetained == 1 ? 'document is' : 'documents are' }} kept, encrypted,
+        until {{ retainUntil|date('j M Y') }}, because they carry signatures or were shared with others.
+        Register again with this address before then to get them back. You will need this recovery code:
+    </p>
+    <p style="margin:0 0 16px;font-family:'Courier New',Courier,monospace;font-size:18px;font-weight:bold;letter-spacing:1px;">{{ recoveryCode }}</p>
+    <p style="margin:0 0 16px;">
+        Sigil stores only a fingerprint of this code and cannot show it to you again.
+        After {{ retainUntil|date('j M Y') }} everything is erased for good.
+    </p>
+{% endblock %}
+
+{% block note %}If you did not delete your account, contact the administrator immediately.{% endblock %}

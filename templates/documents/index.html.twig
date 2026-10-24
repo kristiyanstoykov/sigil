@@ -20,7 +20,7 @@
 {% set role = app.request.query.get('role') in ['mine', 'others'] ? app.request.query.get('role') : '' %}
 {% set status = app.request.query.get('status') %}
 {% set roles = {'mine': 'Mine', 'others': 'From others'} %}
-{% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'delivered': 'Delivered', 'declined': 'Declined', 'expired': 'Expired'} %}
+{% set statuses = {'draft': 'Draft', 'pending': 'Awaiting signatures', 'signed': 'Signed', 'delivered': 'Delivered', 'declined': 'Declined', 'signer_deleted': 'Signer left', 'expired': 'Expired'} %}
 
 <div class="docs-rise mx-auto max-w-5xl">
 
