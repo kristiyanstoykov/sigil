@@ -29,7 +29,7 @@ final class TotpSecretAtRestTest extends AuthWebTestCase
         self::assertStringNotContainsString(self::TOTP_SECRET, $stored);
 
         $this->loginFully($user->getEmail());
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
     }
 
@@ -71,7 +71,7 @@ final class TotpSecretAtRestTest extends AuthWebTestCase
         self::assertStringStartsWith(TotpSecretVault::PREFIX, $stored);
 
         $this->loginFully($user->getEmail());
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
     }
 }

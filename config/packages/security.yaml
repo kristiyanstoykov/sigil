@@ -38,6 +38,7 @@ security:
     access_control:
         - { path: ^/logout$, roles: PUBLIC_ACCESS }   # must be reachable mid-2FA (TwoFactorToken is not FULLY authenticated)
         - { path: ^/login, roles: PUBLIC_ACCESS }
+        - { path: ^/(privacy|terms)?$, roles: PUBLIC_ACCESS }   # the public site (Site module)
         - { path: ^/register, roles: PUBLIC_ACCESS }
         - { path: ^/verify/, roles: PUBLIC_ACCESS }
         - { path: ^/reset-password, roles: PUBLIC_ACCESS }

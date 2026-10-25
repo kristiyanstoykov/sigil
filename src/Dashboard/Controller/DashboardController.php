@@ -55,7 +55,7 @@ class DashboardController extends AbstractController
     ) {
     }
 
-    #[Route('/', name: 'app_dashboard')]
+    #[Route('/dashboard', name: 'app_dashboard')]
     public function index(SignatureAlgorithmRegistry $algorithms, CurrentUser $currentUser): Response
     {
         $user = $currentUser->get();
