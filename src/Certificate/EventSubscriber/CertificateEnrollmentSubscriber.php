@@ -31,6 +31,9 @@ final class CertificateEnrollmentSubscriber implements EventSubscriberInterface
         'app_logout',
         'app_2fa_setup',    // 2FA management stays reachable
         'app_2fa_disable',
+        'app_home',         // the public site
+        'app_privacy',
+        'app_terms',
     ];
 
     public function __construct(

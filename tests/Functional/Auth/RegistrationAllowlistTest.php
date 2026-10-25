@@ -53,7 +53,7 @@ final class RegistrationAllowlistTest extends AuthWebTestCase
         $this->createUser($email, totpEnabled: true);
         $this->loginFully($email);
 
-        $crawler = $this->client->request('GET', '/');
+        $crawler = $this->client->request('GET', '/dashboard');
         self::assertCount(0, $crawler->filter('a[href="/admin/allowlist"]'), 'The nav item is for admins only');
 
         $this->client->request('GET', '/admin/allowlist');

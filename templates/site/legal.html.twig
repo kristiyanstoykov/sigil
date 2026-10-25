@@ -1,0 +1,26 @@
+{# Placeholder for the privacy policy and terms of use until their text is written. #}
+{% extends 'site/base_site.html.twig' %}
+
+{% block title %}{{ title }} · Sigil{% endblock %}
+
+{% block site_content %}
+<section class="sigil-aurora relative overflow-hidden pt-36 pb-24 min-h-[70vh]">
+    <div class="sigil-grid absolute inset-0 pointer-events-none" aria-hidden="true"></div>
+    <div class="container relative mx-auto px-4 sm:px-6">
+        <div class="mx-auto max-w-2xl text-center docs-rise">
+            <span class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-500 text-2xl mb-5">
+                <i class="ti {{ icon }}" aria-hidden="true"></i>
+            </span>
+            <h1 class="text-[32px] md:text-[44px] leading-[1.15] font-semibold text-theme-headings mb-4">{{ title }}</h1>
+            <div class="card glass-card mb-0">
+                <div class="card-body">
+                    <p class="mb-0 text-theme-secondarytextcolor">This page is being written and will be published here soon.</p>
+                </div>
+            </div>
+            <a href="{{ path('app_home') }}" class="btn btn-outline-secondary mt-8">
+                <i class="ti ti-arrow-left me-1"></i> Back to home
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

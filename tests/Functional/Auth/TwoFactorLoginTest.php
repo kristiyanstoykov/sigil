@@ -32,7 +32,7 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         ]);
         $this->client->submit($form);
 
-        self::assertResponseRedirects('/');
+        self::assertResponseRedirects('/dashboard');
         $this->client->followRedirect();
         self::assertResponseIsSuccessful();
     }
@@ -51,7 +51,7 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         $this->submitLogin($email, self::PASSWORD);
         $crawler = $this->client->request('GET', '/2fa');
         $this->client->submit($crawler->filter('form[action$="2fa_check"]')->form(['_auth_code' => $code]));
-        self::assertResponseRedirects('/', message: 'first use: accepted');
+        self::assertResponseRedirects('/dashboard', message: 'first use: accepted');
 
         // A second session, the same code, seconds later.
         $this->client->getCookieJar()->clear();
@@ -82,7 +82,7 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         $this->client->followRedirect();
         self::assertStringContainsString('/2fa', $this->client->getRequest()->getUri());
 
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseRedirects();
         self::assertStringContainsString('/2fa', (string) $this->client->getResponse()->headers->get('Location'));
     }
@@ -102,7 +102,7 @@ final class TwoFactorLoginTest extends AuthWebTestCase
         self::assertResponseRedirects('/login');
 
         // Session is really gone: the dashboard now redirects to login, not /2fa.
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseRedirects();
         self::assertStringContainsString('/login', (string) $this->client->getResponse()->headers->get('Location'));
     }

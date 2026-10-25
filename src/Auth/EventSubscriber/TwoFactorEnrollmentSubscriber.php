@@ -31,6 +31,9 @@ final class TwoFactorEnrollmentSubscriber implements EventSubscriberInterface
     private const ALLOWED_ROUTES = [
         'app_2fa_setup',   // the enrollment page itself (GET form + POST confirm)
         'app_logout',      // must always be able to leave
+        'app_home',        // the public site
+        'app_privacy',
+        'app_terms',
     ];
 
     public function __construct(
