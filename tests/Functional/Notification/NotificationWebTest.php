@@ -40,7 +40,7 @@ final class NotificationWebTest extends AuthWebTestCase
 
         // A delivery is the first thing waiting on the recipient, and its action
         // is to view it.
-        $crawler = $this->client->request('GET', '/');
+        $crawler = $this->client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Delivered to you: Notice of assignment.pdf', $crawler->html());
 

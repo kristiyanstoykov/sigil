@@ -506,3 +506,24 @@ label[data-dropzone],
 [role="button"] {
     cursor: pointer;
 }
+
+/*
+ * Public site (templates/site/). A faint blueprint grid over the aurora,
+ * faded out toward the edges; the -light variant sits on the primary CTA band.
+ */
+.sigil-grid {
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--primary-500) 7%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--primary-500) 7%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+}
+.sigil-grid-light {
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+}
+@media (prefers-reduced-motion: no-preference) {
+    html:has(.site-page) { scroll-behavior: smooth; }
+}

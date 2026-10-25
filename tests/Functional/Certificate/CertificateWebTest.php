@@ -70,7 +70,7 @@ final class CertificateWebTest extends AuthWebTestCase
         self::assertStringContainsString('BEGIN CERTIFICATE', (string) $this->client->getResponse()->getContent());
 
         // dashboard slider shows the real certificate
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('ECDSA P-384 with SHA-384', (string) $this->client->getResponse()->getContent());
     }

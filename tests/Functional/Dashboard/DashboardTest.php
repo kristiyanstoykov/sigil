@@ -29,7 +29,7 @@ final class DashboardTest extends AuthWebTestCase
         $this->createUser($email, verified: true, totpEnabled: true);
         $this->loginFully($email);
 
-        $html = $this->client->request('GET', '/')->html();
+        $html = $this->client->request('GET', '/dashboard')->html();
         self::assertResponseIsSuccessful();
         self::assertStringContainsString("Let's get you ready to sign", $html);
         self::assertStringNotContainsString('Needs your action', $html);
@@ -58,7 +58,7 @@ final class DashboardTest extends AuthWebTestCase
         $uploader->upload($me, self::MINIMAL_PDF, 'Q3 report.pdf');
 
         $this->loginFully($meEmail);
-        $crawler = $this->client->request('GET', '/');
+        $crawler = $this->client->request('GET', '/dashboard');
         self::assertResponseIsSuccessful();
         $html = $crawler->html();
 

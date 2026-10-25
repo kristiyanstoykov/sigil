@@ -1,0 +1,55 @@
+{#
+    Public site layout (home + legal pages): Able Pro's landing navbar and
+    footer over the Sigil aurora. Pages fill {% block site_content %}.
+#}
+{% extends 'base.html.twig' %}
+
+{% block body_class %}site-page bg-theme-bodybg{% endblock %}
+
+{% block body %}
+<nav class="fixed top-0 inset-x-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-md shadow-[0_0_24px_rgba(27,46,94,.05)]">
+    <div class="container mx-auto px-4 sm:px-6">
+        <div class="flex items-center justify-between gap-4 py-4">
+            <a href="{{ path('app_home') }}" class="flex items-center gap-3 shrink-0">
+                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" class="h-8 w-auto">
+                <span class="hidden sm:inline text-xs font-medium uppercase tracking-[0.2em] text-theme-secondarytextcolor">Signum Veritatis</span>
+            </a>
+
+            <div class="flex items-center gap-1 sm:gap-2">
+                {% block site_nav_links %}
+                    <a href="{{ path('app_home') }}#how-it-works" class="hidden md:inline-block rounded-md px-3 py-2 text-[15px] font-medium text-theme-bodycolor/75 hover:text-primary-500 transition-all">How it works</a>
+                    <a href="{{ path('app_home') }}#security" class="hidden md:inline-block rounded-md px-3 py-2 text-[15px] font-medium text-theme-bodycolor/75 hover:text-primary-500 transition-all">Security</a>
+                    <a href="{{ path('app_home') }}#keys" class="hidden md:inline-block rounded-md px-3 py-2 text-[15px] font-medium text-theme-bodycolor/75 hover:text-primary-500 transition-all">Key custody</a>
+                {% endblock %}
+                {% if app.user %}
+                    <a href="{{ path('app_dashboard') }}" class="btn btn-primary ms-2">
+                        Open dashboard <i class="ti ti-arrow-right ms-1"></i>
+                    </a>
+                {% else %}
+                    <a href="{{ path('app_login') }}" class="btn btn-link-secondary ms-1">Sign in</a>
+                    <a href="{{ path('app_register') }}" class="btn btn-primary hidden sm:inline-flex">Create account</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main>
+    {% block site_content %}{% endblock %}
+</main>
+
+<footer class="border-t border-theme-border bg-white/60">
+    <div class="container mx-auto px-4 sm:px-6 py-8">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" class="h-6 w-auto">
+                <p class="mb-0 text-sm text-theme-secondarytextcolor">&copy; {{ 'now'|date('Y') }} Sigil &middot; Signum Veritatis</p>
+            </div>
+            <ul class="flex items-center gap-6 mb-0 text-sm">
+                <li><a href="{{ path('app_privacy') }}" class="text-theme-bodycolor hover:text-primary-500 transition-all">Privacy policy</a></li>
+                <li><a href="{{ path('app_terms') }}" class="text-theme-bodycolor hover:text-primary-500 transition-all">Terms of use</a></li>
+            </ul>
+        </div>
+    </div>
+</footer>
+{% endblock %}
