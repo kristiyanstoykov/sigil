@@ -41,6 +41,7 @@ security:
         - { path: ^/register, roles: PUBLIC_ACCESS }
         - { path: ^/verify/, roles: PUBLIC_ACCESS }
         - { path: ^/reset-password, roles: PUBLIC_ACCESS }
+        - { path: ^/account/(deleted|restore)$, roles: PUBLIC_ACCESS }   # after deletion there is no session; restore is a signed link (ADR-015)
         - { path: ^/2fa$, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/2fa_check, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
         - { path: ^/assets, roles: PUBLIC_ACCESS }

@@ -1,0 +1,19 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}Your new recovery code{% endblock %}
+
+{% block preheader %}A new recovery code for your deleted Sigil account.{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 16px;">
+        An administrator issued a new recovery code for the deleted Sigil account at this address.
+        The old code no longer works.
+    </p>
+    <p style="margin:0 0 16px;font-family:'Courier New',Courier,monospace;font-size:18px;font-weight:bold;letter-spacing:1px;">{{ recoveryCode }}</p>
+    <p style="margin:0 0 16px;">
+        To restore the account, register again with this address before {{ retainUntil ? retainUntil|date('j M Y') : 'the retention period ends' }}
+        and follow the link Sigil sends you. Sigil stores only a fingerprint of this code and cannot show it to you again.
+    </p>
+{% endblock %}
+
+{% block note %}If you did not ask for this, contact the administrator immediately.{% endblock %}

@@ -37,6 +37,17 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
             ->getOneOrNullResult();
     }
 
+    /** The deleted account an address belonged to, by its keyed fingerprint (ADR-015 §5). */
+    public function findDeletedByEmailFingerprint(string $fingerprint): ?User
+    {
+        return $this->createQueryBuilder('u')
+            ->andWhere('u.emailFingerprint = :fingerprint')
+            ->andWhere('u.deletedAt IS NOT NULL')
+            ->setParameter('fingerprint', $fingerprint)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /**
      * Users by lower-cased email, for many addresses at once.
      *

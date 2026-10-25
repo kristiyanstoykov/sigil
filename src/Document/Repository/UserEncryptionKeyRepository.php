@@ -29,13 +29,17 @@ final class UserEncryptionKeyRepository extends ServiceEntityRepository
      * Insert a user's wrapped KEK only if one does not already exist. Atomic:
      * a concurrent first-use race resolves to whichever request inserts first
      * (ON CONFLICT DO NOTHING), so a user can never end up with two KEKs.
+     * Nothing is inserted for a deleted account: FOR SHARE waits out a deletion
+     * in flight and then reads its outcome (ADR-015 §2).
      */
     public function insertIfAbsent(User $user, string $wrappedKek): void
     {
         $this->getEntityManager()->getConnection()->executeStatement(
             <<<'SQL'
                 INSERT INTO user_encryption_key (id, user_id, wrapped_kek, created_at)
-                VALUES (:id, :user, :kek, :now)
+                SELECT :id, u.id, :kek, :now FROM users u
+                WHERE u.id = :user AND u.deleted_at IS NULL
+                FOR SHARE
                 ON CONFLICT (user_id) DO NOTHING
                 SQL,
             [

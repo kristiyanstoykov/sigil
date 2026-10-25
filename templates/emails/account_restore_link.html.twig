@@ -1,0 +1,22 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block heading %}Restore your Sigil account{% endblock %}
+
+{% block preheader %}Someone tried to register with this address, which belonged to a deleted account.{% endblock %}
+
+{% block body %}
+    <p style="margin:0 0 16px;">
+        Someone tried to register with this address. It belonged to a Sigil account
+        that was deleted{% if deletedAt %} on {{ deletedAt|date('j M Y') }}{% endif %}, and an address can only bring that account back.
+    </p>
+    <p style="margin:0 0 16px;">
+        If it was you, follow the link below before {{ expiresAt|date('H:i') }} UTC. You will need the
+        recovery code from the email Sigil sent when the account was deleted. You choose a new password
+        and set up your authenticator again; your documents and history come back as they were.
+    </p>
+{% endblock %}
+
+{% block action_url %}{{ url }}{% endblock %}
+{% block action_label %}Restore my account{% endblock %}
+
+{% block note %}If it was not you, ignore this email. Nothing changes without the recovery code.{% endblock %}

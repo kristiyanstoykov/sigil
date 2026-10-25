@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Auth\Controller;
 
+use App\Auth\Event\DeletedAccountRegistration;
 use App\Auth\EventSubscriber\UnverifiedLoginSubscriber;
 use App\Auth\Form\RegistrationForm;
 use App\Auth\Form\ResendVerificationForm;
 use App\Auth\Service\EmailVerifier;
+use App\Auth\Security\EmailFingerprinter;
 use App\Auth\Service\RegistrationAllowlist;
 use App\Core\Entity\User;
 use App\Core\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
@@ -28,6 +31,8 @@ class AuthController extends AbstractController
 {
     /** Identical for an invited and an uninvited address, so the page does not reveal the allowlist. */
     private const string REGISTERED_FLASH = 'Check your email for a confirmation link before logging in. Registration is by invitation only - if nothing arrives, this address is not on the list.';
+
+    public const string RESTORE_FLASH = 'This address belonged to a Sigil account that was deleted. We have emailed it a link to restore the account - you will need your recovery code.';
 
     #[Route('/login', name: 'app_login')]
     public function login(AuthenticationUtils $authenticationUtils): Response
@@ -56,6 +61,9 @@ class AuthController extends AbstractController
         EmailVerifier $emailVerifier,
         RegistrationAllowlist $allowlist,
         LoggerInterface $logger,
+        UserRepository $users,
+        EmailFingerprinter $fingerprinter,
+        EventDispatcherInterface $events,
     ): Response {
         if ($this->getUser()) {
             return $this->redirectToRoute('app_dashboard');
@@ -66,6 +74,15 @@ class AuthController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            // One email, one person (ADR-015 §5): a deleted account's address can only restore it.
+            $deleted = $users->findDeletedByEmailFingerprint($fingerprinter->fingerprint($user->getEmail()));
+            if (null !== $deleted) {
+                $events->dispatch(new DeletedAccountRegistration($deleted, $user->getEmail()));
+                $this->addFlash('info', self::RESTORE_FLASH);
+
+                return $this->redirectToRoute('app_login');
+            }
+
             $user->setPassword($hasher->hashPassword($user, $form->get(RegistrationForm::E_PASSWORD)->getData()));
 
             // Registration is invitation-only; an uninvited address is told plainly.

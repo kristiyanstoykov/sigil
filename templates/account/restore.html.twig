@@ -1,0 +1,60 @@
+{% extends 'auth/base_auth.html.twig' %}
+
+{% block title %}Restore your account - Sigil{% endblock %}
+
+{% block card %}
+    <h1 class="text-lg font-bold text-theme-headings mb-1">Restore your account</h1>
+    <p class="mb-5 text-sm text-theme-secondarytextcolor">
+        {{ email }} belonged to an account that was deleted. Enter the recovery code you were given then,
+        and set the account up again. Your documents and history come back as they were; certificates do not.
+    </p>
+
+    {{ form_start(form, {attr: {class: 'space-y-4', novalidate: 'novalidate'}}) }}
+
+    {% set form_class = 'App\\Account\\Form\\RestoreAccountForm' %}
+    {% set label_class = 'form-label text-sm font-semibold' %}
+    {% set input_class = 'form-control !bg-white/60 !border-theme-headings/10 focus:!bg-white/85' %}
+    {% set field_code = constant(form_class ~ '::E_RECOVERY_CODE') %}
+    {% set field_password = constant(form_class ~ '::E_PASSWORD') %}
+
+    {% if form.vars.errors|length %}
+        <div class="alert alert-danger !mb-0 text-sm" role="alert">{{ form_errors(form) }}</div>
+    {% endif %}
+
+    <div>
+        {{ form_label(form[field_code], null, {label_attr: {class: label_class}}) }}
+        {{ form_widget(form[field_code], {attr: {class: input_class ~ ' font-mono uppercase tracking-wider'}}) }}
+        {{ form_errors(form[field_code]) }}
+    </div>
+
+    {% for pair in [[constant(form_class ~ '::E_FIRST_NAME'), constant(form_class ~ '::E_LAST_NAME')], [constant(form_class ~ '::E_COMPANY'), constant(form_class ~ '::E_POSITION')]] %}
+        <div class="flex gap-3">
+            {% for field in pair %}
+                <div class="flex-1">
+                    {{ form_label(form[field], null, {label_attr: {class: label_class}}) }}
+                    {{ form_widget(form[field], {attr: {class: input_class}}) }}
+                    {{ form_errors(form[field]) }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <div>
+        {{ form_label(form[field_password].first, null, {label_attr: {class: label_class}}) }}
+        {{ form_widget(form[field_password].first, {attr: {class: input_class}}) }}
+    </div>
+    <div>
+        {{ form_label(form[field_password].second, null, {label_attr: {class: label_class}}) }}
+        {{ form_widget(form[field_password].second, {attr: {class: input_class}}) }}
+        {{ form_errors(form[field_password]) }}
+        {{ form_errors(form[field_password].first) }}
+    </div>
+
+    <p class="text-xs text-theme-secondarytextcolor">
+        Minimum 10 characters. You will set up two-factor authentication again after you sign in.
+    </p>
+
+    <button type="submit" class="btn btn-primary w-full">Restore my account</button>
+
+    {{ form_end(form) }}
+{% endblock %}

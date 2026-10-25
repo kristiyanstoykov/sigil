@@ -1,0 +1,98 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Delete your account · Sigil{% endblock %}
+
+{% block content %}
+{% set form_class = 'App\\Account\\Form\\DeleteAccountForm' %}
+{% set password = constant(form_class ~ '::E_PASSWORD') %}
+{% set totp = constant(form_class ~ '::E_TOTP_CODE') %}
+{% set confirm = constant(form_class ~ '::E_CONFIRM_EMAIL') %}
+{% set label_class = 'form-label text-sm font-medium' %}
+
+<div class="mx-auto max-w-2xl mt-2">
+    <a href="{{ path('app_account') }}" class="mb-3 inline-flex items-center gap-1 text-sm text-theme-secondarytextcolor hover:text-primary-500">
+        <i class="ti ti-arrow-left" aria-hidden="true"></i> Back to your account
+    </a>
+
+    <div class="card !mb-5 p-6">
+        <div class="flex items-center gap-3 mb-2">
+            <span class="inline-flex w-10 h-10 items-center justify-center rounded-lg bg-danger-500/10 text-danger-600">
+                <i class="ti ti-user-off text-xl leading-none" aria-hidden="true"></i>
+            </span>
+            <h1 class="text-xl font-bold text-theme-headings">Delete your account</h1>
+        </div>
+        <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-4">This is what happens, straight away:</p>
+
+        <ul class="space-y-2.5 text-sm text-theme-bodycolor mb-5" data-deletion-preview>
+            <li class="flex items-start gap-2">
+                <i class="ti ti-file-x mt-0.5 text-base leading-none text-danger-600" aria-hidden="true"></i>
+                <span>
+                    {% if preview.requestsStarted + preview.requestsWaiting == 0 %}
+                        You have no open signature requests.
+                    {% else %}
+                        {% if preview.requestsStarted %}<strong>{{ preview.requestsStarted }}</strong> {{ preview.requestsStarted == 1 ? 'request' : 'requests' }} you sent {{ preview.requestsStarted == 1 ? 'is' : 'are' }} withdrawn.{% endif %}
+                        {% if preview.requestsWaiting %}<strong>{{ preview.requestsWaiting }}</strong> {{ preview.requestsWaiting == 1 ? 'request' : 'requests' }} still waiting for your signature {{ preview.requestsWaiting == 1 ? 'closes' : 'close' }} for everyone on {{ preview.requestsWaiting == 1 ? 'it' : 'them' }}.{% endif %}
+                        Signatures already collected are kept, and a receipt is sealed for each.
+                    {% endif %}
+                </span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i class="ti ti-shield-x mt-0.5 text-base leading-none text-danger-600" aria-hidden="true"></i>
+                <span>
+                    {% if preview.certificates %}
+                        <strong>{{ preview.certificates }}</strong> {{ preview.certificates == 1 ? 'certificate is' : 'certificates are' }} revoked and {{ preview.certificates == 1 ? 'its key is' : 'their keys are' }} destroyed. Every signature you have already made stays valid.
+                    {% else %}
+                        You hold no certificate in force.
+                    {% endif %}
+                </span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i class="ti ti-trash mt-0.5 text-base leading-none text-danger-600" aria-hidden="true"></i>
+                <span><strong>{{ preview.draftsErased }}</strong> unshared {{ preview.draftsErased == 1 ? 'draft is' : 'drafts are' }} erased for good.</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i class="ti ti-archive mt-0.5 text-base leading-none text-primary-500" aria-hidden="true"></i>
+                <span><strong>{{ preview.documentsRetained }}</strong> {{ preview.documentsRetained == 1 ? 'document that carries' : 'documents that carry' }} signatures or {{ preview.documentsRetained == 1 ? 'was' : 'were' }} shared {{ preview.documentsRetained == 1 ? 'is' : 'are' }} kept, encrypted, for 10 years. Other people keep what they were given.</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <i class="ti ti-key mt-0.5 text-base leading-none text-primary-500" aria-hidden="true"></i>
+                <span>You get a <strong>recovery code</strong>, on screen once and by email. Register again with this address within 10 years and enter it to get everything back.</span>
+            </li>
+        </ul>
+
+        <div class="alert alert-info !mb-0 flex flex-wrap items-center gap-3 text-sm">
+            <i class="ti ti-file-zip text-base leading-none" aria-hidden="true"></i>
+            <span class="flex-1">Want a copy first? Prepare an export of all your documents before you delete.</span>
+            <a href="{{ path('app_account_export') }}" class="btn btn-outline-secondary btn-sm">Download all</a>
+        </div>
+    </div>
+
+    <div class="card !mb-0 p-6">
+        <p class="text-sm text-theme-secondarytextcolor leading-relaxed mb-5">Because this cannot be undone from here, prove it is you - being signed in isn't enough.</p>
+
+        {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+        {% if form.vars.errors|length %}
+            <div class="alert alert-danger !mb-4 text-sm" role="alert">{{ form_errors(form) }}</div>
+        {% endif %}
+
+        <div class="mb-4">
+            {{ form_label(form[password], null, {label_attr: {class: label_class}}) }}
+            {{ form_widget(form[password], {attr: {class: 'form-control'}}) }}
+            {{ form_errors(form[password]) }}
+        </div>
+        <div class="mb-4">
+            {{ form_label(form[totp], null, {label_attr: {class: label_class}}) }}
+            {{ form_widget(form[totp], {attr: {class: 'form-control text-center font-mono !text-xl tracking-[.4em]', placeholder: '000000'}}) }}
+            {{ form_errors(form[totp]) }}
+        </div>
+        <div class="mb-5">
+            {{ form_label(form[confirm], null, {label_attr: {class: label_class}}) }}
+            {{ form_widget(form[confirm], {attr: {class: 'form-control', placeholder: app.user.email}}) }}
+            {{ form_errors(form[confirm]) }}
+        </div>
+
+        <button type="submit" class="btn btn-danger w-full">Delete my account</button>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

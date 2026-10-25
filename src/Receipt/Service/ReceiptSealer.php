@@ -50,6 +50,19 @@ final class ReceiptSealer
      */
     public function seal(string $pdfBytes, string $documentTitle): array
     {
+        return $this->sealWith($pdfBytes, sprintf('Delivery receipt for "%s"', $documentTitle), 'Electronic seal (delivery receipt)');
+    }
+
+    /**
+     * The same seal over another record Sigil attests, such as an account
+     * closure record (ADR-015 §3), with its own reason and stamp line.
+     *
+     * @return array{bytes: string, serialNumber: string}
+     *
+     * @throws DomainException if the seal is not initialized or sealing fails
+     */
+    public function sealWith(string $pdfBytes, string $reason, string $appearanceLine): array
+    {
         if (!$this->isReady()) {
             throw new DomainException('The delivery seal is not initialized (run sigil:seal:init).');
         }
@@ -69,11 +82,11 @@ final class ReceiptSealer
             signerName: 'SIGIL SIGNUM VERITATIS',
             algorithmId: $suite->id(),
             tsaUrl: $this->tsa->activeUrl(),
-            reason: sprintf('Delivery receipt for "%s"', $documentTitle),
+            reason: $reason,
             fieldName: 'SigilSeal-'.bin2hex(random_bytes(4)),
             // Not "Qualified electronic signature": this is a seal by the
             // application, and Sigil is not a qualified trust service provider.
-            appearanceLine1: 'Electronic seal (delivery receipt)',
+            appearanceLine1: $appearanceLine,
         );
 
         return [
