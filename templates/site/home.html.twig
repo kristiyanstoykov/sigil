@@ -2,55 +2,30 @@
 
 {% block title %}Sigil · Signatures that hold up{% endblock %}
 
-{#
-    One node of the "life of a document" timeline - the History tab's shape as a
-    tree: a spine down the middle, cards alternating sides on large screens.
-#}
-{% macro event(i, icon, tone, time, title, action, body, facts) %}
-    {% set right = i is odd %}
-    <li class="relative grid grid-cols-[2.5rem_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] gap-x-4 lg:gap-x-8 pb-10 last:pb-0">
-        <div class="col-start-1 lg:col-start-2 row-start-1 flex justify-center">
-            <span class="relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-full ring-8 ring-theme-bodybg {{ tone }}">
-                <i class="ti {{ icon }} text-lg leading-none" aria-hidden="true"></i>
-            </span>
-        </div>
-
-        <div class="hidden lg:block row-start-1 pt-2 {{ right ? 'lg:col-start-1 text-right' : 'lg:col-start-3' }}">
-            <p class="mb-0 text-xs font-semibold uppercase tracking-[0.2em] text-primary-500">Step {{ '%02d'|format(i) }}</p>
-            <p class="mb-0 mt-1 font-mono text-xs text-theme-secondarytextcolor">{{ time }}</p>
-        </div>
-
-        <div class="col-start-2 row-start-1 {{ right ? 'lg:col-start-3' : 'lg:col-start-1' }}">
-            <div class="card !mb-0 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-                <div class="card-body">
-                    <p class="lg:hidden mb-1 font-mono text-xs text-theme-secondarytextcolor">Step {{ '%02d'|format(i) }} &middot; {{ time }}</p>
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <h5 class="mb-0">{{ title }}</h5>
-                        <span class="rounded-md bg-theme-bodybg px-2 py-0.5 font-mono text-[11px] text-theme-secondarytextcolor break-all">{{ action }}</span>
-                    </div>
-                    <p class="mb-4 text-theme-secondarytextcolor">{{ body }}</p>
-                    <ul class="mb-0 space-y-2 border-t border-theme-border/60 pt-4">
-                        {% for fact in facts %}
-                            <li class="flex gap-2 text-sm text-theme-bodycolor">
-                                <i class="ti ti-check mt-0.5 text-primary-500" aria-hidden="true"></i>
-                                <span>{{ fact }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </li>
+{% macro eyebrow(text, tone = 'text-primary-500') %}
+    <span class="font-mono text-xs uppercase tracking-[0.1em] {{ tone }}">{{ text }}</span>
 {% endmacro %}
 
-{% macro layer(icon, title, body, tone) %}
-    <li class="flex gap-4">
-        <span class="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ tone }}">
-            <i class="ti {{ icon }} text-lg" aria-hidden="true"></i>
-        </span>
-        <div>
-            <h6 class="mb-1">{{ title }}</h6>
-            <p class="mb-0 text-sm text-theme-secondarytextcolor">{{ body }}</p>
+{% macro label(text) %}
+    <span class="font-mono text-[11px] uppercase tracking-[0.06em] text-theme-secondarytextcolor">{{ text }}</span>
+{% endmacro %}
+
+{# One step of the "life of a document" timeline; illustrative times, the order is the point. #}
+{% macro step(n, time, action, title, facts, last = false) %}
+    <li class="flex gap-5">
+        <div class="flex shrink-0 flex-col items-center">
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white {{ last ? 'bg-success-500' : 'bg-primary-500' }}">{{ n }}</span>
+            {% if not last %}<span class="min-h-5 w-0.5 grow bg-theme-border" aria-hidden="true"></span>{% endif %}
+        </div>
+        <div class="flex min-w-0 grow flex-col gap-2.5 rounded-xl border border-theme-border bg-white px-5 py-5 {{ last ? '' : 'mb-4' }}">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span class="font-mono text-xs text-theme-secondarytextcolor">{{ time }}</span>
+                <span class="rounded-md px-2 py-0.5 font-mono text-[11px] break-all {{ last ? 'bg-success-500/10 text-success-600' : 'bg-primary-500/10 text-primary-500' }}">{{ action }}</span>
+            </div>
+            <h3 class="mb-0 text-lg font-semibold">{{ title }}</h3>
+            <ul class="mb-0 list-disc ps-[18px] text-sm leading-[1.7] text-theme-secondarytextcolor">
+                {% for fact in facts %}<li>{{ fact }}</li>{% endfor %}
+            </ul>
         </div>
     </li>
 {% endmacro %}
@@ -59,238 +34,237 @@
 {% import _self as ui %}
 
 {# ── Hero ─────────────────────────────────────────────────────────────── #}
-<header class="sigil-aurora relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28">
-    <div class="sigil-grid absolute inset-0 pointer-events-none" aria-hidden="true"></div>
-    <div class="container relative mx-auto px-4 sm:px-6">
-        <div class="grid grid-cols-12 gap-y-10 lg:gap-x-10 items-center">
-            <div class="col-span-12 lg:col-span-6 text-center lg:text-left">
-                <span class="docs-rise inline-flex items-center gap-2 rounded-full border border-primary-500/15 bg-white/70 px-3 py-1 text-xs font-medium text-primary-500 backdrop-blur">
-                    <span class="h-1.5 w-1.5 rounded-full bg-success-500"></span>
-                    PAdES-B-T signatures &middot; post-quantum ready
-                </span>
-                <h1 class="docs-rise [animation-delay:80ms] mt-6 mb-5 text-[34px] md:text-[48px] lg:text-[58px] leading-[1.08] font-semibold tracking-tight text-theme-headings">
-                    Signatures that
-                    <span class="text-transparent bg-clip-text bg-linear-to-r from-primary-500 via-primary-400 to-primary-500 bg-[length:400%_100%] bg-left-top animate-[move-bg_24s_infinite_linear] motion-reduce:animate-none">hold up.</span>
-                    Documents that stay private.
-                </h1>
-                <p class="docs-rise [animation-delay:160ms] mx-auto lg:mx-0 max-w-xl text-[16px] sm:text-[18px] text-theme-secondarytextcolor mb-8">
-                    Sigil signs PDFs with a key that never leaves its PKCS#11 token, encrypts every file before it is stored,
-                    and seals a receipt of who received and signed what, to the second.
-                </p>
-                <div class="docs-rise [animation-delay:240ms] flex flex-wrap items-center justify-center lg:justify-start gap-3">
-                    {% if app.user %}
-                        <a href="{{ path('app_dashboard') }}" class="btn btn-primary btn-lg">
-                            Open dashboard <i class="ti ti-arrow-right ms-1"></i>
-                        </a>
-                    {% else %}
-                        <a href="{{ path('app_register') }}" class="btn btn-primary btn-lg">
-                            Create account <i class="ti ti-arrow-right ms-1"></i>
-                        </a>
-                        <a href="{{ path('app_login') }}" class="btn btn-outline-secondary btn-lg">Sign in</a>
-                    {% endif %}
-                </div>
-                <p class="docs-rise [animation-delay:300ms] mt-4 mb-0 text-xs text-theme-secondarytextcolor">
-                    <i class="ti ti-mail me-1" aria-hidden="true"></i>Registration is by invitation.
-                </p>
+<section class="site-dots px-4 pt-16 pb-20 sm:px-6 sm:pt-[72px] sm:pb-[88px]">
+    <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-14">
+        <div class="flex min-w-0 flex-[1_1_460px] flex-col gap-6">
+            <span class="inline-flex self-start items-center gap-2 rounded-full border border-primary-500/20 bg-primary-500/[0.08] px-3 py-1.5 text-[13px] font-semibold text-primary-500">
+                <span class="h-1.5 w-1.5 rounded-full bg-primary-500"></span>PAdES-B-T signatures &middot; post-quantum ready
+            </span>
+            <h1 class="mb-0 text-[38px] md:text-[48px] lg:text-[58px] leading-[1.06] font-bold tracking-[-0.025em] text-theme-headings">
+                Signatures that hold up.<br><span class="text-primary-500">Documents that stay private.</span>
+            </h1>
+            <p class="mb-0 max-w-[540px] text-lg leading-relaxed text-theme-secondarytextcolor">
+                Sigil signs your PDFs with a key that never leaves its PKCS#11 token, encrypts every file before it is stored,
+                and seals a delivery receipt when the last signer is done.
+            </p>
+            <div class="flex flex-wrap items-center gap-3">
+                {% if app.user %}
+                    <a href="{{ path('app_dashboard') }}" class="btn btn-primary btn-lg">Open dashboard <i class="ti ti-arrow-right ms-1"></i></a>
+                {% else %}
+                    <a href="{{ path('app_register') }}" class="btn btn-primary btn-lg">Create account <i class="ti ti-arrow-right ms-1"></i></a>
+                    <a href="{{ path('app_login') }}" class="btn btn-outline-secondary btn-lg bg-white">Sign in</a>
+                    <span class="ms-1 inline-flex items-center gap-1.5 text-[13px] text-theme-secondarytextcolor"><i class="ti ti-lock" aria-hidden="true"></i>Registration is by invitation.</span>
+                {% endif %}
             </div>
+            <ul class="mb-0 mt-2 flex flex-wrap gap-x-6 gap-y-2.5 border-t border-theme-border pt-2">
+                {% for point in ['Validates in Adobe Reader', 'Nothing stored in the clear', 'Hash-chained audit log'] %}
+                    <li class="inline-flex items-center gap-2 pt-3 text-sm text-theme-headings"><i class="ti ti-check text-success-600" aria-hidden="true"></i>{{ point }}</li>
+                {% endfor %}
+            </ul>
+        </div>
 
-            {# A signed document, drawn with Able Pro cards - illustrative, not a real record. #}
-            <div class="col-span-12 lg:col-span-6">
-                <div class="docs-rise [animation-delay:200ms] relative mx-auto max-w-md lg:max-w-none lg:ms-8" aria-hidden="true">
-                    <div class="glass-card p-5 sm:p-6 rotate-[-1.5deg]">
-                        <div class="flex items-center gap-3 mb-5">
-                            <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-danger-500/10 text-danger-500 text-xl">
-                                <i class="ti ti-file-text"></i>
-                            </span>
-                            <div class="grow min-w-0">
-                                <p class="mb-0 font-semibold text-theme-headings truncate">Service agreement.pdf</p>
-                                <p class="mb-0 text-xs text-theme-secondarytextcolor">Version 3 &middot; 2 signatures</p>
-                            </div>
-                            <span class="badge rounded-full bg-success-500/10 text-success-600">
-                                <i class="ti ti-circle-check me-1"></i>Signed
-                            </span>
+        {# A signed document and its signing flow; illustrative, not a real record. #}
+        <div class="min-w-0 flex-[1_1_460px]" aria-hidden="true">
+            <div class="overflow-hidden rounded-2xl border border-theme-border bg-white shadow-[0_30px_60px_-30px_rgba(15,30,61,0.28)]">
+                <div class="flex items-center gap-3.5 border-b border-theme-border/60 px-6 py-5">
+                    <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary-500/[0.08] text-primary-500 text-[22px]"><i class="ti ti-file-text"></i></span>
+                    <div class="flex min-w-0 grow flex-col gap-0.5">
+                        <span class="truncate font-semibold text-theme-headings">Service agreement.pdf</span>
+                        <span class="font-mono text-xs text-theme-secondarytextcolor">Version 3 &middot; 2 signatures</span>
+                    </div>
+                    <span class="badge rounded-full bg-success-500/10 text-success-600"><i class="ti ti-check me-1"></i>Signed</span>
+                </div>
+
+                <div class="px-6 py-2">
+                    {% for signer in [
+                        {initials: 'AP', name: 'A. Petrova', suite: 'ECDSA P-384', time: '14:32:07 UTC', pq: false},
+                        {initials: 'GD', name: 'G. Dimitrov', suite: 'ML-DSA-65', time: '16:05:41 UTC', pq: true},
+                    ] %}
+                        <div class="flex items-center gap-3 py-3 {{ loop.last ? '' : 'border-b border-dashed border-theme-border' }}">
+                            <span class="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-theme-bodybg text-xs font-semibold text-theme-headings">{{ signer.initials }}</span>
+                            <span class="grow text-sm font-semibold">{{ signer.name }}</span>
+                            <span class="rounded-md border px-2 py-0.5 font-mono text-[11px] {{ signer.pq ? 'border-primary-500/20 bg-primary-500/[0.08] text-primary-500' : 'border-theme-border bg-theme-bodybg text-theme-headings' }}">{{ signer.suite }}</span>
+                            <span class="hidden sm:inline min-w-[104px] text-right font-mono text-xs text-theme-secondarytextcolor">{{ signer.time }}</span>
                         </div>
+                    {% endfor %}
+                </div>
 
-                        <div class="space-y-2.5 mb-6">
-                            <div class="h-2.5 w-full rounded-full bg-theme-border"></div>
-                            <div class="h-2.5 w-11/12 rounded-full bg-theme-border"></div>
-                            <div class="h-2.5 w-full rounded-full bg-theme-border"></div>
-                            <div class="h-2.5 w-8/12 rounded-full bg-theme-border"></div>
+                <div class="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-px border-t border-theme-border/60 bg-theme-border/60">
+                    {% for fact in [
+                        ['Fingerprint', 'HMAC-SHA384'],
+                        ['Signature', 'PAdES-B-T'],
+                        ['Encrypted at rest', 'AES-256-GCM'],
+                        ['Audit chain', 'Every step hashed'],
+                    ] %}
+                        <div class="flex flex-col gap-1 bg-theme-bodybg/50 px-6 py-3.5">
+                            {{ ui.label(fact[0]) }}
+                            <span class="text-[13px] font-semibold">{{ fact[1] }}</span>
                         </div>
+                    {% endfor %}
+                </div>
 
-                        <div class="space-y-3">
-                            {% for signer in [
-                                {name: 'A. Petrova', time: '14:32:07 UTC', suite: 'ECDSA P-384'},
-                                {name: 'G. Dimitrov', time: '16:05:41 UTC', suite: 'ML-DSA-65'},
-                            ] %}
-                                <div class="flex items-center gap-3 rounded-xl border border-primary-500/10 bg-white/70 px-4 py-3">
-                                    <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary-500 text-white">
-                                        <i class="ti ti-signature"></i>
-                                    </span>
-                                    <div class="grow min-w-0">
-                                        <p class="mb-0 text-sm font-medium text-theme-headings">{{ signer.name }}</p>
-                                        <p class="mb-0 text-xs text-theme-secondarytextcolor">{{ signer.suite }} &middot; {{ signer.time }}</p>
-                                    </div>
-                                    <i class="ti ti-clock text-success-500 text-lg" title="Timestamped"></i>
+                <div class="flex flex-col gap-3.5 border-t border-theme-border/60 px-6 pt-5 pb-[22px]">
+                    {{ ui.label('Signing flow') }}
+                    <div class="flex flex-wrap gap-y-2">
+                        {% for stage in [
+                            ['Uploaded', 'encrypted'],
+                            ['Petrova signed', '14:32:07'],
+                            ['Dimitrov signed', '16:05:41'],
+                        ] %}
+                            <div class="flex min-w-24 flex-[1_1_0] flex-col gap-2">
+                                <div class="flex items-center">
+                                    <span class="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-primary-500 text-xs text-white"><i class="ti ti-check"></i></span>
+                                    <span class="h-0.5 grow bg-primary-500"></span>
                                 </div>
-                            {% endfor %}
-                        </div>
-
-                        <div class="mt-5 flex items-center justify-between gap-3 border-t border-theme-border pt-4 text-xs">
-                            <span class="font-mono text-theme-secondarytextcolor truncate">HMAC-SHA384 &middot; 9f3a&hellip;c21e</span>
-                            <span class="shrink-0 font-medium text-primary-500"><i class="ti ti-certificate me-1"></i>PAdES-B-T</span>
-                        </div>
-                    </div>
-
-                    <div class="glass-card absolute -left-4 sm:-left-10 -bottom-14 sm:-bottom-6 flex items-center gap-3 px-4 py-3 rotate-[2deg]">
-                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-success-500/10 text-success-600"><i class="ti ti-lock"></i></span>
-                        <div>
-                            <p class="mb-0 text-sm font-semibold text-theme-headings">AES-256-GCM</p>
-                            <p class="mb-0 text-xs text-theme-secondarytextcolor">Encrypted at rest</p>
-                        </div>
-                    </div>
-                    <div class="glass-card absolute -right-2 sm:-right-6 -top-6 hidden sm:flex items-center gap-3 px-4 py-3 rotate-[3deg]">
-                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500/10 text-primary-500"><i class="ti ti-link"></i></span>
-                        <div>
-                            <p class="mb-0 text-sm font-semibold text-theme-headings">Audit chain</p>
-                            <p class="mb-0 text-xs text-theme-secondarytextcolor">Every step hashed</p>
+                                <span class="text-[13px] font-semibold">{{ stage[0] }}</span>
+                                <span class="font-mono text-[11px] text-theme-secondarytextcolor">{{ stage[1] }}</span>
+                            </div>
+                        {% endfor %}
+                        <div class="flex min-w-24 flex-[0_1_auto] flex-col gap-2">
+                            <span class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-success-500 text-xs text-white"><i class="ti ti-shield"></i></span>
+                            <span class="text-[13px] font-semibold">Receipt sealed</span>
+                            <span class="font-mono text-[11px] text-theme-secondarytextcolor">receipt.sealed</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <ul class="mt-24 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm font-medium text-theme-secondarytextcolor">
-            {% for standard in ['PAdES-B-T', 'RFC 3161 timestamps', 'PKCS#11 key custody', 'ECDSA P-384', 'ML-DSA-65', 'AES-256-GCM'] %}
-                <li class="inline-flex items-center gap-2"><i class="ti ti-shield-check text-primary-500" aria-hidden="true"></i>{{ standard }}</li>
-            {% endfor %}
-        </ul>
     </div>
-</header>
+</section>
+
+{# ── Standards strip ──────────────────────────────────────────────────── #}
+<section class="border-y border-theme-border bg-white px-4 py-[22px] sm:px-6">
+    <ul class="mx-auto mb-0 flex max-w-[1200px] flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
+        <li class="me-2 text-[13px] text-theme-secondarytextcolor">Built on open standards</li>
+        {% for standard in ['PAdES-B-T', 'RFC 3161 timestamps', 'PKCS#11 key custody', 'ECDSA P-384', 'ML-DSA-65', 'AES-256-GCM'] %}
+            <li class="rounded-lg border border-theme-border bg-theme-bodybg px-3 py-1.5 font-mono text-[13px] text-theme-headings">{{ standard }}</li>
+        {% endfor %}
+    </ul>
+</section>
 
 {# ── How it works ─────────────────────────────────────────────────────── #}
-<section id="how-it-works" class="scroll-mt-20 py-16 sm:py-[100px]">
-    <div class="container mx-auto px-4 sm:px-6">
-        <div class="mx-auto mb-12 md:w-8/12 xl:w-6/12 text-center">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-500">How it works</p>
-            <h2 class="mb-3 font-semibold">The life of a signed document</h2>
-            <p class="mb-0 text-theme-secondarytextcolor">Follow one file from upload to receipt: what happens at every step, and what is recorded. Nothing is stored in the clear, and nothing happens without a trace.</p>
+<section id="how-it-works" class="scroll-mt-20 bg-theme-bodybg px-4 py-16 sm:px-6 sm:py-24">
+    <div class="mx-auto flex max-w-[1200px] flex-col gap-12">
+        <div class="flex max-w-[680px] flex-col gap-3.5">
+            {{ ui.eyebrow('How it works') }}
+            <h2 class="mb-0 text-[30px] lg:text-[40px] leading-[1.15] font-bold tracking-[-0.02em]">The life of a signed document</h2>
+            <p class="mb-0 text-[17px] leading-relaxed text-theme-secondarytextcolor">Follow one file from upload to receipt. At no point along the way is it stored in the clear.</p>
         </div>
-        {# Illustrative times for one document's day - the order is the point. #}
-        <ol class="relative mx-auto max-w-5xl">
-            <span class="absolute top-2 bottom-2 left-5 lg:left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-primary-500/50 via-primary-500/25 to-primary-500/5" aria-hidden="true"></span>
 
-            {{ ui.event(1, 'ti-cloud-upload', 'bg-primary-500 text-white', '09:14:02 UTC', 'Uploaded and encrypted', 'document.uploaded',
-                'The PDF is encrypted the moment it arrives. Storage never sees a readable byte.', [
-                'A fresh 256-bit key for this version, AES-256-GCM',
-                'A keyed SHA-384 fingerprint pins exactly these bytes',
-                'Only ciphertext is written to object storage',
-            ]) }}
+        <div class="flex flex-wrap items-start gap-10">
+            {# Envelope encryption: each key wraps the one below it. #}
+            <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5 rounded-2xl border border-theme-border bg-white p-7">
+                {{ ui.label('Envelope encryption') }}
+                <span class="mb-3.5 text-lg font-semibold">Who holds which key</span>
+                {% for layer in [
+                    {icon: 'ti-server', name: 'Root key', detail: 'inside the PKCS#11 token', box: 'bg-primary-900 text-white', chip: 'bg-white/10', sub: 'text-white/65', arrow: 'wraps'},
+                    {icon: 'ti-key', name: 'Your key', detail: 'KEK · one per person', box: 'bg-primary-500 text-white', chip: 'bg-white/15', sub: 'text-white/75', arrow: 'wraps'},
+                    {icon: 'ti-key', name: 'File key', detail: 'DEK · one per version', box: 'border border-primary-500/20 bg-primary-500/[0.08]', chip: 'bg-white text-primary-500', sub: 'text-theme-secondarytextcolor', arrow: 'encrypts · AES-256-GCM'},
+                    {icon: 'ti-file-text', name: 'Your document', detail: 'stored as ciphertext only', box: 'border border-theme-border bg-white', chip: 'bg-theme-bodybg text-theme-headings', sub: 'text-theme-secondarytextcolor', arrow: null},
+                ] %}
+                    <div class="flex items-center gap-3.5 rounded-xl px-4 py-3.5 {{ layer.box }}">
+                        <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] text-lg {{ layer.chip }}"><i class="ti {{ layer.icon }}" aria-hidden="true"></i></span>
+                        <span class="flex flex-col gap-0.5">
+                            <span class="text-sm font-semibold">{{ layer.name }}</span>
+                            <span class="font-mono text-[11px] {{ layer.sub }}">{{ layer.detail }}</span>
+                        </span>
+                    </div>
+                    {% if layer.arrow %}
+                        <div class="flex items-center gap-2 py-1 ps-[30px] text-theme-secondarytextcolor">
+                            <i class="ti ti-arrow-down" aria-hidden="true"></i><span class="font-mono text-[11px]">{{ layer.arrow }}</span>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
 
-            {{ ui.event(2, 'ti-key', 'bg-primary-500/10 text-primary-500', '09:14:02 UTC', 'The key is locked away', 'Envelope encryption',
-                'The file key is never stored as it is. It is wrapped inside your own key, and yours inside the root key.', [
-                'File key wrapped under your personal key (KEK)',
-                'Your key wrapped by a root key held in a PKCS#11 token',
-                'The database only ever holds wrapped keys',
-            ]) }}
-
-            {{ ui.event(3, 'ti-send', 'bg-info-500/10 text-info-600', '09:20:45 UTC', 'Signers are asked, in order', 'signing_request.created',
-                'You choose who signs and in which order. Access is handed out one turn at a time, never up front.', [
-                'Every signer is checked for a verified account and a valid certificate',
-                'Only the first signer is granted the key, by re-wrapping it rather than copying the file',
-                'Everyone after them cannot open the document yet',
-            ]) }}
-
-            {{ ui.event(4, 'ti-writing-sign', 'bg-success-500/10 text-success-600', '11:02:17 UTC', 'Signed inside the token', 'document.signed',
-                'The signer reads the document, enters their PIN, and the signature is made inside their own token.', [
-                'The PIN opens the token for this one signature, then is discarded',
-                'The private key signs the hash and never leaves the token',
-                'An RFC 3161 authority timestamps it; the result is a new version with its own key',
-            ]) }}
-
-            {{ ui.event(5, 'ti-arrow-forward-up', 'bg-warning-500/10 text-warning-600', '11:02:18 UTC', 'The turn passes on', 'signing_request.turn_advanced',
-                'Only now can the next signer decrypt the document, and only the version that was just signed.', [
-                'The next signer is granted the new version',
-                'Anyone may decline instead, with or without a reason',
-                'A missed deadline closes the request on its own',
-            ]) }}
-
-            {{ ui.event(6, 'ti-certificate', 'bg-primary-500 text-white', '15:47:09 UTC', 'A sealed receipt', 'receipt.sealed',
-                'When the request closes, Sigil seals a receipt of who received the document, who signed it and when.', [
-                'Sealed with Sigil\'s own electronic seal, as a PAdES PDF',
-                'Every participant gets a copy they can check a file against',
-                'Every step above sits in a hash-chained audit log',
-            ]) }}
-        </ol>
+            <ol class="mb-0 flex min-w-0 flex-[2_1_560px] flex-col">
+                {{ ui.step(1, '09:14:02 UTC', 'document.uploaded', 'Uploaded and encrypted', [
+                    'A fresh AES-256-GCM key is made for this version',
+                    'A keyed SHA-384 fingerprint identifies the file',
+                    'Only ciphertext is written to storage',
+                ]) }}
+                {{ ui.step(2, 'same second', 'envelope encryption', 'The key is locked away', [
+                    'The file key is wrapped by your personal KEK',
+                    'Your KEK is wrapped by the root key',
+                    'The root key sits in a PKCS#11 token and never leaves it',
+                ]) }}
+                {{ ui.step(3, '09:20:45 UTC', 'signing_request.created', 'Signers are asked, in order', [
+                    'Signers get access one at a time, in the order you set',
+                    'The file key is re-wrapped for the first signer only',
+                    'Nobody further down the list can open it yet',
+                ]) }}
+                {{ ui.step(4, '11:02:17 UTC', 'document.signed', 'Signed inside the token', [
+                    'The signer\'s PIN is used once and never kept',
+                    'The signature is made inside their own token',
+                    'An RFC 3161 timestamp fixes when it happened',
+                ]) }}
+                {{ ui.step(5, '11:02:18 UTC', 'signing_request.turn_advanced', 'The turn passes on', [
+                    'The next signer gets the newly signed version only',
+                    'A signer can decline with a reason, closing the request',
+                    'A deadline can close it too',
+                ]) }}
+                {{ ui.step(6, '15:47:09 UTC', 'receipt.sealed', 'A sealed receipt', [
+                    'A PAdES receipt records who it reached, who signed and when',
+                    'It is sealed with Sigil\'s own electronic seal',
+                    'Every step is linked into a hash-chained audit log',
+                ], true) }}
+            </ol>
+        </div>
     </div>
 </section>
 
-{# ── Encryption in depth ──────────────────────────────────────────────── #}
-<section id="security" class="scroll-mt-20 bg-white py-16 sm:py-[100px]">
-    <div class="container mx-auto px-4 sm:px-6">
-        <div class="grid grid-cols-12 gap-y-10 lg:gap-x-10 items-center">
-            <div class="col-span-12 lg:col-span-6 order-2 lg:order-1">
-                {# Envelope encryption as nested layers: each key wraps the one inside it. #}
-                <div class="rounded-3xl border border-primary-500/15 bg-primary-500/[0.03] p-4 sm:p-5">
-                    <p class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-primary-500"><i class="ti ti-server"></i>Root key &middot; PKCS#11 token</p>
-                    <div class="rounded-2xl border border-primary-500/20 bg-white p-4 sm:p-5 shadow-sm">
-                        <p class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-primary-500"><i class="ti ti-user-check"></i>Your key (KEK)</p>
-                        <div class="rounded-2xl border border-primary-500/25 bg-primary-500/[0.04] p-4 sm:p-5">
-                            <p class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-primary-500"><i class="ti ti-key"></i>File key (DEK) &middot; one per version</p>
-                            <div class="rounded-xl bg-primary-500 p-4 text-white">
-                                <div class="flex items-center gap-3">
-                                    <i class="ti ti-shield-lock text-2xl" aria-hidden="true"></i>
-                                    <div class="min-w-0">
-                                        <p class="mb-0 font-semibold">Your document</p>
-                                        <p class="mb-0 font-mono text-xs text-white/70 truncate">AES-256-GCM &middot; 7c1e04b9a2&hellip;</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+{# ── Encryption ───────────────────────────────────────────────────────── #}
+<section id="security" class="scroll-mt-20 bg-white px-4 py-16 sm:px-6 sm:py-24">
+    <div class="mx-auto flex max-w-[1200px] flex-col gap-11">
+        <div class="flex max-w-[680px] flex-col gap-3.5">
+            {{ ui.eyebrow('Encryption') }}
+            <h2 class="mb-0 text-[30px] lg:text-[40px] leading-[1.15] font-bold tracking-[-0.02em]">Three keys deep, so no single leak opens a file</h2>
+            <p class="mb-0 text-[17px] leading-relaxed text-theme-secondarytextcolor">Files, file keys and the root key live in different places. Getting hold of any one of them is not enough to read a document.</p>
+        </div>
+        <div class="flex flex-wrap gap-6">
+            {% for card in [
+                {icon: 'ti-stack-2', title: 'A key for every version', body: 'Each version of a document gets its own data key. One exposed key opens one version and nothing else.'},
+                {icon: 'ti-refresh', title: 'Access is a re-wrap, not a copy', body: 'Giving someone access wraps the file key again under their key. The encrypted file itself is never copied.'},
+                {icon: 'ti-atom', title: 'Quantum-resistant at rest', body: 'AES-256 keeps its safety margin against quantum attacks, so stored files stay protected long after they are signed.'},
+            ] %}
+                <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-3.5 rounded-xl border border-theme-border bg-theme-bodybg p-7">
+                    <span class="inline-flex h-11 w-11 items-center justify-center rounded-[10px] bg-primary-500/[0.08] text-[22px] text-primary-500"><i class="ti {{ card.icon }}" aria-hidden="true"></i></span>
+                    <h3 class="mb-0 text-lg font-semibold">{{ card.title }}</h3>
+                    <p class="mb-0 text-[15px] leading-relaxed text-theme-secondarytextcolor">{{ card.body }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+{# ── Signing ──────────────────────────────────────────────────────────── #}
+<section class="border-t border-theme-border bg-theme-bodybg px-4 py-16 sm:px-6 sm:py-24">
+    <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-14">
+        <div class="flex min-w-0 flex-[1_1_420px] flex-col gap-[18px]">
+            {{ ui.eyebrow('Signing') }}
+            <h2 class="mb-0 text-[30px] lg:text-[40px] leading-[1.15] font-bold tracking-[-0.02em]">A signature that stands on its own</h2>
+            <p class="mb-0 text-[17px] leading-relaxed text-theme-secondarytextcolor">Signed files validate in Adobe Reader or any PAdES validator. Nobody needs a Sigil account to check them.</p>
+            {# What a validator shows; illustrative. #}
+            <div class="mt-2 flex items-start gap-3.5 rounded-xl border border-theme-border bg-white px-5 py-[18px]" aria-hidden="true">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success-500/10 text-lg text-success-600"><i class="ti ti-check"></i></span>
+                <div class="flex min-w-0 flex-col gap-1">
+                    <span class="text-[15px] font-semibold">Signature is valid</span>
+                    <span class="text-[13px] text-theme-secondarytextcolor">Signed by G. Dimitrov &middot; document not modified since signing</span>
+                    <span class="font-mono text-xs text-theme-secondarytextcolor">ML-DSA-65 &middot; RFC 3161 timestamp &middot; PAdES-B-T</span>
                 </div>
             </div>
-
-            <div class="col-span-12 lg:col-span-6 order-1 lg:order-2">
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-500">Encryption</p>
-                <h2 class="mb-4 font-semibold">Three keys deep, so no single leak opens a file</h2>
-                <p class="mb-8 text-theme-secondarytextcolor">
-                    Sigil uses envelope encryption. The database only ever holds keys that are themselves encrypted,
-                    and the key at the top never sits in the database at all.
-                </p>
-                <ul class="space-y-6 mb-0">
-                    {{ ui.layer('ti-shield-lock', 'A key for every version', 'Each upload and each signed version gets its own 256-bit key. Old versions are kept, each sealed separately, so the record is never overwritten.', 'bg-primary-500/10 text-primary-500') }}
-                    {{ ui.layer('ti-switch-horizontal', 'Access is a re-wrap, not a copy', 'When someone is asked to sign, their key wraps the file key. The stored file is never decrypted or duplicated to hand it over.', 'bg-success-500/10 text-success-600') }}
-                    {{ ui.layer('ti-atom', 'Quantum-resistant at rest', 'Storage is purely symmetric AES-256. Signatures can already use ML-DSA-65, the post-quantum NIST standard.', 'bg-info-500/10 text-info-600') }}
-                </ul>
-            </div>
         </div>
-    </div>
-</section>
-
-{# ── Signing guarantees ───────────────────────────────────────────────── #}
-<section class="py-16 sm:py-[100px]">
-    <div class="container mx-auto px-4 sm:px-6">
-        <div class="mx-auto mb-12 md:w-8/12 xl:w-6/12 text-center">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-500">Signing</p>
-            <h2 class="mb-3 font-semibold">A signature that stands on its own</h2>
-            <p class="mb-0 text-theme-secondarytextcolor">Signed files open in Adobe Reader or any PAdES validator. No Sigil account is needed to check them.</p>
-        </div>
-        <div class="grid grid-cols-12 gap-6">
+        <div class="flex min-w-0 flex-[1_1_480px] flex-col gap-4">
             {% for card in [
-                {icon: 'ti-server', title: 'Keys stay in the token', body: 'Your signing key is generated inside a PKCS#11 token and is never exported: not to disk, not to the application, not to us.'},
-                {icon: 'ti-fingerprint', title: 'Your PIN is never kept', body: 'It opens the token for one signature and is discarded. Only a salted hash remains, to count wrong guesses.'},
-                {icon: 'ti-clock', title: 'Independent timestamps', body: 'An RFC 3161 time-stamping authority countersigns every signature, so the moment it was made can be proven later.'},
+                {icon: 'ti-server', title: 'Keys stay in the token', body: 'The private key is created inside the signer\'s PKCS#11 token. Sigil can ask it to sign; it can never read it.'},
+                {icon: 'ti-eye-off', title: 'Your PIN is never kept', body: 'The PIN unlocks the token for one signature and is then discarded. It is not stored or logged.'},
+                {icon: 'ti-clock', title: 'Independent timestamps', body: 'An RFC 3161 timestamp from an outside authority proves when the document was signed.'},
             ] %}
-                <div class="col-span-12 md:col-span-4">
-                    <div class="card mb-0 h-full">
-                        <div class="card-body">
-                            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500 text-2xl mb-4">
-                                <i class="ti {{ card.icon }}" aria-hidden="true"></i>
-                            </span>
-                            <h5 class="mb-2">{{ card.title }}</h5>
-                            <p class="mb-0 text-theme-secondarytextcolor">{{ card.body }}</p>
-                        </div>
+                <div class="flex items-start gap-[18px] rounded-xl border border-theme-border bg-white px-6 py-[22px]">
+                    <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-primary-500/[0.08] text-[22px] text-primary-500"><i class="ti {{ card.icon }}" aria-hidden="true"></i></span>
+                    <div class="flex flex-col gap-1.5">
+                        <h3 class="mb-0 text-[17px] font-semibold">{{ card.title }}</h3>
+                        <p class="mb-0 text-[15px] leading-relaxed text-theme-secondarytextcolor">{{ card.body }}</p>
                     </div>
                 </div>
             {% endfor %}
@@ -298,75 +272,70 @@
     </div>
 </section>
 
-{# ── Key custody ──────────────────────────────────────────────────────── #}
-<section id="keys" class="scroll-mt-20 bg-white py-16 sm:py-[100px]">
-    <div class="container mx-auto px-4 sm:px-6">
-        <div class="grid grid-cols-12 gap-y-10 lg:gap-x-10 items-center">
-            <div class="col-span-12 lg:col-span-6">
-                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-500">Key custody</p>
-                <h2 class="mb-4 font-semibold">Signing keys kept the way an HSM keeps them</h2>
-                <p class="mb-8 text-theme-secondarytextcolor">
-                    Every private key lives in a PKCS#11 cryptographic token, the industry standard interface of
-                    hardware security modules. Keys are created inside their token and stay there for life.
-                    The application never holds a key; it can only ask the token to sign.
-                </p>
-                <ul class="space-y-6 mb-0">
-                    {{ ui.layer('ti-lock-access', 'Born inside, never exported', 'Each key is generated in its token and flagged sensitive and non-extractable, so the token itself refuses to hand it out.', 'bg-primary-500/10 text-primary-500') }}
-                    {{ ui.layer('ti-user-check', 'One token per person', 'Your signing key sits in a token of its own and is opened only with your PIN, for one signature at a time.', 'bg-success-500/10 text-success-600') }}
-                    {{ ui.layer('ti-shield-lock', 'Guarded against guessing', 'Five wrong PINs within an hour lock signing. Your PIN is never stored, only a peppered Argon2id hash of it.', 'bg-warning-500/10 text-warning-600') }}
-                    {{ ui.layer('ti-sitemap', 'Separated by duty', 'The root key, the certificate authority and the receipt seal each have their own token, so no key can ever stand in for another.', 'bg-info-500/10 text-info-600') }}
-                </ul>
+{# ── Key custody (dark) ───────────────────────────────────────────────── #}
+<section id="keys" class="scroll-mt-20 bg-primary-900 px-4 py-16 text-white sm:px-6 sm:py-24">
+    <div class="mx-auto flex max-w-[1200px] flex-col gap-11">
+        <div class="flex max-w-[700px] flex-col gap-3.5">
+            {{ ui.eyebrow('Key custody', 'text-primary-300') }}
+            <h2 class="mb-0 text-[30px] lg:text-[40px] leading-[1.15] font-bold tracking-[-0.02em] !text-white">Signing keys kept the way an HSM keeps them</h2>
+            <p class="mb-0 text-[17px] leading-relaxed text-white/65">Every key lives in a PKCS#11 token. The application can ask for a signature; it can never take a key out.</p>
+        </div>
+        <div class="flex flex-wrap items-stretch gap-8">
+            <div class="grid min-w-0 flex-[3_1_520px] grid-cols-1 gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
+                {% for card in [
+                    {icon: 'ti-lock', title: 'Born inside, never exported', body: 'Keys are generated inside the token and marked non-extractable.'},
+                    {icon: 'ti-user', title: 'One token per person', body: 'Every user has a token of their own, so one person\'s PIN unlocks only their key.'},
+                    {icon: 'ti-alert-triangle', title: 'Guarded against guessing', body: 'Five wrong PINs in an hour lock signing. PINs are checked against an Argon2id hash.'},
+                    {icon: 'ti-layout-grid', title: 'Separated by duty', body: 'Signing, wrapping, certifying and sealing each use a different key.'},
+                ] %}
+                    <div class="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-6">
+                        <i class="ti {{ card.icon }} text-[22px] text-primary-300" aria-hidden="true"></i>
+                        <h3 class="mb-0 text-[17px] font-semibold !text-white">{{ card.title }}</h3>
+                        <p class="mb-0 text-sm leading-relaxed text-white/65">{{ card.body }}</p>
+                    </div>
+                {% endfor %}
             </div>
 
-            {# The token layout as a vault: one row per token, the user's own highlighted. #}
-            <div class="col-span-12 lg:col-span-6">
-                <div class="card !mb-0 overflow-hidden">
-                    <div class="flex items-center justify-between gap-3 border-b border-theme-border/60 px-5 py-4">
-                        <p class="mb-0 flex items-center gap-2 text-sm font-semibold text-theme-headings"><i class="ti ti-server text-primary-500" aria-hidden="true"></i>Key vault &middot; PKCS#11</p>
-                        <span class="badge rounded-full bg-success-500/10 text-success-600"><span class="me-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success-500 align-middle"></span>All keys sealed</span>
-                    </div>
-                    <ul class="mb-0 divide-y divide-theme-border/60">
-                        {% for token in [
-                            {icon: 'ti-writing-sign', name: 'Your signing key', detail: 'ECDSA P-384 or ML-DSA-65 · opened by your PIN', mine: true},
-                            {icon: 'ti-key', name: 'Root key', detail: 'AES-256 · wraps every personal encryption key', mine: false},
-                            {icon: 'ti-certificate', name: 'Certificate authority', detail: 'Issues and revokes signing certificates', mine: false},
-                            {icon: 'ti-award', name: 'Receipt seal', detail: 'Seals every delivery receipt', mine: false},
-                        ] %}
-                            <li class="flex items-center gap-4 px-5 py-4 {{ token.mine ? 'bg-primary-500/[0.04]' : '' }}">
-                                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ token.mine ? 'bg-primary-500 text-white' : 'bg-primary-500/10 text-primary-500' }}">
-                                    <i class="ti {{ token.icon }} text-lg" aria-hidden="true"></i>
-                                </span>
-                                <div class="grow min-w-0">
-                                    <p class="mb-0 text-sm font-semibold text-theme-headings">{{ token.name }}</p>
-                                    <p class="mb-0 text-xs text-theme-secondarytextcolor truncate">{{ token.detail }}</p>
-                                </div>
-                                <span class="hidden sm:inline-flex shrink-0 items-center gap-1 rounded-md bg-theme-bodybg px-2 py-1 font-mono text-[11px] text-theme-secondarytextcolor">
-                                    <i class="ti ti-lock" aria-hidden="true"></i>non-extractable
-                                </span>
-                            </li>
-                        {% endfor %}
-                    </ul>
+            {# The token layout as a vault: one row per key. #}
+            <div class="flex min-w-0 flex-[2_1_360px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-primary-950" aria-hidden="true">
+                <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-white/10 px-[22px] py-[18px]">
+                    <span class="font-mono text-[13px] text-white/90">Key vault &middot; PKCS#11</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-success-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300"><span class="h-1.5 w-1.5 rounded-full bg-emerald-300"></span>All keys sealed</span>
                 </div>
+                {% for key in [
+                    {icon: 'ti-key', name: 'Your signing key', detail: 'ECDSA P-384 or ML-DSA-65'},
+                    {icon: 'ti-server', name: 'Root key', detail: 'AES-256'},
+                    {icon: 'ti-shield-check', name: 'Certificate authority', detail: 'issues signer certificates'},
+                    {icon: 'ti-award', name: 'Receipt seal', detail: 'Sigil\'s electronic seal'},
+                ] %}
+                    <div class="flex items-center gap-3.5 px-[22px] py-4 {{ loop.last ? '' : 'border-b border-white/[0.06]' }}">
+                        <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-white/5 text-lg text-primary-300"><i class="ti {{ key.icon }}"></i></span>
+                        <span class="flex min-w-0 grow flex-col gap-0.5">
+                            <span class="text-sm font-semibold">{{ key.name }}</span>
+                            <span class="font-mono text-[11px] text-white/65">{{ key.detail }}</span>
+                        </span>
+                        <span class="hidden sm:inline rounded-md border border-white/10 px-[7px] py-[3px] font-mono text-[10px] text-white/65">non-extractable</span>
+                    </div>
+                {% endfor %}
             </div>
         </div>
     </div>
 </section>
 
 {# ── Call to action ───────────────────────────────────────────────────── #}
-<section class="py-16 sm:py-[100px]">
-    <div class="container mx-auto px-4 sm:px-6">
-        <div class="relative overflow-hidden rounded-3xl bg-primary-500 px-6 py-12 sm:px-12 sm:py-16 text-center">
-            <div class="sigil-grid sigil-grid-light absolute inset-0 pointer-events-none" aria-hidden="true"></div>
-            <div class="relative">
-                <h2 class="mb-3 font-semibold text-white">Ready to sign something that holds up?</h2>
-                <p class="mx-auto mb-8 max-w-xl text-white/75">Upload a PDF, sign it yourself, ask others to sign in order, or serve it on someone with a sealed receipt.</p>
-                {% if app.user %}
-                    <a href="{{ path('app_dashboard') }}" class="btn btn-lg bg-white text-primary-500 hover:bg-primary-50">Open dashboard <i class="ti ti-arrow-right ms-1"></i></a>
-                {% else %}
-                    <a href="{{ path('app_register') }}" class="btn btn-lg bg-white text-primary-500 hover:bg-primary-50">Create account <i class="ti ti-arrow-right ms-1"></i></a>
-                    <a href="{{ path('app_login') }}" class="btn btn-lg text-white border border-white/40 hover:bg-white/10 ms-2">Sign in</a>
-                {% endif %}
-            </div>
+<section class="bg-white px-4 py-16 sm:px-6 sm:py-24">
+    <div class="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-8 rounded-3xl bg-primary-500 px-6 py-12 sm:p-14">
+        <div class="flex min-w-0 flex-[1_1_420px] flex-col gap-3">
+            <h2 class="mb-0 text-[28px] lg:text-[38px] leading-[1.15] font-bold tracking-[-0.02em] !text-white">Ready to sign something that holds up?</h2>
+            <p class="mb-0 text-white/80">Registration is by invitation.</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            {% if app.user %}
+                <a href="{{ path('app_dashboard') }}" class="btn btn-lg bg-white text-primary-500 hover:bg-primary-50">Open dashboard <i class="ti ti-arrow-right ms-1"></i></a>
+            {% else %}
+                <a href="{{ path('app_register') }}" class="btn btn-lg bg-white text-primary-500 hover:bg-primary-50">Create account</a>
+                <a href="{{ path('app_login') }}" class="btn btn-lg border border-white/50 text-white hover:bg-white/10">Sign in</a>
+            {% endif %}
         </div>
     </div>
 </section>
