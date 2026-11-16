@@ -33,16 +33,48 @@
 {% block site_content %}
 {% import _self as ui %}
 
+{# ── Intro: the name, the motto and a signature drawn once ───────────── #}
+<section class="site-intro relative flex flex-col items-center justify-center overflow-hidden px-4 pt-14 pb-[120px] text-center text-white sm:px-6" aria-label="Sigil">
+    <h1 class="site-script intro-rise mb-0 px-[0.3em] text-[120px] lg:text-[170px] leading-[1.1] !text-white [animation-delay:.2s]">Sigil</h1>
+    <p class="site-motto intro-rise mb-0 text-[26px] lg:text-[36px] leading-[1.3] tracking-[0.02em] text-white/80 [animation-delay:.6s]">Signum Veritatis</p>
+    <svg viewBox="0 0 1120 170" aria-hidden="true" class="mx-auto mt-[30px] block h-auto w-[1120px] max-w-full overflow-visible">
+        <defs>
+            <linearGradient id="sig-grad-main" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="var(--primary-400)" stop-opacity="0"></stop>
+                <stop offset="0.2" stop-color="var(--primary-400)"></stop>
+                <stop offset="1" stop-color="var(--primary-100)"></stop>
+            </linearGradient>
+        </defs>
+        <path class="sig-path" d="M40 110 C60 108 80 100 96 90 C110 80 112 68 102 70 C92 72 94 100 112 104 C124 106 128 84 140 82 C152 80 150 104 156 106 C162 108 166 84 178 82 C190 80 188 104 196 106 C206 108 222 70 226 46 C229 28 214 30 214 48 C214 70 222 102 236 104 C248 106 250 84 252 82 C254 100 262 106 272 104 C282 102 284 84 286 82 C288 100 294 106 306 104 C320 102 330 80 318 80 C304 80 306 104 322 102 C334 100 336 84 338 82 C340 110 342 140 326 146 C310 152 304 132 330 120 C350 112 362 100 372 92 C384 82 384 72 376 74 C366 76 368 102 388 104 C402 106 410 84 400 82 C388 80 386 104 402 104 C414 104 416 86 418 82 C418 98 422 106 432 104 C520 96 700 66 860 74 C960 80 1020 92 1092 86" fill="none" stroke="url(#sig-grad-main)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" pathLength="1"></path>
+        <circle class="sig-ping" cx="1092" cy="86" r="6" fill="none" stroke="var(--primary-300)" stroke-width="1.5"></circle>
+        <circle class="sig-dot" cx="1092" cy="86" r="6" fill="var(--primary-300)"></circle>
+    </svg>
+    <div class="mt-[18px] flex max-w-[760px] flex-col items-center gap-3">
+        <p class="intro-rise mb-0 ps-[0.3em] font-mono text-xs uppercase tracking-[0.3em] text-white/55 [animation-delay:3.4s]">Built on open standards</p>
+        {% for row in [['PAdES-B-T', 'RFC 3161 timestamps', 'PKCS#11 key custody'], ['ECDSA P-384', 'ML-DSA-65', 'AES-256-GCM']] %}
+            {% set outer = loop.index0 %}
+            <ul class="mb-0 flex flex-wrap justify-center gap-2">
+                {% for standard in row %}
+                    <li class="intro-rise rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 font-mono text-[13px] text-white/80" style="animation-delay: {{ 3.5 + (outer * 3 + loop.index0) * 0.08 }}s">{{ standard }}</li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+    </div>
+    <a href="#overview" aria-label="Scroll to overview" class="intro-bob absolute bottom-9 left-1/2 z-[1] -ms-[22px] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-white/80 hover:text-white">
+        <i class="ti ti-chevron-down text-lg" aria-hidden="true"></i>
+    </a>
+</section>
+
 {# ── Hero ─────────────────────────────────────────────────────────────── #}
-<section class="site-dots px-4 pt-16 pb-20 sm:px-6 sm:pt-[72px] sm:pb-[88px]">
+<section id="overview" class="site-dots scroll-mt-20 px-4 pt-16 pb-20 sm:px-6 sm:pt-[72px] sm:pb-[88px]">
     <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-14">
         <div class="flex min-w-0 flex-[1_1_460px] flex-col gap-6">
             <span class="inline-flex self-start items-center gap-2 rounded-full border border-primary-500/20 bg-primary-500/[0.08] px-3 py-1.5 text-[13px] font-semibold text-primary-500">
                 <span class="h-1.5 w-1.5 rounded-full bg-primary-500"></span>PAdES-B-T signatures &middot; post-quantum ready
             </span>
-            <h1 class="mb-0 text-[38px] md:text-[48px] lg:text-[58px] leading-[1.06] font-bold tracking-[-0.025em] text-theme-headings">
+            <h2 class="mb-0 text-[38px] md:text-[48px] lg:text-[58px] leading-[1.06] font-bold tracking-[-0.025em] text-theme-headings">
                 Signatures that hold up.<br><span class="text-primary-500">Documents that stay private.</span>
-            </h1>
+            </h2>
             <p class="mb-0 max-w-[540px] text-lg leading-relaxed text-theme-secondarytextcolor">
                 Sigil signs your PDFs with a key that never leaves its PKCS#11 token, encrypts every file before it is stored,
                 and seals a delivery receipt when the last signer is done.
@@ -132,11 +164,11 @@
     </div>
 </section>
 
-{# ── Standards strip ──────────────────────────────────────────────────── #}
+{# ── Under the hood ───────────────────────────────────────────────────── #}
 <section class="border-y border-theme-border bg-white px-4 py-[22px] sm:px-6">
     <ul class="mx-auto mb-0 flex max-w-[1200px] flex-wrap items-center justify-center gap-x-3 gap-y-2.5">
-        <li class="me-2 text-[13px] text-theme-secondarytextcolor">Built on open standards</li>
-        {% for standard in ['PAdES-B-T', 'RFC 3161 timestamps', 'PKCS#11 key custody', 'ECDSA P-384', 'ML-DSA-65', 'AES-256-GCM'] %}
+        <li class="me-2 text-[13px] text-theme-secondarytextcolor">Under the hood</li>
+        {% for standard in ['FIPS 204', 'RFC 5280', 'HMAC-SHA384', 'Argon2id', 'Hash-chained audit log'] %}
             <li class="rounded-lg border border-theme-border bg-theme-bodybg px-3 py-1.5 font-mono text-[13px] text-theme-headings">{{ standard }}</li>
         {% endfor %}
     </ul>
