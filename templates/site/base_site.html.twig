@@ -1,33 +1,36 @@
 {#
-    Public site layout (home + legal pages): a plain white header and footer.
-    Pages fill {% block site_content %}.
+    Public site layout (home + legal pages): a lightly frosted navy header over a
+    navy page, a white footer. Pages fill {% block site_content %}.
 #}
 {% extends 'base.html.twig' %}
 
-{% block body_class %}site-page bg-white{% endblock %}
+{% block body_class %}site-page bg-primary-950{% endblock %}
 
 {% block body %}
-<header class="sticky top-0 z-50 border-b border-theme-border bg-white">
+<header class="sticky top-0 z-50 border-b border-white/10 bg-primary-950/90 backdrop-blur-sm">
     <div class="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-        <a href="{{ path('app_home') }}" class="flex shrink-0 items-center gap-3">
-            <img src="{{ asset('images/sigil-blue-900.svg') }}" alt="Sigil" class="h-8 w-auto">
-            <span class="hidden sm:inline font-mono text-[10px] uppercase tracking-[0.12em] text-theme-secondarytextcolor">Signum Veritatis</span>
+        <a href="{{ path('app_home') }}" class="flex shrink-0 items-center gap-2.5">
+            <img src="{{ asset('images/sigil-white.svg') }}" alt="" class="h-[38px] w-auto">
+            <span class="flex flex-col gap-px">
+                <span class="text-lg font-bold leading-tight tracking-[-0.01em] text-white">Sigil</span>
+                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-white/60">Signum Veritatis</span>
+            </span>
         </a>
 
         <nav aria-label="Main" class="flex flex-wrap items-center gap-2">
             {% block site_nav_links %}
-                <a href="{{ path('app_home') }}#how-it-works" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-theme-secondarytextcolor hover:text-primary-500">How it works</a>
-                <a href="{{ path('app_home') }}#security" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-theme-secondarytextcolor hover:text-primary-500">Security</a>
-                <a href="{{ path('app_home') }}#keys" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-theme-secondarytextcolor hover:text-primary-500">Key custody</a>
-                <span class="mx-2 hidden h-6 w-px bg-theme-border md:inline-block" aria-hidden="true"></span>
+                <a href="{{ path('app_home') }}#how-it-works" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-white/75 hover:text-white">How it works</a>
+                <a href="{{ path('app_home') }}#security" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-white/75 hover:text-white">Security</a>
+                <a href="{{ path('app_home') }}#keys" class="hidden md:inline-block px-3 py-2.5 text-sm font-medium text-white/75 hover:text-white">Key custody</a>
+                <span class="mx-2 hidden h-6 w-px bg-white/15 md:inline-block" aria-hidden="true"></span>
             {% endblock %}
             {% if app.user %}
-                <a href="{{ path('app_dashboard') }}" class="btn btn-primary">
+                <a href="{{ path('app_dashboard') }}" class="btn btn-primary !bg-primary-600 hover:!bg-primary-400">
                     Open dashboard <i class="ti ti-arrow-right ms-1"></i>
                 </a>
             {% else %}
-                <a href="{{ path('app_login') }}" class="btn btn-outline-secondary">Sign in</a>
-                <a href="{{ path('app_register') }}" class="btn btn-primary hidden sm:inline-flex">Create account</a>
+                <a href="{{ path('app_login') }}" class="btn border border-white/20 text-white hover:bg-white/10 hover:text-white">Sign in</a>
+                <a href="{{ path('app_register') }}" class="btn btn-primary !bg-primary-600 hover:!bg-primary-400 hidden sm:inline-flex">Create account</a>
             {% endif %}
         </nav>
     </div>
