@@ -9,7 +9,43 @@ permissions:
     contents: read
 
 jobs:
+    # On a push to master, skips the tests when they already passed on exactly
+    # this code: the merged PR's CI recorded the git tree it tested, and master's
+    # new tree is identical. Anything else (a direct push, a PR that went stale
+    # behind master, a missing record) runs CI before deploying.
+    gate:
+        if: github.event_name == 'push'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: read
+            actions: read
+        outputs:
+            tested: ${{ steps.check.outputs.tested }}
+        steps:
+            - id: check
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  SHA: ${{ github.sha }}
+              run: |
+                  tested=false
+                  tree=$(gh api "repos/$REPO/commits/$SHA" --jq '.commit.tree.sha')
+                  head=$(gh api "repos/$REPO/commits/$SHA/pulls" \
+                      --jq '[.[] | select(.merged_at != null)][0].head.sha // empty')
+                  if [ -n "$head" ]; then
+                      run=$(gh api "repos/$REPO/actions/runs?head_sha=$head&event=pull_request&status=success" \
+                          --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml")] | sort_by(.created_at) | last | .id // empty')
+                      if [ -n "$run" ] && gh run download "$run" -R "$REPO" -n tested-tree -D record; then
+                          [ "$(cat record/tested-tree)" = "$tree" ] && tested=true
+                      fi
+                  fi
+                  echo "master tree $tree, PR head ${head:-none}, PR run ${run:-none} -> tested=$tested"
+                  echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
     ci:
+        needs: gate
+        if: ${{ !cancelled() && needs.gate.outputs.tested != 'true' }}
         runs-on: ubuntu-latest
 
         steps:
@@ -81,15 +117,34 @@ jobs:
                     php bin/phpunit
                   '
 
+            # What this PR run tested: the tree of the PR merged into master. The
+            # gate compares it with master after the merge to skip a re-run.
+            - name: Record tested tree
+              if: github.event_name == 'pull_request'
+              run: git rev-parse 'HEAD^{tree}' > tested-tree
+
+            - name: Upload tested tree
+              if: github.event_name == 'pull_request'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: tested-tree
+                  path: tested-tree
+                  retention-days: 30
+
             - name: Tear down
               if: always()
               run: docker compose down -v
 
-    # Ships the commit CI just tested to the VPS. The key is a forced command on
-    # the server (sigil-deploy): it can deploy a master SHA and nothing else.
+    # Ships the tested commit to the VPS: right away when its PR already passed,
+    # after `ci` otherwise. The key is a forced command on the server
+    # (sigil-deploy): it can deploy a master SHA and nothing else.
     deploy:
-        needs: ci
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        needs: [gate, ci]
+        if: >-
+            !cancelled()
+            && github.event_name == 'push' && github.ref == 'refs/heads/master'
+            && (needs.ci.result == 'success'
+                || (needs.gate.result == 'success' && needs.gate.outputs.tested == 'true'))
         runs-on: ubuntu-latest
         environment: production
         concurrency:
