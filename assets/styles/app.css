@@ -49,6 +49,21 @@
     font-style: italic;
     font-display: swap;
 }
+/* Public site intro only: the script wordmark and the motto (OFL, Latin subset). */
+@font-face {
+    font-family: "Allura";
+    src: url("../fonts/Allura/Allura-Regular-latin.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Cormorant Garamond";
+    src: url("../fonts/Cormorant_Garamond/CormorantGaramond-MediumItalic-latin.woff2") format("woff2");
+    font-weight: 500;
+    font-style: italic;
+    font-display: swap;
+}
 
 /*
  * IMPORTANT: `static` — without it Tailwind emits only the tokens our own
@@ -529,6 +544,33 @@ label[data-dropzone],
     background-color: var(--color-theme-bodybg);
     background-image: radial-gradient(var(--color-theme-border) 1px, transparent 1px);
     background-size: 22px 22px;
+}
+/*
+ * Home intro: dark dotted backdrop, the "Sigil" wordmark, and a signature stroke
+ * drawn once on load. Plain CSS so the animation classes need no content scan.
+ */
+.site-intro {
+    min-height: max(560px, calc(100svh - 67px));
+    background-color: var(--primary-950);
+    background-image: radial-gradient(color-mix(in srgb, var(--primary-300) 12%, transparent) 1px, transparent 1px);
+    background-size: 24px 24px;
+}
+.site-script { font-family: "Allura", cursive; font-weight: 400; }
+.site-motto { font-family: "Cormorant Garamond", Georgia, serif; font-style: italic; font-weight: 500; }
+.sig-path { stroke-dasharray: 1; animation: sig-draw 2.6s 1s cubic-bezier(.4, 0, .6, 1) both; }
+.sig-dot { transform-box: fill-box; transform-origin: center; animation: sig-pop .5s 3.55s cubic-bezier(.2, 1.6, .4, 1) both; }
+.sig-ping { transform-box: fill-box; transform-origin: center; animation: sig-ping 1.4s 3.65s ease-out both; }
+.intro-rise { animation: intro-rise .9s cubic-bezier(.2, .7, .2, 1) both; }
+.intro-bob { animation: intro-fade .6s 4s both, intro-bob 2s 4.6s ease-in-out infinite; }
+@keyframes sig-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes sig-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes sig-ping { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(5); opacity: 0; } }
+@keyframes intro-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes intro-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes intro-bob { 50% { transform: translateY(6px); } }
+@media (max-width: 640px) { .sig-path { stroke-width: 6; } }
+@media (prefers-reduced-motion: reduce) {
+    .sig-path, .sig-dot, .sig-ping, .intro-rise, .intro-bob { animation: none; }
 }
 @media (prefers-reduced-motion: no-preference) {
     html:has(.site-page) { scroll-behavior: smooth; }
