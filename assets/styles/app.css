@@ -524,6 +524,12 @@ label[data-dropzone],
         linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
 }
+/* Home hero: a faint dot grid on the body background. */
+.site-dots {
+    background-color: var(--color-theme-bodybg);
+    background-image: radial-gradient(var(--color-theme-border) 1px, transparent 1px);
+    background-size: 22px 22px;
+}
 @media (prefers-reduced-motion: no-preference) {
     html:has(.site-page) { scroll-behavior: smooth; }
 }
