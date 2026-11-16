@@ -26,7 +26,7 @@
         "symfony/doctrine-messenger": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/expression-language": "8.1.*",
-        "symfony/flex": "^2",
+        "symfony/flex": "^2.12",
         "symfony/form": "8.1.*",
         "symfony/framework-bundle": "8.1.*",
         "symfony/http-client": "8.1.*",
@@ -44,12 +44,12 @@
         "symfony/scheduler": "8.1.*",
         "symfony/security-bundle": "8.1.*",
         "symfony/serializer": "8.1.*",
-        "symfony/stimulus-bundle": "^3.5.1",
+        "symfony/stimulus-bundle": "^3.7.0",
         "symfony/string": "8.1.*",
         "symfony/translation": "8.1.*",
         "symfony/twig-bundle": "8.1.*",
         "symfony/uid": "8.1.*",
-        "symfony/ux-turbo": "^3.5.1",
+        "symfony/ux-turbo": "^3.7.0",
         "symfony/validator": "8.1.*",
         "symfony/web-link": "8.1.*",
         "symfony/yaml": "8.1.*",
@@ -57,7 +57,7 @@
         "symfonycasts/tailwind-bundle": "^0.12.0",
         "symfonycasts/verify-email-bundle": "^1.18",
         "twig/extra-bundle": "^2.12|^3.0",
-        "twig/twig": "^2.12|^3.29"
+        "twig/twig": "^2.12|^3.30"
     },
     "config": {
         "allow-plugins": {
