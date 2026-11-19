@@ -1,9 +1,9 @@
 # FrankenPHP: Caddy with PHP embedded (ZTS), so requests run on many threads
 # instead of `php -S`'s one, and Caddy does HTTPS itself (docker/frankenphp/).
 # PHP is pinned to the patch, so a stale tag cannot keep a vulnerable build
-# (8.5.12: CVE-2026-109618/109619). The PHP CLI is in the image too.
-ARG FRANKENPHP_VERSION=1.13.2
-ARG PHP_VERSION=8.5.12
+# (8.5.13: 2026-11-19 security release). The PHP CLI is in the image too.
+ARG FRANKENPHP_VERSION=1.13.6
+ARG PHP_VERSION=8.5.13
 FROM dunglas/frankenphp:${FRANKENPHP_VERSION}-php${PHP_VERSION}-alpine AS base
 
 # kryoptic (PKCS#11 3.2 soft token, ADR-014) - built from source because Alpine
