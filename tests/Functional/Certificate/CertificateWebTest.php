@@ -8,13 +8,11 @@ use App\Certificate\Service\Pkcs11TokenManager;
 use App\Core\Entity\User;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
-use PHPUnit\Framework\Attributes\Group;
 
 /**
  * End-to-end web flow: wizard issues a real cert (kryoptic + CA), list/detail
  * render, download serves the PEM, and the enrollment gate behaves.
  */
-#[Group('creates-tokens')]
 final class CertificateWebTest extends AuthWebTestCase
 {
     /** @var list<string> */

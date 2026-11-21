@@ -36,23 +36,24 @@ class Pkcs11TokenManager
     }
 
     /**
-     * Initializes a fresh token with the given User PIN: a slot is allocated in
-     * the module config first, then initialised. A failure takes the slot back
-     * so the config never lists a token that does not exist.
+     * Initializes a fresh token with the given User PIN. It is built under a
+     * private staged conf and added to the shared slot list only once complete:
+     * while C_InitToken runs, a listed token fails C_Initialize in every other
+     * process. A failure discards the unpublished token.
      * The generated SO PIN is intentionally thrown away.
      */
     public function initToken(string $tokenLabel, #[\SensitiveParameter] string $userPin): void
     {
         $soPin = bin2hex(random_bytes(16));
-        $slot = $this->slots('add', $tokenLabel);
+        $staged = ['KRYOPTIC_CONF' => $this->slots('stage', $tokenLabel)];
 
         try {
             $this->run([
                 'pkcs11-tool', '--module', $this->modulePath,
-                '--init-token', '--slot', $slot,
+                '--init-token', '--slot', '1',
                 '--label', $tokenLabel,
                 '--so-pin', 'env:SIGIL_SO_PIN',
-            ], ['SIGIL_SO_PIN' => $soPin]);
+            ], $staged + ['SIGIL_SO_PIN' => $soPin]);
 
             $this->run([
                 'pkcs11-tool', '--module', $this->modulePath,
@@ -60,11 +61,13 @@ class Pkcs11TokenManager
                 '--init-pin', '--login', '--login-type', 'so',
                 '--so-pin', 'env:SIGIL_SO_PIN',
                 '--new-pin', 'env:SIGIL_USER_PIN',
-            ], ['SIGIL_SO_PIN' => $soPin, 'SIGIL_USER_PIN' => $userPin]);
+            ], $staged + ['SIGIL_SO_PIN' => $soPin, 'SIGIL_USER_PIN' => $userPin]);
         } catch (\Throwable $e) {
-            $this->slots('remove', $tokenLabel);
+            $this->slots('discard', $tokenLabel);
             throw $e;
         }
+
+        $this->slots('add', $tokenLabel);
     }
 
     /**
@@ -195,7 +198,7 @@ class Pkcs11TokenManager
     /**
      * bin/kryoptic_slots.py: the one editor of the module's slot list.
      *
-     * @return string the slot id for "add"; empty otherwise
+     * @return string the staged conf path for "stage", the slot id for "add"; empty otherwise
      */
     private function slots(string $command, string $tokenLabel): string
     {
@@ -212,11 +215,11 @@ class Pkcs11TokenManager
 
     /**
      * @param list<string>          $command
-     * @param array<string, string> $secretEnv PIN material - env only, never argv
+     * @param array<string, string> $env PIN material (env only, never argv) and the staged KRYOPTIC_CONF
      */
-    private function run(array $command, array $secretEnv = []): void
+    private function run(array $command, array $env = []): void
     {
-        $process = new Process($command, env: $secretEnv);
+        $process = new Process($command, env: $env);
         $process->setTimeout(self::TIMEOUT_SECONDS);
         $process->run();
 

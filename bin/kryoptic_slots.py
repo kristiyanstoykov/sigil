@@ -5,14 +5,18 @@ Kryoptic has no notion of a free slot: every token is a `[[slots]]` block in
 the TOML file KRYOPTIC_CONF points at, with its own SQLite file. Sigil creates
 a token per certificate, so this script is the one place that file is edited:
 
-    kryoptic_slots.py add <label>      -> prints the slot id it allocated
-    kryoptic_slots.py remove <label>   -> drops the block and its database
+    kryoptic_slots.py stage <label>    -> prints a private one-slot conf to build the token under
+    kryoptic_slots.py add <label>      -> publishes the token, prints its slot id
+    kryoptic_slots.py discard <label>  -> deletes an unpublished token and its staged conf
+    kryoptic_slots.py remove <label>   -> drops the block, then its database
     kryoptic_slots.py list             -> JSON {label: slot}
 
 Edits happen under an exclusive lock and are written atomically. Every PKCS#11
 process re-reads the file at C_Initialize, so nothing has to be restarted.
-The block's `description` is the label; the token label proper is set by
-`pkcs11-tool --init-token` afterwards.
+
+A token is initialised under its staged conf and only then added: while
+C_InitToken runs, the half-written database fails C_Initialize in every process
+that lists it (docs/kryoptic-issue-c-initialize-fails-during-init-token.md).
 """
 import fcntl
 import json
@@ -29,6 +33,14 @@ def tokens_dir() -> str:
     return os.path.join(os.path.dirname(CONF), "tokens")
 
 
+def db_path(label: str) -> str:
+    return os.path.join(tokens_dir(), f"{label}.sql")
+
+
+def staged_conf(label: str) -> str:
+    return os.path.join(os.path.dirname(CONF), "staging", f"{label}.conf")
+
+
 def load() -> list[dict]:
     if not os.path.exists(CONF):
         return []
@@ -36,7 +48,7 @@ def load() -> list[dict]:
         return tomllib.load(fh).get("slots", [])
 
 
-def dump(slots: list[dict]) -> None:
+def dump(slots: list[dict], path: str = CONF) -> None:
     out = [HEADER]
     for s in slots:
         out.append(
@@ -46,12 +58,34 @@ def dump(slots: list[dict]) -> None:
             'dbtype = "sqlite"\n'
             f"dbargs = {json.dumps(s['dbargs'])}\n"
         )
-    tmp = CONF + ".tmp"
+    tmp = path + ".tmp"
     with open(tmp, "w") as fh:
         fh.write("".join(out))
         fh.flush()
         os.fsync(fh.fileno())
-    os.replace(tmp, CONF)
+    os.replace(tmp, path)
+
+
+def unlink(path: str) -> None:
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
+def published(label: str) -> bool:
+    return any(s["description"] == label for s in load())
+
+
+def stage(label: str) -> str:
+    if published(label):
+        raise SystemExit(f"slot for {label!r} already exists")
+    os.makedirs(tokens_dir(), mode=0o750, exist_ok=True)
+    os.makedirs(os.path.dirname(staged_conf(label)), mode=0o750, exist_ok=True)
+    # Leftover of a build that died before discard; C_InitToken would demand its unknown SO PIN.
+    unlink(db_path(label))
+    dump([{"slot": 1, "description": label, "dbargs": db_path(label)}], staged_conf(label))
+    return staged_conf(label)
 
 
 def add(label: str) -> int:
@@ -60,25 +94,29 @@ def add(label: str) -> int:
         raise SystemExit(f"slot for {label!r} already exists")
     slot_id = max((int(s["slot"]) for s in slots), default=0) + 1
     os.makedirs(tokens_dir(), mode=0o750, exist_ok=True)
-    slots.append({"slot": slot_id, "description": label, "dbargs": os.path.join(tokens_dir(), f"{label}.sql")})
+    slots.append({"slot": slot_id, "description": label, "dbargs": db_path(label)})
     dump(slots)
+    unlink(staged_conf(label))
     return slot_id
+
+
+def discard(label: str) -> None:
+    if published(label):
+        raise SystemExit(f"{label!r} is published; use remove")
+    unlink(db_path(label))
+    unlink(staged_conf(label))
 
 
 def remove(label: str) -> None:
     slots = load()
-    keep = [s for s in slots if s["description"] != label]
+    dump([s for s in slots if s["description"] != label])
     for s in slots:
         if s["description"] == label:
-            try:
-                os.remove(s["dbargs"])
-            except FileNotFoundError:
-                pass
-    dump(keep)
+            unlink(s["dbargs"])
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or argv[1] not in ("add", "remove", "list"):
+    if len(argv) < 2 or argv[1] not in ("stage", "add", "discard", "remove", "list"):
         print(__doc__, file=sys.stderr)
         return 2
     os.makedirs(os.path.dirname(CONF), mode=0o750, exist_ok=True)
@@ -86,8 +124,12 @@ def main(argv: list[str]) -> int:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if argv[1] == "list":
             print(json.dumps({s["description"]: int(s["slot"]) for s in load()}))
+        elif argv[1] == "stage":
+            print(stage(argv[2]))
         elif argv[1] == "add":
             print(add(argv[2]))
+        elif argv[1] == "discard":
+            discard(argv[2])
         else:
             remove(argv[2])
     return 0
