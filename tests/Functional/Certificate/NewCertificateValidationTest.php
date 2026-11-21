@@ -57,4 +57,27 @@ final class NewCertificateValidationTest extends AuthWebTestCase
         self::assertResponseStatusCodeSame(422);
         self::assertStringContainsString('The PIN must be 6 to 64 characters.', (string) $this->client->getResponse()->getContent());
     }
+
+    public function testAnObviousPinShowsThePolicyError(): void
+    {
+        $email = $this->uniqueEmail('pinobv');
+        $this->createUser($email, verified: true, totpEnabled: true);
+        $this->submitLogin($email, self::PASSWORD);
+        $crawler = $this->client->request('GET', '/2fa');
+        $form = $crawler->filter('form[action$="2fa_check"]')->form([
+            '_auth_code' => $this->totpCode(self::TOTP_SECRET),
+        ]);
+        $this->client->submit($form);
+        $this->client->followRedirect();
+
+        $crawler = $this->client->request('GET', '/certificates/new');
+        $form = $crawler->selectButton('Generate my certificate')->form([
+            'new_certificate_form[pin][first]' => '123456',
+            'new_certificate_form[pin][second]' => '123456',
+        ]);
+        $this->client->submit($form);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('That PIN is too easy to guess.', (string) $this->client->getResponse()->getContent());
+    }
 }
