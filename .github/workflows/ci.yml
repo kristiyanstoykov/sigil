@@ -127,10 +127,8 @@ jobs:
                     pids=""
                     for t in 2 3 4; do TEST_TOKEN=$t sh docker/bootstrap.sh test & pids="$pids $!"; done
                     for p in $pids; do wait $p; done
-                    vendor/bin/paratest --processes=4 --exclude-group creates-tokens
-                    # Alone: a half-created kryoptic token fails every other
-                    # PKCS#11 process at C_Initialize, so these never overlap.
-                    TEST_TOKEN=1 php bin/phpunit --group creates-tokens
+                    echo "nproc: $(nproc)"
+                    time vendor/bin/paratest --processes=4
                   '
 
             # What this PR run tested: the tree of the PR merged into master. The
