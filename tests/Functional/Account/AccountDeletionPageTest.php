@@ -72,7 +72,7 @@ final class AccountDeletionPageTest extends AuthWebTestCase
         // Once only, and nobody is signed in any more.
         $this->client->request('GET', '/account/deleted');
         self::assertResponseRedirects('/login');
-        $this->client->request('GET', '/');
+        $this->client->request('GET', '/dashboard');
         self::assertResponseRedirects('/login');
 
         $this->submitLogin($email, self::PASSWORD);
