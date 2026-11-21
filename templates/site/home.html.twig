@@ -12,12 +12,10 @@
 
 {# One step of the "life of a document" timeline; illustrative times, the order is the point. #}
 {% macro step(n, time, action, title, facts, last = false) %}
-    <li class="flex gap-5">
-        <div class="flex shrink-0 flex-col items-center">
-            <span class="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white {{ last ? 'bg-success-500' : 'bg-primary-500' }}">{{ n }}</span>
-            {% if not last %}<span class="min-h-5 w-0.5 grow bg-theme-border" aria-hidden="true"></span>{% endif %}
-        </div>
-        <div class="flex min-w-0 grow flex-col gap-2.5 rounded-xl border border-theme-border bg-white px-5 py-5 {{ last ? '' : 'mb-4' }}">
+    {# Able Pro's Tasks timeline (widget/w_data.html): the marker hangs on the list's rail. #}
+    <li>
+        <span class="absolute start-0 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white ring-4 ring-theme-bodybg {{ last ? 'bg-success-500' : 'bg-primary-500' }}">{{ n }}</span>
+        <div class="flex min-w-0 flex-col gap-2.5 rounded-xl border border-theme-border bg-white px-5 py-5">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <span class="font-mono text-xs text-theme-secondarytextcolor">{{ time }}</span>
                 <span class="rounded-md px-2 py-0.5 font-mono text-[11px] break-all {{ last ? 'bg-success-500/10 text-success-600' : 'bg-primary-500/10 text-primary-500' }}">{{ action }}</span>
@@ -209,7 +207,9 @@
                 {% endfor %}
             </div>
 
-            <ol class="mb-0 flex min-w-0 flex-[2_1_560px] flex-col">
+            <ol class="task-list relative mb-0 min-w-0 flex-[2_1_560px] list-none ps-14 pb-6 *:mb-4 *:last:mb-0">
+                <li class="absolute top-0 start-[17px] z-10 h-full w-0.5 bg-theme-border" aria-hidden="true"></li>
+                <li class="absolute bottom-0 start-[11px] z-20 !mb-0 h-3.5 w-3.5 rounded-full bg-theme-border" aria-hidden="true"></li>
                 {{ ui.step(1, '09:14:02 UTC', 'document.uploaded', 'Uploaded and encrypted', [
                     'A fresh AES-256-GCM key is made for this version',
                     'A keyed SHA-384 fingerprint identifies the file',
