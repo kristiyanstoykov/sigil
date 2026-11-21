@@ -23,4 +23,16 @@ final class ArchivedUserKeyRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['user' => $user]);
     }
+
+    /** @return list<ArchivedUserKey> past their retention date, oldest first */
+    public function findPastRetention(\DateTimeImmutable $now): array
+    {
+        /** @var list<ArchivedUserKey> */
+        return $this->createQueryBuilder('k')
+            ->andWhere('k.retainUntil <= :now')
+            ->setParameter('now', $now)
+            ->orderBy('k.retainUntil', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

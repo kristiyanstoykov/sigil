@@ -69,6 +69,24 @@ final class KeyManagementService
     }
 
     /**
+     * Put a known KEK back under the root wrapper, for a restored account
+     * (ADR-015 §4): every grant wrapped under it is readable again.
+     *
+     * @throws DomainException if the user already has a KEK, or is still deleted
+     */
+    public function adoptKek(User $user, #[\SensitiveParameter] string $kek): void
+    {
+        if (null !== $this->keys->findForUser($user)) {
+            throw new DomainException('This account already has an encryption key.');
+        }
+
+        $this->keys->insertIfAbsent($user, base64_encode($this->rootWrapper->wrapKek($kek, $this->kekAad($user))));
+        if (null === $this->keys->findForUser($user)) {
+            throw new DomainException('The encryption key could not be restored.');
+        }
+    }
+
+    /**
      * Wrap a raw DEK under $user's KEK, returning base64 for storage in a
      * DocumentKeyGrant. $aad binds the wrap to its context (the file-version id).
      */

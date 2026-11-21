@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Functional\Account;
 
+use App\Account\Repository\AccountClosureRecordRepository;
 use App\Account\Repository\ArchivedUserKeyRepository;
 use App\Account\Service\AccountDeleter;
 use App\Account\Service\ArchiveKeyWrapper;
+use App\Account\Service\ClosureRecordSealer;
 use App\Account\Service\RecoveryCode;
 use App\AuditLog\Repository\AuditLogEntryRepository;
 use App\Auth\Security\EmailFingerprinter;
@@ -80,6 +82,22 @@ final class AccountDeleterTest extends AuthWebTestCase
 
         $entries = $this->get(AuditLogEntryRepository::class)->findBy(['action' => 'account.deleted', 'subjectId' => $user->getId()->toRfc4122()]);
         self::assertCount(1, $entries);
+    }
+
+    public function testAClosureRecordIsSealedUnderTheKekBeforeItIsArchived(): void
+    {
+        $user = $this->createUser($this->uniqueEmail('leaver'));
+        $summary = $this->deleter()->delete($user);
+
+        $records = $this->get(AccountClosureRecordRepository::class)->findForUser($user);
+        self::assertCount(1, $records);
+        self::assertEquals($summary->deletedAt, $records[0]->getSealedAt());
+        $entry = $this->get(AuditLogEntryRepository::class)->findOneBy(['action' => 'account.deleted', 'subjectId' => $user->getId()->toRfc4122()]);
+        self::assertSame($records[0]->getId()->toRfc4122(), $entry?->getPayload()['closureRecordId'] ?? null);
+
+        // Unreadable while the account is deleted; the restore test reads it back.
+        $this->expectException(DomainException::class);
+        $this->get(ClosureRecordSealer::class)->read($records[0], $user);
     }
 
     public function testNoKeyIsEverMintedForADeletedAccount(): void

@@ -1,7 +1,8 @@
 #!/bin/sh
-# The Messenger worker (ADR-015): builds data exports and runs the temporary-
-# download sweep on its schedule. Same image and code as the app; the app's
-# entrypoint installs vendor/ and migrates (compose starts the worker after it).
+# The Messenger worker (ADR-015): builds data exports and runs the scheduled
+# sweeps - temporary downloads, overdue signature requests, retention. Same
+# image and code as the app; the app's entrypoint installs vendor/ and migrates
+# (compose starts the worker after it).
 set -e
 
 ENV="${APP_ENV:-dev}"
@@ -24,7 +25,7 @@ echo "==> Messenger worker ($ENV)"
 # Each run exits after an hour or 400 MB so a leak cannot grow forever; the loop
 # starts the next one, and a crashed run is retried after a pause.
 while :; do
-    php bin/console messenger:consume async scheduler_temp_download \
+    php bin/console messenger:consume async scheduler_temp_download scheduler_signing scheduler_retention \
         --time-limit=3600 --memory-limit=400M --no-interaction -v &
     child=$!
     wait "$child" || sleep 5

@@ -25,6 +25,12 @@
         Sigil stores only a fingerprint of this code and cannot show it to you again.
         After {{ retainUntil|date('j M Y') }} everything is erased for good.
     </p>
+    {% if hasClosureRecord %}
+        <p style="margin:0 0 16px;">
+            The attached closure record, sealed by Sigil, lists what was closed and revoked.
+            It does not contain your recovery code.
+        </p>
+    {% endif %}
 {% endblock %}
 
 {% block note %}If you did not delete your account, contact the administrator immediately.{% endblock %}

@@ -20,8 +20,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Closes signature requests whose deadline has passed. Meant for cron - once an
- * hour is plenty, since the deadline is measured in days.
+ * Closes signature requests whose deadline has passed. The worker runs it at
+ * five past every hour (SigningSweepSchedule); the deadline is measured in days.
  *
  * A request nobody signed takes its document with it: Sigil is not a storage
  * application, and an unsigned document that ran out of time has no reason to

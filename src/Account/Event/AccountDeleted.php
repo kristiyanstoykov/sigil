@@ -18,6 +18,7 @@ final readonly class AccountDeleted
         public string $formerEmail,
         public string $formerName,
         public AccountDeletionSummary $summary,
+        public ?string $closureRecordPdf = null,
     ) {
     }
 }

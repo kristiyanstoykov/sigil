@@ -49,8 +49,8 @@ services:
       mercure:
         condition: service_started
 
-  # Messenger worker (ADR-015): builds data exports and sweeps one-time
-  # downloads on its schedule. The app image and code; its own var/, so a
+  # Messenger worker (ADR-015): builds data exports and runs the scheduled
+  # sweeps (one-time downloads, overdue signature requests, retention). The app image and code; its own var/, so a
   # `local` storage backend would not be shared with the app (dev uses S3).
   # Export zips are assembled in a tmpfs, so decrypted files never touch a disk.
   worker:

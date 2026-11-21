@@ -64,6 +64,10 @@ final class AuditActionExtension extends AbstractExtension
         'data_export.ready' => ['classes' => self::SUCCESS, 'icon' => 'ti-file-zip', 'label' => 'A data export was prepared', 'family' => 'account'],
         'data_export.failed' => ['classes' => self::DANGER, 'icon' => 'ti-alert-octagon', 'label' => 'A data export failed', 'family' => 'account'],
         'account.deleted' => ['classes' => self::DANGER, 'icon' => 'ti-user-off', 'label' => 'Deleted the account', 'family' => 'account'],
+        'account.closure_record_failed' => ['classes' => self::WARNING, 'icon' => 'ti-alert-triangle', 'label' => 'The closure record could not be sealed', 'family' => 'account'],
+        'account.restored' => ['classes' => self::SUCCESS, 'icon' => 'ti-user-check', 'label' => 'Restored the account', 'family' => 'account'],
+        'account.recovery_reissued' => ['classes' => self::WARNING, 'icon' => 'ti-key', 'label' => 'A new recovery code was issued', 'family' => 'account'],
+        'retention.purged' => ['classes' => self::DANGER, 'icon' => 'ti-trash', 'label' => 'Retention period ended; documents erased', 'family' => 'account'],
         'temp_download.downloaded' => ['classes' => self::NEUTRAL, 'icon' => 'ti-download', 'label' => 'Downloaded an export archive', 'family' => 'account'],
     ];
 

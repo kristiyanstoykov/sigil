@@ -25,22 +25,25 @@ final class SendAccountDeletedMail
         $summary = $event->summary;
 
         try {
-            $this->mailer->trySend(
-                (new TemplatedEmail())
-                    ->to($event->formerEmail)
-                    ->subject('Your Sigil account has been deleted')
-                    ->htmlTemplate('emails/account_deleted.html.twig')
-                    ->context([
-                        'name' => $event->formerName,
-                        'deletedAt' => $summary->deletedAt,
-                        'retainUntil' => $summary->retainUntil,
-                        'recoveryCode' => $summary->recoveryCode,
-                        'requestsClosed' => \count($summary->closedRequests),
-                        'certificatesRevoked' => \count($summary->revokedSerials),
-                        'draftsErased' => $summary->draftsErased,
-                        'documentsRetained' => $summary->documentsRetained,
-                    ]),
-            );
+            $email = (new TemplatedEmail())
+                ->to($event->formerEmail)
+                ->subject('Your Sigil account has been deleted')
+                ->htmlTemplate('emails/account_deleted.html.twig')
+                ->context([
+                    'name' => $event->formerName,
+                    'deletedAt' => $summary->deletedAt,
+                    'retainUntil' => $summary->retainUntil,
+                    'recoveryCode' => $summary->recoveryCode,
+                    'requestsClosed' => \count($summary->closedRequests),
+                    'certificatesRevoked' => \count($summary->revokedSerials),
+                    'draftsErased' => $summary->draftsErased,
+                    'documentsRetained' => $summary->documentsRetained,
+                    'hasClosureRecord' => null !== $event->closureRecordPdf,
+                ]);
+            if (null !== $event->closureRecordPdf) {
+                $email->attach($event->closureRecordPdf, sprintf('account-closure-%s.pdf', $summary->deletedAt->format('Y-m-d')), 'application/pdf');
+            }
+            $this->mailer->trySend($email);
         } catch (\Throwable $e) {
             $this->logger->error('Could not send the account deletion mail.', [
                 'userId' => $summary->userId,

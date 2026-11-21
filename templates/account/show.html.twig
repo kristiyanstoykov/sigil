@@ -1,0 +1,57 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Your account · Sigil{% endblock %}
+{% block main_class %}docs-gradient{% endblock %}
+
+{% block content %}
+{% set user = app.user %}
+<div class="docs-rise mx-auto max-w-3xl">
+
+    <div class="mb-5">
+        <h1 class="text-2xl font-extrabold tracking-tight text-theme-headings">Your account</h1>
+        <p class="mt-1 text-sm text-theme-secondarytextcolor">{{ user.fullName }} &middot; {{ user.email }}</p>
+    </div>
+
+    <div class="card !mb-5 !bg-white/90 p-5 flex flex-wrap items-center gap-4">
+        <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-500/10 text-primary-500">
+            <i class="ti ti-file-zip text-xl leading-none" aria-hidden="true"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+            <p class="text-sm font-bold text-theme-headings mb-0">Download all your documents</p>
+            <p class="text-sm text-theme-secondarytextcolor mb-0">The latest version of everything you can open, as zip archives.</p>
+        </div>
+        <a href="{{ path('app_account_export') }}" class="btn btn-outline-secondary btn-sm">Open</a>
+    </div>
+
+    {% if closure_records is not empty %}
+        <div class="card !mb-5 overflow-hidden !bg-white/90">
+            <div class="border-b border-theme-border/60 px-5 py-3">
+                <p class="text-sm font-bold text-theme-headings mb-0">Closure records</p>
+                <p class="text-xs text-theme-secondarytextcolor mb-0">Sealed by Sigil each time this account was deleted. They came back when you restored it.</p>
+            </div>
+            <ul class="divide-y divide-theme-border/60">
+                {% for record in closure_records %}
+                    <li class="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <i class="ti ti-certificate text-xl leading-none text-primary-500" aria-hidden="true"></i>
+                        <span class="flex-1 text-sm text-theme-bodycolor">Account deleted on {{ record.sealedAt|date('d.m.Y H:i') }} UTC</span>
+                        <a href="{{ path('app_account_closure_record', {id: record.id}) }}" data-turbo="false" class="btn btn-outline-secondary btn-sm inline-flex items-center gap-2">
+                            <i class="ti ti-download text-base leading-none" aria-hidden="true"></i> Download
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="card !mb-0 !bg-white/90 p-5 border border-danger-500/30 flex flex-wrap items-center gap-4">
+        <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-500/10 text-danger-600">
+            <i class="ti ti-user-off text-xl leading-none" aria-hidden="true"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+            <p class="text-sm font-bold text-theme-headings mb-0">Delete your account</p>
+            <p class="text-sm text-theme-secondarytextcolor mb-0">Closes your open requests and revokes your certificates. Signed documents are kept for 10 years.</p>
+        </div>
+        <a href="{{ path('app_account_delete') }}" class="btn btn-outline-danger btn-sm">Delete account&hellip;</a>
+    </div>
+</div>
+{% endblock %}

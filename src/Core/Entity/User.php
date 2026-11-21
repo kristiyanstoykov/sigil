@@ -331,4 +331,33 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         $this->lastTotpCode = null;
         $this->lastTotpUsedAt = null;
     }
+
+    /**
+     * Brings a tombstoned account back on the same id (ADR-015 §4). Everything
+     * personal is new; roles start over and TOTP is enrolled again at first login.
+     *
+     * @param non-empty-string $email
+     */
+    public function restore(string $email, string $firstName, string $lastName, ?string $company, ?string $position, string $passwordHash): void
+    {
+        $this->deletedAt = null;
+        $this->emailFingerprint = null;
+        $this->recoveryCodeHash = null;
+        $this->email = $email;
+        $this->firstName = $firstName;
+        $this->lastName = $lastName;
+        $this->company = $company;
+        $this->position = $position;
+        $this->password = $passwordHash;
+        $this->roles = ['ROLE_SIGNER'];
+        $this->isVerified = true;
+        $this->googleAuthenticatorSecret = null;
+        $this->totpEnabled = false;
+    }
+
+    /** A new recovery code for a deleted account whose holder lost theirs (ADR-015 §4). */
+    public function replaceRecoveryCodeHash(string $recoveryCodeHash): void
+    {
+        $this->recoveryCodeHash = $recoveryCodeHash;
+    }
 }

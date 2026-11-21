@@ -43,6 +43,10 @@
                             <p class="text-sm font-medium text-theme-headings mb-0">{{ app.user.fullName }}</p>
                             <p class="text-sm text-theme-secondarytextcolor truncate mb-0">{{ app.user.email }}</p>
                         </div>
+                        <a href="{{ path('app_account') }}" class="dropdown-item">
+                            <i class="ti ti-user" aria-hidden="true"></i>
+                            <span>Your account</span>
+                        </a>
                         <form method="post" action="{{ path('app_logout') }}">
                             <input type="hidden" name="_csrf_token" data-controller="csrf-protection" value="{{ csrf_token('logout') }}">
                             <button type="submit" data-no-loader class="dropdown-item w-full text-left">
