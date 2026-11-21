@@ -20,6 +20,7 @@ use App\Core\Process\JsonDriver;
 use App\Core\Exception\DomainException;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\Group;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Process\Process;
 
@@ -27,6 +28,7 @@ use Symfony\Component\Process\Process;
  * Exercises the real chain: kryoptic token init, in-token keygen, CA-signed
  * cert via the Python driver. Requires an initialized CA (sigil:ca:init).
  */
+#[Group('creates-tokens')]
 class CertificateIssueTest extends AuthWebTestCase
 {
     /** @var list<string> */

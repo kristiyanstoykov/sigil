@@ -17,3 +17,10 @@ framework:
         # Namespaced pools use the above "app" backend by default
         #pools:
             #my.dedicated.cache: null
+
+when@test:
+    framework:
+        cache:
+            # One pool directory per ParaTest worker, so one worker clearing the
+            # rate limiter never resets another's attempt count.
+            directory: '%kernel.cache_dir%/pools%env(default::TEST_TOKEN)%'
