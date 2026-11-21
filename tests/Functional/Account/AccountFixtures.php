@@ -74,7 +74,7 @@ trait AccountFixtures
     private function signer(): DocumentSigner
     {
         $c = static::getContainer();
-        $caDir = sys_get_temp_dir().'/sigil-account-test-ca';
+        $caDir = sys_get_temp_dir().'/sigil-account-test-ca'.getenv('TEST_TOKEN');
         @mkdir($caDir);
         file_put_contents($caDir.'/ca.crt', "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n");
 

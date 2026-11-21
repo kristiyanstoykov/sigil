@@ -115,6 +115,7 @@
         }
     },
     "require-dev": {
+        "brianium/paratest": "^7.23",
         "phpstan/phpstan": "^2.2",
         "phpstan/phpstan-doctrine": "^2.0",
         "phpstan/phpstan-symfony": "^2.0",

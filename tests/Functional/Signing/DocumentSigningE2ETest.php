@@ -21,6 +21,7 @@ use App\Document\Service\DocumentUploader;
 use App\Signing\Service\DocumentSigner;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\Group;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Process\Process;
 
@@ -31,6 +32,7 @@ use Symfony\Component\Process\Process;
  * the Sigil CA. Requires an initialized CA (sigil:ca:init). Test env uses the
  * "none" TSA, so the signature is PAdES-B-B (no network).
  */
+#[Group('creates-tokens')]
 class DocumentSigningE2ETest extends AuthWebTestCase
 {
     private const PIN = 'Test-PIN-2026!';

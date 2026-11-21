@@ -11,12 +11,14 @@ use App\Certificate\Service\Pkcs11TokenManager;
 use App\Core\Entity\User;
 use App\Tests\Functional\AuthWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * The 72h certificate hold (virtual "certificateHold" state) and the PIN gate
  * on the lifecycle actions: hold, resume and revoke all require the PIN while
  * the certificate is otherwise usable.
  */
+#[Group('creates-tokens')]
 final class CertificateHoldTest extends AuthWebTestCase
 {
     private const PIN = 'Test-PIN-2026!';

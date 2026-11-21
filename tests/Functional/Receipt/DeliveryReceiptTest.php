@@ -39,6 +39,7 @@ use App\Signing\Service\DocumentSigner;
 use App\Signing\Service\NoTsaProvider;
 use App\Signing\Service\PadesSignerInterface;
 use App\Signing\Service\PadesSignRequest;
+use PHPUnit\Framework\Attributes\Group;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use App\Signing\Service\SigningRequestService;
 use App\Signing\Service\TsaProviderRegistry;
@@ -53,6 +54,7 @@ use Symfony\Component\Process\Process;
  * The seal certificate is the real one (so the recorded serial is real), but the
  * PKCS#11 signature is faked - the E2E variant covers the actual token.
  */
+#[Group('creates-tokens')]
 class DeliveryReceiptTest extends AuthWebTestCase
 {
     private const PIN = '135790';
